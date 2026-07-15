@@ -488,21 +488,25 @@ def generar_mapa_html(url_sheets, direccion_permitida):
             document.getElementById('fSuc1').innerText = node.Suc1 || "Pendiente";
             document.getElementById('fRead1').innerText = node.Read1 && node.Read1 !== 'Pendiente' ? node.Read1 : "Sin tiempo definido";
             
-            if(node.Suc2 && node.Suc2 !== "") {
+            // ==========================================
+            // AQUÍ ESTÁN LAS LLAVES DOBLES CORREGIDAS
+            // ==========================================
+            if(node.Suc2 && node.Suc2 !== "") {{
                 document.getElementById('divSucesor2').style.display = "block";
                 document.getElementById('fSuc2').innerText = node.Suc2;
                 document.getElementById('fRead2').innerText = node.Read2 || "Sin tiempo definido";
-            } else {
+            }} else {{
                 document.getElementById('divSucesor2').style.display = "none";
-            }
+            }}
             
-            if(node.Suc3 && node.Suc3 !== "") {
+            if(node.Suc3 && node.Suc3 !== "") {{
                 document.getElementById('divSucesor3').style.display = "block";
                 document.getElementById('fSuc3').innerText = node.Suc3;
                 document.getElementById('fRead3').innerText = node.Read3 || "Sin tiempo definido";
-            } else {
+            }} else {{
                 document.getElementById('divSucesor3').style.display = "none";
-            }
+            }}
+            // ==========================================
 
             var boxResult = node.Resultado_9Box || "N/A";
             var f9Box = document.getElementById('f9Box'); f9Box.innerText = boxResult;
