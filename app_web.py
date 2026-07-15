@@ -8,7 +8,6 @@ import streamlit.components.v1 as components
 # ==========================================
 # SISTEMA DE SEGURIDAD Y LOGIN (SIMULADO)
 # ==========================================
-# AQUÍ ESTÁ EL CAMBIO: Le asignamos a cada usuario qué "Dirección" tiene permiso de ver.
 USUARIOS_AUTORIZADOS = {
     "admin": {"nombre": "Administrador Global", "password": "admin", "direccion": "TODAS"},
     "d.comercial": {"nombre": "Director Comercial", "password": "123", "direccion": "DIRECCIÓN COMERCIAL"},
@@ -60,11 +59,17 @@ def generar_mapa_html(url_sheets, direccion_permitida):
 
     # ================================================================
     # MAGIA DEL PASO 3: RECORTE ESTRICTO DE DATOS POR USUARIO
-    # Si no es "TODAS", eliminamos del dataframe a los que no son de su área
     # ================================================================
     if direccion_permitida != "TODAS":
-        # Filtramos buscando que la columna Dirección contenga su área autorizada
-        df = df[df['Dirección'].astype(str).str.upper().str.contains(direccion_permitida)]
+        # Condición 1: Es del área permitida del usuario
+        es_del_area = df['Dirección'].astype(str).str.upper().str.contains(direccion_permitida)
+        
+        # Condición 2: Es la cabeza de la empresa (Andrés / Nivel MLA 5)
+        # Esto evita el problema del "nodo fantasma 3474"
+        es_raiz = df['Nivel MLA'].astype(str).str.strip() == '5'
+        
+        # Filtramos manteniendo a su área O a la raíz de la empresa
+        df = df[es_del_area | es_raiz]
         
         if df.empty:
             return f"<div style='padding:50px; text-align:center;'><h3>No hay datos para la {direccion_permitida}</h3></div>"
@@ -481,7 +486,8 @@ def generar_mapa_html(url_sheets, direccion_permitida):
             if (selectedLider !== "Todos" && node.Nombre === selectedLider) {{ isVisible = true;
             }} else {{
                 var matchLider = (selectedLider === "Todos") || (node.Lider == selectedLider);
-                var matchDireccion = (selectedDireccion === "Todos") || (node.Direccion == selectedDireccion);
+                // AQUI ESTÁ EL CAMBIO DE JAVASCRIPT: Si es el Nivel MLA 5 (Andrés), nunca lo ocultes con el filtro de dirección
+                var matchDireccion = (selectedDireccion === "Todos") || (node.Direccion == selectedDireccion) || (node.Nivel_MLA === "5");
                 var matchCritica = (selectedCritica === "Todos") || (node.Critica == selectedCritica);
                 var matchMLA = (selectedMLA === "Todos") || (node.Nivel_MLA == selectedMLA);
                 var match9Box = (selected9Box === "Todos") || (node.Resultado_9Box == selected9Box);
@@ -535,7 +541,6 @@ def main():
     with st.spinner("Descargando base de datos y aplicando seguridad de segmentación..."):
         link_google_sheets = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit?pli=1&gid=0#gid=0"
         
-        # Le enviamos al servidor el permiso del usuario que acaba de entrar
         direccion_permitida = USUARIOS_AUTORIZADOS[st.session_state["id_usuario"]]["direccion"]
         html_mapa = generar_mapa_html(link_google_sheets, direccion_permitida)
         
