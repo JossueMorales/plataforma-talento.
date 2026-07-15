@@ -57,23 +57,12 @@ def generar_mapa_html(url_sheets, direccion_permitida):
 
     df.columns = [str(col).strip() for col in df.columns]
 
-    # ================================================================
-    # MAGIA DEL PASO 3: RECORTE ESTRICTO DE DATOS POR USUARIO
-    # ================================================================
     if direccion_permitida != "TODAS":
-        # Condición 1: Es del área permitida del usuario
         es_del_area = df['Dirección'].astype(str).str.upper().str.contains(direccion_permitida)
-        
-        # Condición 2: Es la cabeza de la empresa (Andrés / Nivel MLA 5)
-        # Esto evita el problema del "nodo fantasma 3474"
         es_raiz = df['Nivel MLA'].astype(str).str.strip() == '5'
-        
-        # Filtramos manteniendo a su área O a la raíz de la empresa
         df = df[es_del_area | es_raiz]
-        
         if df.empty:
             return f"<div style='padding:50px; text-align:center;'><h3>No hay datos para la {direccion_permitida}</h3></div>"
-    # ================================================================
 
     G = nx.MultiDiGraph()
     G_jerarquia = nx.DiGraph() 
@@ -83,6 +72,11 @@ def generar_mapa_html(url_sheets, direccion_permitida):
         v = str(val).strip()
         if v.endswith('.0'): return v[:-2]
         return v
+
+    def clean_text(val, default=''):
+        if pd.isna(val) or str(val).strip().lower() in ['nan', 'none', '']:
+            return default
+        return str(val).strip()
 
     def obtener_color_9box(valor):
         v = str(valor).strip().upper()
@@ -113,14 +107,10 @@ def generar_mapa_html(url_sheets, direccion_permitida):
         emp = clean_id(row['id Empleado'])
         jefe = clean_id(row['ID Del Jefe'])
         
-        direccion = str(row.get('Dirección', row.get('Direccion', 'No asignada'))).strip()
-        if direccion.lower() in ['nan', 'none', '']: direccion = 'No asignada'
-        
-        mla = str(row.get('Nivel MLA', 'N/A')).strip()
-        box = str(row.get('Resultado 9 box', 'Pendiente')).strip()
-        
-        critica = str(row.get('Posición Crítica', row.get('Posicion Critica', 'No'))).strip()
-        if critica.lower() in ['nan', 'none', '']: critica = 'No'
+        direccion = clean_text(row.get('Dirección', row.get('Direccion')), 'No asignada')
+        mla = clean_text(row.get('Nivel MLA'), 'N/A')
+        box = clean_text(row.get('Resultado 9 box'), 'Pendiente')
+        critica = clean_text(row.get('Posición Crítica', row.get('Posicion Critica')), 'No')
         
         nombre_lider = nombres_dict.get(jefe, 'Sin Líder') if jefe not in ['', 'NAN', 'NONE'] else 'Sin Líder'
         
@@ -130,12 +120,19 @@ def generar_mapa_html(url_sheets, direccion_permitida):
             
             info_nodos[emp] = {
                 'mla': mla,
-                'puesto': str(row.get('Nombre de la Posición', '')).strip().upper(),
+                'puesto': clean_text(row.get('Nombre de la Posición')).upper(),
                 'direccion': direccion,
                 'box': box,
                 'lider': nombre_lider,
                 'critica': critica,
-                'nombre': str(row.get('Nombre', '')).strip()
+                'nombre': clean_text(row.get('Nombre')),
+                'interes': clean_text(row.get('Interés del Colaborador'), 'Pendiente'),
+                'suc1': clean_text(row.get('Sucesor P.1'), 'Pendiente'),
+                'read1': clean_text(row.get('Tiempo de Readiness 1'), 'Pendiente'),
+                'suc2': clean_text(row.get('Sucesor P.2')),
+                'read2': clean_text(row.get('Tiempo de Readiness 2')),
+                'suc3': clean_text(row.get('Sucesor P.3')),
+                'read3': clean_text(row.get('Tiempo de Readiness 3'))
             }
             
             if direccion != 'No asignada': direcciones_unicas.add(direccion)
@@ -238,17 +235,39 @@ def generar_mapa_html(url_sheets, direccion_permitida):
             id_empleado = clean_id(row['id Empleado'])
             if not id_empleado: continue
                 
-            nombre = str(row['Nombre']).strip()
-            puesto = str(row['Nombre de la Posición']).strip()
             info = info_nodos.get(id_empleado, {})
+            nombre = info.get('nombre', 'Desconocido')
+            puesto = info.get('puesto', '')
             nivel_mla = info.get('mla', 'N/A')
             resultado_9box = info.get('box', 'Pendiente')
             direccion = info.get('direccion', 'No asignada')
             lider = info.get('lider', 'Sin Líder')
             critica = info.get('critica', 'No')
             
+            interes = info.get('interes', 'Pendiente')
+            suc1 = info.get('suc1', 'Pendiente')
+            read1 = info.get('read1', 'Pendiente')
+            suc2 = info.get('suc2', '')
+            read2 = info.get('read2', '')
+            suc3 = info.get('suc3', '')
+            read3 = info.get('read3', '')
+            
             riesgos_lista = []
-            if critica.lower() == 'si' and sucesores_de.get(id_empleado, 0) == 0: riesgos_lista.append("🔥 Crítica sin Sucesor")
+            
+            # ========================================================
+            # NUEVO CEREBRO DE IA PARA SUCESORES ESCALONADOS
+            # ========================================================
+            es_critica = (critica.lower() == 'si')
+            tiene_oficial = (suc1.lower() != 'pendiente' and suc1 != '')
+            tiene_hipos_9box = (sucesores_de.get(id_empleado, 0) > 0)
+            
+            if es_critica:
+                if not tiene_oficial and not tiene_hipos_9box:
+                    riesgos_lista.append("🔥 Riesgo Crítico: Sin Sucesor ni HiPos")
+                elif not tiene_oficial and tiene_hipos_9box:
+                    riesgos_lista.append("⚠️ Sugerencia: HiPo disponible, falta oficializar")
+            # ========================================================
+                    
             reps = reportes_directos.get(id_empleado, 0)
             if reps >= 12: riesgos_lista.append(f"⚠️ Sobrecarga ({reps} reportes)")
             elif reps == 1: riesgos_lista.append("⚠️ Ineficiencia (1 reporte)")
@@ -266,6 +285,7 @@ def generar_mapa_html(url_sheets, direccion_permitida):
                 id_empleado, label=etiqueta_visible, title=tooltip_html, size=tamaño_nodo, color=color_nodo, 
                 shape='dot', group=nivel_mla, Nivel_MLA=nivel_mla, Resultado_9Box=resultado_9box, 
                 Direccion=direccion, Lider=lider, Critica=critica, Nombre=nombre, Puesto=puesto, Riesgos=riesgos_str,
+                Interes=interes, Suc1=suc1, Read1=read1, Suc2=suc2, Read2=read2, Suc3=suc3, Read3=read3,
                 x=coord_data['x'], y=coord_data['y'], 
                 Angle=coord_data['angle'], AnilloReal=coord_data['anillo_real'], Profundidad=coord_data['profundidad']
             )
@@ -287,7 +307,7 @@ def generar_mapa_html(url_sheets, direccion_permitida):
                 if j2: G.add_edge(id_empleado, j2, color='#388e3c', width=3, dashes=True, title='Proyección N+2', is_jump=True)
         except: pass
 
-    net = Network(height='800px', width='100%', bgcolor='#f8f9fa', font_color='#333333', directed=True, cdn_resources='remote')
+    net = Network(height='1000px', width='100%', bgcolor='#f8f9fa', font_color='#333333', directed=True, cdn_resources='remote')
     net.from_nx(G)
     net.set_options("""
     var options = {
@@ -333,23 +353,45 @@ def generar_mapa_html(url_sheets, direccion_permitida):
     opciones_critica = "".join([f'<option value="{x}">{x}</option>' for x in sorted(criticas_unicas)])
     
     boton_html = f"""
-    <div id="fichaLateral" style="position: absolute; top: 0; left: -400px; width: 320px; height: 100vh; background: white; box-shadow: 2px 0 15px rgba(0,0,0,0.15); transition: left 0.3s ease; z-index: 10000; font-family: Arial, sans-serif; display: flex; flex-direction: column;">
-        <div style="background: #1976d2; padding: 20px; color: white; position: relative;">
+    <div id="fichaLateral" style="position: absolute; top: 0; left: -400px; width: 340px; height: 100vh; background: white; box-shadow: 2px 0 15px rgba(0,0,0,0.15); transition: left 0.3s ease; z-index: 10000; font-family: Arial, sans-serif; display: flex; flex-direction: column;">
+        <div style="background: #1976d2; padding: 20px; color: white; position: relative; flex-shrink: 0;">
             <button onclick="cerrarFicha()" style="position: absolute; top: 15px; right: 15px; background: transparent; border: none; color: white; font-size: 20px; cursor: pointer;">&times;</button>
             <h2 id="fNombre" style="margin: 0; font-size: 20px; padding-right: 20px;">Nombre</h2>
             <p id="fPuesto" style="margin: 5px 0 0 0; font-size: 14px; opacity: 0.9;">Puesto</p>
         </div>
-        <div style="padding: 20px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto;">
+        <div style="padding: 20px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex-grow: 1; padding-bottom: 50px;">
             <div style="background: #ffebee; padding: 10px; border-radius: 5px; border-left: 4px solid #d32f2f;">
                 <span style="font-size: 12px; color: #d32f2f; font-weight: bold; text-transform: uppercase;">Alertas de RH</span><br>
                 <span id="fRiesgos" style="font-size: 14px; color: #b71c1c; font-weight: bold;">-</span>
             </div>
-            <div><span style="font-size: 12px; color: #777; font-weight: bold;">LÍDER DIRECTO</span><br><span id="fLider" style="font-size: 15px; color: #333;">-</span></div>
-            <div><span style="font-size: 12px; color: #777; font-weight: bold;">DIRECCIÓN</span><br><span id="fDireccion" style="font-size: 15px; color: #333;">-</span></div>
-            <div><span style="font-size: 12px; color: #777; font-weight: bold;">POSICIÓN CRÍTICA</span><br><span id="fCritica" style="font-size: 15px; color: #333;">-</span></div>
+            <div><span style="font-size: 12px; color: #777; font-weight: bold;">LÍDER DIRECTO</span><br><span id="fLider" style="font-size: 14px; color: #333;">-</span></div>
+            <div><span style="font-size: 12px; color: #777; font-weight: bold;">DIRECCIÓN</span><br><span id="fDireccion" style="font-size: 14px; color: #333;">-</span></div>
+            <div><span style="font-size: 12px; color: #777; font-weight: bold;">POSICIÓN CRÍTICA</span><br><span id="fCritica" style="font-size: 14px; color: #333;">-</span></div>
             <div style="display: flex; gap: 20px;">
                 <div><span style="font-size: 12px; color: #777; font-weight: bold;">NIVEL MLA</span><br><span id="fMLA" style="font-size: 16px; font-weight: bold; color: #1976d2;">-</span></div>
                 <div><span style="font-size: 12px; color: #777; font-weight: bold;">9-BOX</span><br><span id="f9Box" style="display: inline-block; padding: 2px 10px; border-radius: 12px; background: #eee; font-size: 14px; font-weight: bold; color: #333; margin-top: 2px;">-</span></div>
+            </div>
+            
+            <hr style="border: 0; border-top: 2px dashed #ddd; margin: 10px 0;">
+            <div style="font-size: 14px; color: #1565c0; font-weight: bold; text-transform: uppercase; margin-bottom: -5px;">📈 Plan de Sucesión</div>
+            <div><span style="font-size: 11px; color: #777; font-weight: bold;">INTERÉS DEL COLABORADOR</span><br><span id="fInteres" style="font-size: 14px; color: #333; font-weight:bold;">-</span></div>
+            
+            <div id="divSucesor1" style="background: #f8f9fa; padding: 8px; border-radius: 6px; border-left: 3px solid #1976d2;">
+                <span style="font-size: 11px; color: #555; font-weight: bold;">OPCIÓN DE SUCESIÓN 1</span><br>
+                <span id="fSuc1" style="font-size: 14px; color: #333; font-weight:bold;">-</span><br>
+                <span id="fRead1" style="font-size: 13px; color: #555; margin-top:3px; display:inline-block;">-</span>
+            </div>
+            
+            <div id="divSucesor2" style="background: #f8f9fa; padding: 8px; border-radius: 6px; border-left: 3px solid #81c784; display:none;">
+                <span style="font-size: 11px; color: #555; font-weight: bold;">OPCIÓN DE SUCESIÓN 2</span><br>
+                <span id="fSuc2" style="font-size: 14px; color: #333; font-weight:bold;">-</span><br>
+                <span id="fRead2" style="font-size: 13px; color: #555; margin-top:3px; display:inline-block;">-</span>
+            </div>
+            
+            <div id="divSucesor3" style="background: #f8f9fa; padding: 8px; border-radius: 6px; border-left: 3px solid #fbc02d; display:none;">
+                <span style="font-size: 11px; color: #555; font-weight: bold;">OPCIÓN DE SUCESIÓN 3</span><br>
+                <span id="fSuc3" style="font-size: 14px; color: #333; font-weight:bold;">-</span><br>
+                <span id="fRead3" style="font-size: 13px; color: #555; margin-top:3px; display:inline-block;">-</span>
             </div>
         </div>
     </div>
@@ -440,6 +482,28 @@ def generar_mapa_html(url_sheets, direccion_permitida):
             document.getElementById('fCritica').innerText = node.Critica || "N/A";
             document.getElementById('fMLA').innerText = node.Nivel_MLA || "N/A";
             document.getElementById('fRiesgos').innerText = node.Riesgos || "Ninguno";
+            
+            document.getElementById('fInteres').innerText = node.Interes || "Pendiente";
+            
+            document.getElementById('fSuc1').innerText = node.Suc1 || "Pendiente";
+            document.getElementById('fRead1').innerText = node.Read1 && node.Read1 !== 'Pendiente' ? node.Read1 : "Sin tiempo definido";
+            
+            if(node.Suc2 && node.Suc2 !== "") {
+                document.getElementById('divSucesor2').style.display = "block";
+                document.getElementById('fSuc2').innerText = node.Suc2;
+                document.getElementById('fRead2').innerText = node.Read2 || "Sin tiempo definido";
+            } else {
+                document.getElementById('divSucesor2').style.display = "none";
+            }
+            
+            if(node.Suc3 && node.Suc3 !== "") {
+                document.getElementById('divSucesor3').style.display = "block";
+                document.getElementById('fSuc3').innerText = node.Suc3;
+                document.getElementById('fRead3').innerText = node.Read3 || "Sin tiempo definido";
+            } else {
+                document.getElementById('divSucesor3').style.display = "none";
+            }
+
             var boxResult = node.Resultado_9Box || "N/A";
             var f9Box = document.getElementById('f9Box'); f9Box.innerText = boxResult;
             f9Box.style.backgroundColor = node.color || "#eee";
@@ -486,7 +550,6 @@ def generar_mapa_html(url_sheets, direccion_permitida):
             if (selectedLider !== "Todos" && node.Nombre === selectedLider) {{ isVisible = true;
             }} else {{
                 var matchLider = (selectedLider === "Todos") || (node.Lider == selectedLider);
-                // AQUI ESTÁ EL CAMBIO DE JAVASCRIPT: Si es el Nivel MLA 5 (Andrés), nunca lo ocultes con el filtro de dirección
                 var matchDireccion = (selectedDireccion === "Todos") || (node.Direccion == selectedDireccion) || (node.Nivel_MLA === "5");
                 var matchCritica = (selectedCritica === "Todos") || (node.Critica == selectedCritica);
                 var matchMLA = (selectedMLA === "Todos") || (node.Nivel_MLA == selectedMLA);
@@ -544,7 +607,7 @@ def main():
         direccion_permitida = USUARIOS_AUTORIZADOS[st.session_state["id_usuario"]]["direccion"]
         html_mapa = generar_mapa_html(link_google_sheets, direccion_permitida)
         
-        components.html(html_mapa, height=800, scrolling=False)
+        components.html(html_mapa, height=1000, scrolling=False)
 
 if __name__ == "__main__":
     main()
