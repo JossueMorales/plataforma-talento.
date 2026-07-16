@@ -21,7 +21,10 @@ def login():
         st.session_state["usuario_logueado"] = False
 
     if not st.session_state["usuario_logueado"]:
-        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS</h1>", unsafe_allow_html=True)
+        # =========================================================
+        # CAMBIO DE TÍTULO PARA VERIFICAR QUE SE SUBIÓ BIEN A GITHUB
+        # =========================================================
+        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v3.0</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #666;'>Inicia sesión para acceder al mapa organizacional</p>", unsafe_allow_html=True)
         
         col1, col2, col3 = st.columns([1, 1, 1])
@@ -293,8 +296,6 @@ def generar_mapa_html(url_sheets, direccion_permitida):
                 shape='dot', group=nivel_mla, Nivel_MLA=nivel_mla, Resultado_9Box=resultado_9box, 
                 Direccion=direccion, Lider=lider, Critica=critica, Nombre=nombre, Puesto=puesto, Riesgos=riesgos_str,
                 Interes=interes, Suc1=suc1, Read1=read1, Suc2=suc2, Read2=read2, Suc3=suc3, Read3=read3,
-                # AQUI AGREGAMOS LA FUENTE DE ALTO CONTRASTE CON HALO BLANCO
-                font={'color': '#0f172a', 'strokeWidth': 4, 'strokeColor': '#ffffff', 'size': 12, 'face': 'Arial', 'weight': 'bold'},
                 x=coord_data['x'], y=coord_data['y'], 
                 Angle=coord_data['angle'], AnilloReal=coord_data['anillo_real'], Profundidad=coord_data['profundidad']
             )
@@ -307,7 +308,6 @@ def generar_mapa_html(url_sheets, direccion_permitida):
             res_9box = str(row.get('Resultado 9 box', '')).strip().upper()
             if not id_empleado: continue
             if id_jefe in empleados_validos:
-                # Líneas grises más oscuras para mayor contraste
                 G.add_edge(id_jefe, id_empleado, color='#94a3b8', width=2, dashes=False, is_jump=False)
             if res_9box in ['5', '2']:
                 G.add_edge(id_empleado, obtener_jefe_nivel_arriba(id_empleado, 1), color='#22c55e', width=3, dashes=True, title='Proyección N+1', is_jump=True)
@@ -326,18 +326,29 @@ def generar_mapa_html(url_sheets, direccion_permitida):
     net = Network(height='750px', width='100%', bgcolor='#ffffff', font_color='#333333', directed=True, cdn_resources='remote')
     net.from_nx(G)
     
-    # AQUI AGREGAMOS SOMBRAS Y BORDES A LOS NODOS
+    # ====================================================================
+    # AQUI ESTÁ LA INSTRUCCIÓN FORZADA PARA LAS SOMBRAS Y TEXTOS VISIBLES
+    # ====================================================================
     net.set_options("""
     var options = {
       "nodes": {
           "borderWidth": 2,
-          "shadow": {"enabled": true, "color": "rgba(0,0,0,0.25)", "size": 8, "x": 3, "y": 3}
+          "shadow": {"enabled": true, "color": "rgba(0,0,0,0.4)", "size": 10, "x": 3, "y": 3},
+          "font": {
+              "color": "#1e293b", 
+              "strokeWidth": 4, 
+              "strokeColor": "#ffffff", 
+              "size": 14, 
+              "face": "Arial", 
+              "weight": "bold"
+          }
       },
       "physics": {"enabled": false, "forceAtlas2Based": {"gravitationalConstant": -150, "centralGravity": 0.01, "springLength": 250, "springConstant": 0.08, "avoidOverlap": 0.5}, "solver": "forceAtlas2Based"},
       "edges": {"smooth": {"enabled": true, "type": "continuous", "roundness": 0.2}},
       "interaction": {"hover": true, "tooltipDelay": 200}
     }
     """)
+    # ====================================================================
     
     html = net.generate_html()
     
@@ -596,14 +607,14 @@ def generar_mapa_html(url_sheets, direccion_permitida):
     function enfocarPantalla() {{ network.fit({{ animation: {{ duration: 800, easingFunction: 'easeInOutQuad' }} }}); }}
     
     // =========================================================
-    // NUEVA MAGIA: ENFOQUE Y ZOOM-OUT PARA QUE NO SE CORTE
+    // ENFOQUE SEGURO (ZOOM OUT EXTRA PARA NO CORTAR TEXTO)
     // =========================================================
     setTimeout(function() {{
         network.fit({{ animation: {{ duration: 800, easingFunction: 'easeInOutQuad' }} }});
         setTimeout(function() {{
             var currentScale = network.getScale();
             network.moveTo({{
-                scale: currentScale * 0.75, // Esto aleja la cámara 25% para dejar margen al texto
+                scale: currentScale * 0.85, 
                 animation: {{ duration: 500, easingFunction: 'easeInOutQuad' }}
             }});
         }}, 900); 
@@ -627,7 +638,6 @@ def main():
         <style>
         .block-container { padding-top: 1rem; padding-bottom: 0rem; }
         
-        /* ESTILO PREMIUM PARA LAS TARJETAS DE KPIs */
         div[data-testid="metric-container"] {
             background-color: #ffffff;
             border: 1px solid #e2e8f0;
@@ -681,10 +691,32 @@ def main():
             st.divider()
             st.markdown("### 🚨 Resumen de Alertas y Riesgos Detectados")
             
+            # =================================================================
+            # NUEVO: FILTROS INTERACTIVOS PARA LA TABLA DE ALERTAS
+            # =================================================================
             if not df_alertas.empty:
-                st.dataframe(df_alertas, use_container_width=True)
+                st.markdown("Filtra rápidamente la información para encontrar áreas de mejora:")
+                col_f1, col_f2 = st.columns(2)
+                
+                with col_f1:
+                    lista_areas = df_alertas['Dirección'].unique().tolist()
+                    filtro_area = st.multiselect("📌 Filtrar por Área / Dirección:", options=lista_areas)
+                
+                with col_f2:
+                    lista_riesgos = df_alertas['Alerta Detectada por IA'].unique().tolist()
+                    filtro_riesgo = st.multiselect("⚠️ Filtrar por Tipo de Alerta:", options=lista_riesgos)
+                
+                # Aplicamos los filtros
+                df_filtrado = df_alertas.copy()
+                if filtro_area:
+                    df_filtrado = df_filtrado[df_filtrado['Dirección'].isin(filtro_area)]
+                if filtro_riesgo:
+                    df_filtrado = df_filtrado[df_filtrado['Alerta Detectada por IA'].isin(filtro_riesgo)]
+                
+                st.dataframe(df_filtrado, use_container_width=True, hide_index=True)
             else:
                 st.success("✅ ¡Excelente! No se detectaron alertas de sucesión ni sobrecarga de reportes en esta área.")
+            # =================================================================
         else:
             components.html(html_mapa, height=400)
 
