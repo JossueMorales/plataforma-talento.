@@ -20,7 +20,7 @@ def login():
         st.session_state["usuario_logueado"] = False
 
     if not st.session_state["usuario_logueado"]:
-        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v8.0</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v8.1</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #666;'>Inicia sesión para acceder al mapa organizacional</p>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1, 1, 1])
         with col2:
@@ -288,27 +288,30 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             hidden=is_hidden
         )
 
-    # TU LÓGICA DIRECTA DE DIBUJADO DE LÍNEAS
+    # =========================================================
+    # CONEXIONES ESTRUCTURALES Y PREDICTIVAS BLINDADAS
+    # =========================================================
     # 1. Líneas de Organigrama (Grises)
     for jefe, emp in G_jerarquia.edges():
         is_hidden_edge = jefe not in nodos_visibles or emp not in nodos_visibles
-        G.add_edge(jefe, emp, color='#94a3b8', width=2, dashes=False, title='Estructura', hidden=is_hidden_edge)
+        G.add_edge(jefe, emp, color='#94a3b8', width=2, dashes=False, title='Estructura', hidden=is_hidden_edge, is_struct=True, is_9box=False, is_succ=False)
 
     # 2. Líneas 9-Box (Verdes)
     for emp, info in info_nodos.items():
         box = info['box'].upper()
         if box in ['5', '2']:
             j1 = obtener_jefe_nivel_arriba(emp, 1)
-            if j1: G.add_edge(emp, j1, color='#22c55e', width=3, dashes=[5,5], title='Proyección N+1', hidden=(emp not in nodos_visibles or j1 not in nodos_visibles))
+            if j1: G.add_edge(emp, j1, color='#22c55e', width=3, dashes=[5,5], title='Proyección N+1', hidden=(emp not in nodos_visibles or j1 not in nodos_visibles), is_struct=False, is_9box=True, is_succ=False, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.2})
         if box in ['1', '3']:
             j2 = obtener_jefe_nivel_arriba(emp, 2)
-            if j2: G.add_edge(emp, j2, color='#166534', width=3.5, dashes=[5,5], title='Proyección N+2', hidden=(emp not in nodos_visibles or j2 not in nodos_visibles))
+            if j2: G.add_edge(emp, j2, color='#166534', width=3.5, dashes=[5,5], title='Proyección N+2', hidden=(emp not in nodos_visibles or j2 not in nodos_visibles), is_struct=False, is_9box=True, is_succ=False, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.3})
             
-        # 3. Líneas de Sucesión de tu Excel (Moradas)
+        # 3. Líneas de Sucesión Reales (Moradas SÓLIDAS)
+        # Se agrega una curvatura muy amplia (0.6) para que nunca se tape con la línea verde.
         for s_id in [info['suc1_id'], info['suc2_id'], info['suc3_id']]:
             if s_id in empleados_validos:
                 is_hidden_edge = (emp not in nodos_visibles or s_id not in nodos_visibles)
-                G.add_edge(emp, s_id, color='#9c27b0', width=4, dashes=True, title='🎯 Objetivo de Sucesión', hidden=is_hidden_edge)
+                G.add_edge(emp, s_id, color='#9c27b0', width=5, dashes=False, title='🎯 Objetivo de Sucesión', hidden=is_hidden_edge, is_struct=False, is_9box=False, is_succ=True, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.6})
 
     kpis = {
         'total': len(nodos_visibles),
@@ -323,7 +326,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     net.from_nx(G)
     
     # LA FÍSICA ESTÁ APAGADA (false) PARA QUE NO SE ROMPA LA CEBOLLA
-    # Usamos curvedCW para que las líneas que suben y bajan no choquen
     net.set_options("""
     var options = {
       "nodes": {
@@ -335,7 +337,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
           "forceAtlas2Based": {"gravitationalConstant": -150, "centralGravity": 0.01, "springLength": 250, "springConstant": 0.08, "avoidOverlap": 0.5},
           "solver": "forceAtlas2Based"
       },
-      "edges": {"smooth": {"enabled": true, "type": "curvedCW", "roundness": 0.2}},
       "interaction": {"hover": true, "tooltipDelay": 200}
     }
     """)
@@ -506,7 +507,7 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         }} else {{ cuerpo.style.display = 'none'; icono.innerText = '▲ Mostrar'; }}
     }}
     
-    // FILTROS A BASE DE COLORES EXACTOS
+    // FILTROS BLINDADOS BASADOS EN LAS ETIQUETAS DE PYTHON
     function applyVisualFilters() {{
         var showNormal = document.getElementById('toggleNormal').checked;
         var showJumps = document.getElementById('toggleJumps').checked;
@@ -525,18 +526,10 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                 continue;
             }}
             
-            var edgeColor = "";
-            if (edge.color) {{
-                if (typeof edge.color === 'string') {{
-                    edgeColor = edge.color.toLowerCase();
-                }} else if (typeof edge.color.color === 'string') {{
-                    edgeColor = edge.color.color.toLowerCase();
-                }}
-            }}
-            
-            if (edgeColor === '#9c27b0') {{
+            // Evaluamos con base en las etiquetas creadas en Python en lugar del color
+            if (edge.is_succ === true || edge.is_succ === "True") {{
                 edgesToUpdate.push({{id: edge.id, hidden: !showSucc}});
-            }} else if (edgeColor === '#22c55e' || edgeColor === '#166534') {{
+            }} else if (edge.is_9box === true || edge.is_9box === "True") {{
                 edgesToUpdate.push({{id: edge.id, hidden: !showJumps}});
             }} else {{
                 edgesToUpdate.push({{id: edge.id, hidden: !showNormal}});
