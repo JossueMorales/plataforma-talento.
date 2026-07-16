@@ -34,7 +34,9 @@ network.on("beforeDrawing", function(ctx) {
     var max_nivel_visible = 0;
     var paso = window.ringSpacing; 
     nodos_visibles.forEach(function(n) {
-        if(n.AnilloReal !== undefined) { if (n.AnilloReal > max_nivel_visible) { max_nivel_visible = n.AnilloReal; } }
+        // Blindaje contra cambios de mayúsculas/minúsculas en PyVis
+        var anillo = n.AnilloReal !== undefined ? n.AnilloReal : n.anilloreal;
+        if(anillo !== undefined) { if (anillo > max_nivel_visible) { max_nivel_visible = anillo; } }
     });
     var limite_anillos = Math.max(max_nivel_visible, 1);
     ctx.strokeStyle = '#cbd5e1'; ctx.setLineDash([8, 8]); ctx.lineWidth = 2; ctx.font = "bold 24px Arial"; ctx.fillStyle = "#64748b"; ctx.textAlign = "center";
@@ -129,22 +131,40 @@ function toggleLayoutMode() {
     if (isOnion) { slider.style.opacity = "1"; slider.style.pointerEvents = "auto"; network.setOptions({ physics: { enabled: false } }); updateSpacing(); 
     } else { slider.style.opacity = "0.4"; slider.style.pointerEvents = "none"; network.setOptions({ physics: { enabled: true } }); network.redraw(); }
 }
+
 function updateSpacing() {
     if(!window.onionMode) return; 
     var val = document.getElementById('sliderSeparacion').value;
     window.ringSpacing = parseInt(val);
     document.getElementById('valorSeparacion').innerText = val + "px";
+    
     var allNodes = network.body.data.nodes.get();
     var nodesToUpdate = [];
+    
     for (var i = 0; i < allNodes.length; i++) {
         var n = allNodes[i];
-        if (n.AnilloReal !== undefined && n.Angle !== undefined) {
-            var nuevoRadio = (n.AnilloReal * window.ringSpacing) + (n.Profundidad * 120);
-            nodesToUpdate.push({ id: n.id, x: nuevoRadio * Math.cos(n.Angle), y: nuevoRadio * Math.sin(n.Angle) });
+        
+        // Manejamos diferencias de exportación de PyVis
+        var anillo = n.AnilloReal !== undefined ? n.AnilloReal : n.anilloreal;
+        var angle = n.Angle !== undefined ? n.Angle : n.angle;
+        var prof = n.Profundidad !== undefined ? n.Profundidad : n.profundidad;
+        
+        if (anillo !== undefined && angle !== undefined && prof !== undefined) {
+            var nuevoRadio = (anillo * window.ringSpacing) + (prof * 120);
+            nodesToUpdate.push({ id: n.id, x: nuevoRadio * Math.cos(angle), y: nuevoRadio * Math.sin(angle) });
         }
     }
-    network.body.data.nodes.update(nodesToUpdate); network.redraw();
+    
+    // Actualizamos coordenadas de los nodos
+    network.body.data.nodes.update(nodesToUpdate);
+    
+    // Refresco FORZADO de aristas (Para que las líneas se ajusten con los nodos en curvas)
+    var allEdges = network.body.data.edges.get();
+    network.body.data.edges.update(allEdges);
+    
+    network.redraw();
 }
+
 network.on("click", function (params) {
     if (params.nodes.length > 0) {
         var nodeId = params.nodes[0]; var node = network.body.data.nodes.get(nodeId);
@@ -180,6 +200,7 @@ network.on("click", function (params) {
         document.getElementById('fichaLateral').style.left = "0px";
     } else { cerrarFicha(); }
 });
+
 function cerrarFicha() { document.getElementById('fichaLateral').style.left = "-400px"; }
 function toggleFiltrosPanel() {
     var cuerpo = document.getElementById('cuerpoFiltros'); var icono = document.getElementById('iconoFiltro');
@@ -205,9 +226,18 @@ function applyVisualFilters() {
             continue;
         }
         
-        if (edge.is_succ === true || edge.is_succ === "True") {
+        // Blindamos el filtro buscando tanto la variable booleana como el color exacto
+        var colorValue = edge.color;
+        if (typeof colorValue === 'object' && colorValue !== null) {
+            colorValue = colorValue.color || colorValue.inherit;
+        }
+        
+        var isSucc = (edge.is_succ === true || edge.is_succ === "True" || edge.is_succ === "true" || colorValue === '#9c27b0');
+        var is9Box = (edge.is_9box === true || edge.is_9box === "True" || edge.is_9box === "true" || colorValue === '#22c55e' || colorValue === '#166534');
+        
+        if (isSucc) {
             edgesToUpdate.push({id: edge.id, hidden: !showSucc});
-        } else if (edge.is_9box === true || edge.is_9box === "True") {
+        } else if (is9Box) {
             edgesToUpdate.push({id: edge.id, hidden: !showJumps});
         } else {
             edgesToUpdate.push({id: edge.id, hidden: !showNormal});
@@ -330,13 +360,11 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     empleados_validos = set()
     info_nodos = {}
     
-    # Pre-cargamos los nombres para mayor rapidez
     nombres_dict = {
         clean_id(row.get('id Empleado')): clean_text(row.get('Nombre')) 
         for row in df_seguro.to_dict('records') if clean_id(row.get('id Empleado'))
     }
             
-    # Iteramos usando diccionarios para mantener los nombres con espacios intactos
     for row_dict in df_seguro.to_dict('records'):
         emp = clean_id(row_dict.get('id Empleado'))
         jefe = clean_id(row_dict.get('ID Del Jefe'))
@@ -585,7 +613,7 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                 G.add_edge(emp, j2, color='#166534', width=3.5, dashes=[5,5], title='Proyección N+2', hidden=(emp not in nodos_visibles or j2 not in nodos_visibles), is_struct=False, is_9box=True, is_succ=False, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.3})
             
         for s_id in [info['suc1_id'], info['suc2_id'], info['suc3_id']]:
-            if s_id in empleados_validos:
+            if s_id and s_id in empleados_validos:
                 is_hidden_edge = (emp not in nodos_visibles or s_id not in nodos_visibles)
                 G.add_edge(emp, s_id, color='#9c27b0', width=5, dashes=False, title='🎯 Objetivo de Sucesión', hidden=is_hidden_edge, is_struct=False, is_9box=False, is_succ=True, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.6})
 
