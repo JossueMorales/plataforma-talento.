@@ -20,7 +20,7 @@ def login():
         st.session_state["usuario_logueado"] = False
 
     if not st.session_state["usuario_logueado"]:
-        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v7.0</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v6.1</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #666;'>Inicia sesión para acceder al mapa organizacional</p>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1, 1, 1])
         with col2:
@@ -158,52 +158,19 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         info_nodos[emp]['riesgos_lista'] = r_list
         info_nodos[emp]['riesgos'] = " | ".join(r_list) if r_list else "Ninguno"
 
-    # =========================================================
-    # NUEVA LÓGICA: INMUNIDAD TOTAL PARA EL LÍDER SELECCIONADO
-    # =========================================================
-    descendientes_validos = set()
-    if f_lid != "Todos":
-        lider_ids = [emp for emp, inf in info_nodos.items() if inf['nombre'] == f_lid]
-        for l_id in lider_ids:
-            descendientes_validos.add(l_id)
-            try:
-                descendientes_validos.update(nx.descendants(G_jerarquia, l_id))
-            except: pass
-
     nodos_visibles = set()
     for emp, info in info_nodos.items():
-        # Inmunidad Nivel 5 (Andrés)
         if info['mla'] == '5':
             nodos_visibles.add(emp)
             continue
-            
-        # Inmunidad absoluta al Líder seleccionado (Si filtras por Luis, Luis SIEMPRE aparece)
-        if f_lid != "Todos" and info['nombre'] == f_lid:
-            nodos_visibles.add(emp)
-            continue
-            
-        # Filtros normales para todos los demás
         if f_dir != "Todas" and info['direccion'] != f_dir: continue
-        if f_lid != "Todos" and emp not in descendientes_validos: continue
+        if f_lid != "Todos" and info['lider'] != f_lid and info['nombre'] != f_lid: continue
         if f_crit != "Todas" and info['critica'] != f_crit: continue
         if f_mla != "Todos" and info['mla'] != f_mla: continue
         if f_box != "Todos" and info['box'] != f_box: continue
         if f_riesgos and not info['riesgos_lista']: continue
-        
         nodos_visibles.add(emp)
 
-    # Inmunidad de Trazabilidad (Rescatar a los objetivos de sucesión para no romper la línea)
-    nodos_rescatados = set(nodos_visibles)
-    for emp in nodos_visibles:
-        info = info_nodos[emp]
-        for s_id in [info['suc1_id'], info['suc2_id'], info['suc3_id']]:
-            if s_id and s_id in info_nodos:
-                nodos_rescatados.add(s_id)
-    nodos_visibles = nodos_rescatados
-
-    # =========================================================
-    # CONSTRUCCIÓN DE GEOMETRÍA
-    # =========================================================
     raiz_principal = None
     for emp, info in info_nodos.items():
         if info['mla'] == '5':
@@ -224,7 +191,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         elif mla == '1': return 4 
         return min(depth_arbol, 5)
 
-    SEPARACION_ANILLOS = 1000 
     conteo_hojas = {}
     def calcular_hojas(n):
         hijos = list(Arbol.successors(n))
@@ -248,7 +214,7 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             angulo_hijo = angulo_actual + (rebanada / 2)
             profundidad = nx.shortest_path_length(Arbol, raiz_principal, c) if raiz_principal and c in Arbol else 5
             anillo_real = obtener_anillo_estricto(c, profundidad)
-            radio_final = (anillo_real * SEPARACION_ANILLOS) + (profundidad * 120) if anillo_real != 0 else 0
+            radio_final = (anillo_real * 1000) + (profundidad * 120) if anillo_real != 0 else 0
             coords[c] = {'x': radio_final * math.cos(angulo_hijo), 'y': radio_final * math.sin(angulo_hijo), 'angle': angulo_hijo, 'anillo_real': anillo_real, 'profundidad': profundidad}
             asignar_coordenada_radial(c, angulo_actual, angulo_actual + rebanada)
             angulo_actual += rebanada
@@ -256,27 +222,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     if raiz_principal:
         coords[raiz_principal] = {'x': 0, 'y': 0, 'angle': 0, 'anillo_real': 0, 'profundidad': 0}
         asignar_coordenada_radial(raiz_principal, 0, 2 * math.pi)
-
-    # =========================================================
-    # REPARACIÓN DE EXTREMOS (Islas Flotantes)
-    # Acomoda a los desconectados exactamente en el anillo que les toca
-    # =========================================================
-    nodos_sin_coords = [n for n in G_jerarquia.nodes() if n not in coords]
-    if nodos_sin_coords:
-        angulo_extra = (2 * math.pi) / len(nodos_sin_coords)
-        angulo_actual = 0
-        for n in nodos_sin_coords:
-            anillo = obtener_anillo_estricto(n, 5)
-            # Usa la MISMA fórmula de radio para que se queden en los círculos
-            radio = (anillo * SEPARACION_ANILLOS) + (5 * 120) if anillo != 0 else 0
-            coords[n] = {
-                'x': radio * math.cos(angulo_actual), 
-                'y': radio * math.sin(angulo_actual), 
-                'angle': angulo_actual, 
-                'anillo_real': anillo, 
-                'profundidad': 5
-            }
-            angulo_actual += angulo_extra
 
     alertas_tabla = []
     
@@ -317,11 +262,15 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         box = info['box'].upper()
         if box in ['5', '2']:
             j1 = obtener_jefe_nivel_arriba(emp, 1)
-            if j1: G.add_edge(emp, j1, color='#22c55e', width=3, dashes=[5,5], title='Proyección N+1', is_jump=True, is_succession=False, hidden=(emp not in nodos_visibles or j1 not in nodos_visibles), data_hidden=(emp not in nodos_visibles or j1 not in nodos_visibles))
+            if j1: G.add_edge(emp, j1, color='#22c55e', width=3, dashes=True, title='Proyección N+1', is_jump=True, is_succession=False, hidden=(emp not in nodos_visibles or j1 not in nodos_visibles), data_hidden=(emp not in nodos_visibles or j1 not in nodos_visibles))
         if box in ['1', '3']:
             j2 = obtener_jefe_nivel_arriba(emp, 2)
-            if j2: G.add_edge(emp, j2, color='#166534', width=3.5, dashes=[5,5], title='Proyección N+2', is_jump=True, is_succession=False, hidden=(emp not in nodos_visibles or j2 not in nodos_visibles), data_hidden=(emp not in nodos_visibles or j2 not in nodos_visibles))
+            if j2: G.add_edge(emp, j2, color='#166534', width=3.5, dashes=True, title='Proyección N+2', is_jump=True, is_succession=False, hidden=(emp not in nodos_visibles or j2 not in nodos_visibles), data_hidden=(emp not in nodos_visibles or j2 not in nodos_visibles))
             
+        # =========================================================
+        # REPARADO: LÍNEA DE SUCESIÓN SEGURA
+        # Se usó dashes=True para evitar errores de PyVis
+        # =========================================================
         for s_id in [info['suc1_id'], info['suc2_id'], info['suc3_id']]:
             if s_id in empleados_validos:
                 is_hidden_edge = (emp not in nodos_visibles or s_id not in nodos_visibles)
@@ -339,6 +288,9 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     net = Network(height='750px', width='100%', bgcolor='#ffffff', font_color='#333333', directed=True, cdn_resources='remote')
     net.from_nx(G)
     
+    # =========================================================
+    # REPARADO: Se agregó curvedCW para que las líneas opuestas formen un óvalo y no se tapen
+    # =========================================================
     net.set_options("""
     var options = {
       "nodes": {
@@ -526,6 +478,7 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         for (var i = 0; i < allEdges.length; i++) {{
             var edge = allEdges[i];
             
+            // Verificación segura de lectura para la librería
             if (edge.data_hidden == true || edge.data_hidden === 'True' || edge.data_hidden === 'true') {{
                 edgesToUpdate.push({{id: edge.id, hidden: true}});
             }} else {{
@@ -553,6 +506,7 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         }}, 800);
     }}
     
+    // Forzamos los filtros visuales al iniciar para evitar fallos de Pyvis
     setTimeout(function() {{
         applyVisualFilters();
         enfocarPantalla();
