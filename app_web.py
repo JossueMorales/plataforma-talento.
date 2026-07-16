@@ -20,7 +20,7 @@ def login():
         st.session_state["usuario_logueado"] = False
 
     if not st.session_state["usuario_logueado"]:
-        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v6.1</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v6.2</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #666;'>Inicia sesión para acceder al mapa organizacional</p>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1, 1, 1])
         with col2:
@@ -158,18 +158,45 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         info_nodos[emp]['riesgos_lista'] = r_list
         info_nodos[emp]['riesgos'] = " | ".join(r_list) if r_list else "Ninguno"
 
+    # =========================================================
+    # NUEVA LÓGICA DE FILTROS EN CASCADA E INMUNIDAD
+    # =========================================================
+    descendientes_validos = set()
+    if f_lid != "Todos":
+        lider_ids = [emp for emp, inf in info_nodos.items() if inf['nombre'] == f_lid]
+        for l_id in lider_ids:
+            descendientes_validos.add(l_id)
+            try:
+                # Agregamos automáticamente a todos los "hijos, nietos y bisnietos"
+                descendientes_validos.update(nx.descendants(G_jerarquia, l_id))
+            except:
+                pass
+
     nodos_visibles = set()
     for emp, info in info_nodos.items():
         if info['mla'] == '5':
             nodos_visibles.add(emp)
             continue
+            
         if f_dir != "Todas" and info['direccion'] != f_dir: continue
-        if f_lid != "Todos" and info['lider'] != f_lid and info['nombre'] != f_lid: continue
+        if f_lid != "Todos" and emp not in descendientes_validos: continue
         if f_crit != "Todas" and info['critica'] != f_crit: continue
         if f_mla != "Todos" and info['mla'] != f_mla: continue
         if f_box != "Todos" and info['box'] != f_box: continue
         if f_riesgos and not info['riesgos_lista']: continue
+        
         nodos_visibles.add(emp)
+
+    # REGLA DE INMUNIDAD DE TRAZABILIDAD (Evita que las líneas moradas se rompan)
+    nodos_rescatados = set(nodos_visibles)
+    for emp in nodos_visibles:
+        info = info_nodos[emp]
+        for s_id in [info['suc1_id'], info['suc2_id'], info['suc3_id']]:
+            if s_id and s_id in info_nodos:
+                nodos_rescatados.add(s_id)
+    
+    nodos_visibles = nodos_rescatados
+    # =========================================================
 
     raiz_principal = None
     for emp, info in info_nodos.items():
@@ -267,13 +294,10 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             j2 = obtener_jefe_nivel_arriba(emp, 2)
             if j2: G.add_edge(emp, j2, color='#166534', width=3.5, dashes=True, title='Proyección N+2', is_jump=True, is_succession=False, hidden=(emp not in nodos_visibles or j2 not in nodos_visibles), data_hidden=(emp not in nodos_visibles or j2 not in nodos_visibles))
             
-        # =========================================================
-        # REPARADO: LÍNEA DE SUCESIÓN SEGURA
-        # Se usó dashes=True para evitar errores de PyVis
-        # =========================================================
         for s_id in [info['suc1_id'], info['suc2_id'], info['suc3_id']]:
             if s_id in empleados_validos:
                 is_hidden_edge = (emp not in nodos_visibles or s_id not in nodos_visibles)
+                # Formato dashes=True obligatorio para evitar bugs visuales
                 G.add_edge(emp, s_id, color='#9c27b0', width=4, dashes=True, title='🎯 Objetivo de Sucesión', is_jump=False, is_succession=True, hidden=is_hidden_edge, data_hidden=is_hidden_edge)
 
     kpis = {
@@ -288,9 +312,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     net = Network(height='750px', width='100%', bgcolor='#ffffff', font_color='#333333', directed=True, cdn_resources='remote')
     net.from_nx(G)
     
-    # =========================================================
-    # REPARADO: Se agregó curvedCW para que las líneas opuestas formen un óvalo y no se tapen
-    # =========================================================
     net.set_options("""
     var options = {
       "nodes": {
@@ -478,7 +499,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         for (var i = 0; i < allEdges.length; i++) {{
             var edge = allEdges[i];
             
-            // Verificación segura de lectura para la librería
             if (edge.data_hidden == true || edge.data_hidden === 'True' || edge.data_hidden === 'true') {{
                 edgesToUpdate.push({{id: edge.id, hidden: true}});
             }} else {{
@@ -506,7 +526,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         }}, 800);
     }}
     
-    // Forzamos los filtros visuales al iniciar para evitar fallos de Pyvis
     setTimeout(function() {{
         applyVisualFilters();
         enfocarPantalla();
