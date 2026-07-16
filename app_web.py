@@ -6,7 +6,7 @@ import math
 import streamlit.components.v1 as components
 
 # ==========================================
-# SISTEMA DE SEGURIDAD Y LOGIN (SIMULADO)
+# SISTEMA DE SEGURIDAD Y LOGIN
 # ==========================================
 USUARIOS_AUTORIZADOS = {
     "admin": {"nombre": "Administrador Global", "password": "admin", "direccion": "TODAS"},
@@ -21,7 +21,7 @@ def login():
         st.session_state["usuario_logueado"] = False
 
     if not st.session_state["usuario_logueado"]:
-        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v4.0</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v5.0</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #666;'>Inicia sesión para acceder al mapa organizacional</p>", unsafe_allow_html=True)
         
         col1, col2, col3 = st.columns([1, 1, 1])
@@ -42,89 +42,71 @@ def login():
     return True
 
 # ==========================================
-# MOTOR DEL MAPA ORGANIZACIONAL (BACKEND)
+# DESCARGA DE DATOS OPTIMIZADA CON CACHÉ
 # ==========================================
-def generar_mapa_html(url_sheets, direccion_permitida):
+@st.cache_data(ttl=600, show_spinner=False)
+def cargar_datos_csv(url_sheets):
     if "/edit" in url_sheets:
         csv_url = url_sheets.split("/edit")[0] + "/export?format=csv"
     else:
         csv_url = url_sheets
-        
     try:
         df = pd.read_csv(csv_url)
+        df.columns = [str(col).strip() for col in df.columns]
+        return df
     except Exception as e:
-        return f"<div style='color:red;'>Error al leer el archivo: {e}</div>", None, None
+        return pd.DataFrame()
 
-    df.columns = [str(col).strip() for col in df.columns]
+def clean_text(val, default=''):
+    if pd.isna(val) or str(val).strip().lower() in ['nan', 'none', '']:
+        return default
+    return str(val).strip()
 
-    if direccion_permitida != "TODAS":
-        es_del_area = df['Dirección'].astype(str).str.upper().str.contains(direccion_permitida)
-        es_raiz = df['Nivel MLA'].astype(str).str.strip() == '5'
-        df = df[es_del_area | es_raiz]
-        if df.empty:
-            return f"<div style='padding:50px; text-align:center;'><h3>No hay datos para la {direccion_permitida}</h3></div>", None, None
+def clean_id(val):
+    if pd.isna(val): return ''
+    v = str(val).strip()
+    if v.endswith('.0'): return v[:-2]
+    return v
 
+# COLORES MÁS VIBRANTES (Alto Contraste)
+def obtener_color_9box(valor):
+    v = str(valor).strip().upper()
+    if v in ['9', '7A', '7B', '7']: return '#dc2626' 
+    elif v == '4': return '#2563eb' 
+    elif v == '6': return '#ca8a04' 
+    elif v in ['5', '2']: return '#16a34a' 
+    elif v in ['1', '3']: return '#14532d' 
+    else: return '#94a3b8' 
+
+# ==========================================
+# MOTOR PRINCIPAL (AHORA RECIBE FILTROS MAESTROS)
+# ==========================================
+def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     G = nx.MultiDiGraph()
     G_jerarquia = nx.DiGraph() 
-
-    def clean_id(val):
-        if pd.isna(val): return ''
-        v = str(val).strip()
-        if v.endswith('.0'): return v[:-2]
-        return v
-
-    def clean_text(val, default=''):
-        if pd.isna(val) or str(val).strip().lower() in ['nan', 'none', '']:
-            return default
-        return str(val).strip()
-
-    def obtener_color_9box(valor):
-        v = str(valor).strip().upper()
-        if v in ['9', '7A', '7B', '7']: return '#dc2626' 
-        elif v == '4': return '#2563eb' 
-        elif v == '6': return '#ca8a04' 
-        elif v in ['5', '2']: return '#16a34a' 
-        elif v in ['1', '3']: return '#14532d' 
-        else: return '#94a3b8' 
 
     jefes_dict = {}
     empleados_validos = set()
     info_nodos = {}
     
-    direcciones_unicas = set()
-    mlas_unicos = set()
-    box_unicos = set()
-    lideres_unicos = set()
-    criticas_unicas = set()
-    
-    nombres_dict = {}
-    for index, row in df.iterrows():
-        emp = clean_id(row['id Empleado'])
-        if emp:
-            nombres_dict[emp] = str(row.get('Nombre', '')).strip()
+    nombres_dict = {clean_id(row['id Empleado']): clean_text(row.get('Nombre')) for _, row in df_seguro.iterrows() if clean_id(row['id Empleado'])}
             
-    for index, row in df.iterrows():
+    # PASO 1: Armar diccionarios básicos
+    for index, row in df_seguro.iterrows():
         emp = clean_id(row['id Empleado'])
         jefe = clean_id(row['ID Del Jefe'])
         
-        direccion = clean_text(row.get('Dirección', row.get('Direccion')), 'No asignada')
-        mla = clean_text(row.get('Nivel MLA'), 'N/A')
-        box = clean_text(row.get('Resultado 9 box'), 'Pendiente')
-        critica = clean_text(row.get('Posición Crítica', row.get('Posicion Critica')), 'No')
-        
-        nombre_lider = nombres_dict.get(jefe, 'Sin Líder') if jefe not in ['', 'NAN', 'NONE'] else 'Sin Líder'
-        
-        if emp not in ['', 'NAN', 'NONE']:
+        if emp:
             empleados_validos.add(emp)
             G_jerarquia.add_node(emp)
             
             info_nodos[emp] = {
-                'mla': mla,
+                'mla': clean_text(row.get('Nivel MLA'), 'N/A'),
                 'puesto': clean_text(row.get('Nombre de la Posición')).upper(),
-                'direccion': direccion,
-                'box': box,
-                'lider': nombre_lider,
-                'critica': critica,
+                'direccion': clean_text(row.get('Dirección', row.get('Direccion')), 'No asignada'),
+                'box': clean_text(row.get('Resultado 9 box'), 'Pendiente'),
+                'lider': nombres_dict.get(jefe, 'Sin Líder') if jefe else 'Sin Líder',
+                'critica': clean_text(row.get('Posición Crítica', row.get('Posicion Critica')), 'No'),
                 'nombre': clean_text(row.get('Nombre')),
                 'interes': clean_text(row.get('Interés del Colaborador'), 'Pendiente'),
                 'suc1': clean_text(row.get('Sucesor P.1'), 'Pendiente'),
@@ -134,40 +116,63 @@ def generar_mapa_html(url_sheets, direccion_permitida):
                 'suc3': clean_text(row.get('Sucesor P.3')),
                 'read3': clean_text(row.get('Tiempo de Readiness 3'))
             }
-            
-            if direccion != 'No asignada': direcciones_unicas.add(direccion)
-            if mla and mla.lower() != 'nan': mlas_unicos.add(mla)
-            if box and box.lower() != 'nan': box_unicos.add(box)
-            lideres_unicos.add(nombre_lider)
-            criticas_unicas.add(critica)
-            
-            if jefe not in ['', 'NAN', 'NONE']:
+            if jefe:
                 jefes_dict[emp] = jefe
                 G_jerarquia.add_edge(jefe, emp)
 
     def obtener_jefe_nivel_arriba(emp_id, niveles):
         actual = emp_id
         for _ in range(niveles):
-            if actual not in jefes_dict:
-                return None
+            if actual not in jefes_dict: return None
             actual = jefes_dict[actual]
         return actual
 
+    # PASO 2: Calcular métricas para IA (Reportes y Sucesores)
     reportes_directos = {n: 0 for n in G_jerarquia.nodes()}
-    for jefe, emp in G_jerarquia.edges():
-        reportes_directos[jefe] += 1
+    for jefe, emp in G_jerarquia.edges(): reportes_directos[jefe] += 1
 
     sucesores_de = {n: 0 for n in G_jerarquia.nodes()}
-    for index, row in df.iterrows():
-        emp = clean_id(row['id Empleado'])
-        resultado_9box = str(row.get('Resultado 9 box', '')).strip().upper()
-        if resultado_9box in ['5', '2']: 
-            jefe1 = obtener_jefe_nivel_arriba(emp, 1)
-            if jefe1: sucesores_de[jefe1] += 1
-        if resultado_9box in ['1', '3']:
-            jefe2 = obtener_jefe_nivel_arriba(emp, 2)
-            if jefe2: sucesores_de[jefe2] += 1
+    for emp, info in info_nodos.items():
+        box = info['box'].upper()
+        if box in ['5', '2']: 
+            j1 = obtener_jefe_nivel_arriba(emp, 1)
+            if j1: sucesores_de[j1] += 1
+        if box in ['1', '3']:
+            j2 = obtener_jefe_nivel_arriba(emp, 2)
+            if j2: sucesores_de[j2] += 1
 
+    # PASO 3: Inyectar riesgos en la información de cada nodo
+    for emp, info in info_nodos.items():
+        es_critica = (info['critica'].lower() == 'si')
+        tiene_oficial = (info['suc1'].lower() not in ['pendiente', ''])
+        tiene_hipos_9box = (sucesores_de.get(emp, 0) > 0)
+        
+        r_list = []
+        if es_critica:
+            if not tiene_oficial and not tiene_hipos_9box: r_list.append("🔥 Riesgo Crítico: Sin Sucesor ni HiPos")
+            elif not tiene_oficial and tiene_hipos_9box: r_list.append("⚠️ Sugerencia: HiPo disponible, falta oficializar")
+                
+        reps = reportes_directos.get(emp, 0)
+        if reps >= 12: r_list.append(f"⚠️ Sobrecarga ({reps} reportes)")
+        elif reps == 1: r_list.append("⚠️ Ineficiencia (1 reporte)")
+            
+        info_nodos[emp]['riesgos_lista'] = r_list
+        info_nodos[emp]['riesgos'] = " | ".join(r_list) if r_list else "Ninguno"
+
+    # =========================================================================
+    # APLICAR FILTROS MAESTROS DE STREAMLIT
+    # =========================================================================
+    nodos_visibles = set()
+    for emp, info in info_nodos.items():
+        if f_dir != "Todas" and info['direccion'] != f_dir and info['mla'] != '5': continue
+        if f_lid != "Todos" and info['lider'] != f_lid: continue
+        if f_crit != "Todas" and info['critica'] != f_crit: continue
+        if f_mla != "Todos" and info['mla'] != f_mla: continue
+        if f_box != "Todos" and info['box'] != f_box: continue
+        if f_riesgos and not info['riesgos_lista']: continue
+        nodos_visibles.add(emp)
+
+    # PASO 4: Construir Jerarquía Estructural (Sin romper anillos)
     raiz_principal = None
     for emp, info in info_nodos.items():
         if info['mla'] == '5':
@@ -178,14 +183,10 @@ def generar_mapa_html(url_sheets, direccion_permitida):
         if posibles_raices:
             raiz_principal = max(posibles_raices, key=lambda x: len(nx.descendants(G_jerarquia, x)))
 
-    if raiz_principal:
-        Arbol = nx.bfs_tree(G_jerarquia, raiz_principal)
-    else:
-        Arbol = G_jerarquia
+    Arbol = nx.bfs_tree(G_jerarquia, raiz_principal) if raiz_principal else G_jerarquia
 
     def obtener_anillo_estricto(emp_id, depth_arbol):
-        info = info_nodos.get(emp_id, {})
-        mla = info.get('mla', '')
+        mla = info_nodos.get(emp_id, {}).get('mla', '')
         if mla == '5': return 0
         elif mla == '4': return 1 
         elif mla == '3': return 2 
@@ -203,8 +204,7 @@ def generar_mapa_html(url_sheets, direccion_permitida):
         conteo_hojas[n] = total
         return total
 
-    if raiz_principal:
-        calcular_hojas(raiz_principal)
+    if raiz_principal: calcular_hojas(raiz_principal)
 
     coords = {}
     SEPARACION_ANILLOS = 1000 
@@ -230,96 +230,63 @@ def generar_mapa_html(url_sheets, direccion_permitida):
         coords[raiz_principal] = {'x': 0, 'y': 0, 'angle': 0, 'anillo_real': 0, 'profundidad': 0}
         asignar_coordenada_radial(raiz_principal, 0, 2 * math.pi)
 
+    # PASO 5: Crear Datos de Tabla y Pyvis
     alertas_tabla = []
 
-    for index, row in df.iterrows():
-        try:
-            id_empleado = clean_id(row['id Empleado'])
-            if not id_empleado: continue
-                
-            info = info_nodos.get(id_empleado, {})
-            nombre = info.get('nombre', 'Desconocido')
-            puesto = info.get('puesto', '')
-            nivel_mla = info.get('mla', 'N/A')
-            resultado_9box = info.get('box', 'Pendiente')
-            direccion = info.get('direccion', 'No asignada')
-            lider = info.get('lider', 'Sin Líder')
-            critica = info.get('critica', 'No')
-            
-            interes = info.get('interes', 'Pendiente')
-            suc1 = info.get('suc1', 'Pendiente')
-            read1 = info.get('read1', 'Pendiente')
-            suc2 = info.get('suc2', '')
-            read2 = info.get('read2', '')
-            suc3 = info.get('suc3', '')
-            read3 = info.get('read3', '')
-            
-            riesgos_lista = []
-            
-            es_critica = (critica.lower() == 'si')
-            tiene_oficial = (suc1.lower() != 'pendiente' and suc1 != '')
-            tiene_hipos_9box = (sucesores_de.get(id_empleado, 0) > 0)
-            
-            if es_critica:
-                if not tiene_oficial and not tiene_hipos_9box:
-                    riesgos_lista.append("🔥 Riesgo Crítico: Sin Sucesor ni HiPos")
-                elif not tiene_oficial and tiene_hipos_9box:
-                    riesgos_lista.append("⚠️ Sugerencia: HiPo disponible, falta oficializar")
-                    
-            reps = reportes_directos.get(id_empleado, 0)
-            if reps >= 12: riesgos_lista.append(f"⚠️ Sobrecarga ({reps} reportes)")
-            elif reps == 1: riesgos_lista.append("⚠️ Ineficiencia (1 reporte)")
-                
-            for r in riesgos_lista:
+    for emp, info in info_nodos.items():
+        is_hidden = emp not in nodos_visibles
+        
+        # Llenar la tabla de alertas SOLO con los visibles
+        if not is_hidden:
+            for r in info['riesgos_lista']:
                 alertas_tabla.append({
-                    "Colaborador": nombre,
-                    "Puesto": puesto,
-                    "Dirección": direccion,
+                    "Colaborador": info['nombre'],
+                    "Líder Directo": info['lider'],
+                    "Puesto": info['puesto'],
+                    "Dirección": info['direccion'],
                     "Alerta Detectada por IA": r
                 })
 
-            riesgos_str = " | ".join(riesgos_lista) if riesgos_lista else "Ninguno"
-            prefijo = "🚨 " if riesgos_lista else ""
+        prefijo = "🚨 " if info['riesgos_lista'] else ""
+        coord_data = coords.get(emp, {'x':5000, 'y':5000, 'angle':0, 'anillo_real':5, 'profundidad':5})
+        etiqueta_visible = f"{prefijo}{info['nombre']}\n({info['puesto']})"
+        tooltip_html = f"<div style='padding: 5px; text-align: center;'><b>{prefijo}{info['nombre']}</b></div>"
+        
+        G.add_node(
+            emp, label=etiqueta_visible, title=tooltip_html, size=35 if emp == raiz_principal else 22, 
+            color=obtener_color_9box(info['box']), shape='dot', group=info['mla'], 
+            Nivel_MLA=info['mla'], Resultado_9Box=info['box'], Direccion=info['direccion'], Lider=info['lider'], 
+            Critica=info['critica'], Nombre=info['nombre'], Puesto=info['puesto'], Riesgos=info['riesgos'],
+            Interes=info['interes'], Suc1=info['suc1'], Read1=info['read1'], Suc2=info['suc2'], Read2=info['read2'], Suc3=info['suc3'], Read3=info['read3'],
+            font={'color': '#0f172a', 'strokeWidth': 4, 'strokeColor': '#ffffff', 'size': 12, 'face': 'Arial', 'weight': 'bold'},
+            x=coord_data['x'], y=coord_data['y'], Angle=coord_data['angle'], AnilloReal=coord_data['anillo_real'], Profundidad=coord_data['profundidad'],
+            hidden=is_hidden, data_hidden=is_hidden # Le pasamos el ocultamiento al mapa
+        )
 
-            coord_data = coords.get(id_empleado, {'x':5000, 'y':5000, 'angle':0, 'anillo_real':5, 'profundidad':5})
-            tamaño_nodo = 35 if id_empleado == raiz_principal else 22
-            etiqueta_visible = f"{prefijo}{nombre}\n({puesto})"
-            tooltip_html = f"<div style='padding: 5px; text-align: center;'><b>{prefijo}{nombre}</b></div>"
-            color_nodo = obtener_color_9box(resultado_9box)
+    for jefe, emp in G_jerarquia.edges():
+        is_hidden = jefe not in nodos_visibles or emp not in nodos_visibles
+        G.add_edge(jefe, emp, color='#94a3b8', width=2, dashes=False, is_jump=False, hidden=is_hidden, data_hidden=is_hidden)
 
-            G.add_node(
-                id_empleado, label=etiqueta_visible, title=tooltip_html, size=tamaño_nodo, color=color_nodo, 
-                shape='dot', group=nivel_mla, Nivel_MLA=nivel_mla, Resultado_9Box=resultado_9box, 
-                Direccion=direccion, Lider=lider, Critica=critica, Nombre=nombre, Puesto=puesto, Riesgos=riesgos_str,
-                Interes=interes, Suc1=suc1, Read1=read1, Suc2=suc2, Read2=read2, Suc3=suc3, Read3=read3,
-                font={'color': '#0f172a', 'strokeWidth': 4, 'strokeColor': '#ffffff', 'size': 12, 'face': 'Arial', 'weight': 'bold'},
-                x=coord_data['x'], y=coord_data['y'], 
-                Angle=coord_data['angle'], AnilloReal=coord_data['anillo_real'], Profundidad=coord_data['profundidad']
-            )
-        except: pass
+    for emp, info in info_nodos.items():
+        box = info['box'].upper()
+        if box in ['5', '2']:
+            j1 = obtener_jefe_nivel_arriba(emp, 1)
+            if j1: G.add_edge(emp, j1, color='#22c55e', width=3, dashes=True, title='Proyección N+1', is_jump=True, hidden=(emp not in nodos_visibles or j1 not in nodos_visibles), data_hidden=(emp not in nodos_visibles or j1 not in nodos_visibles))
+        if box in ['1', '3']:
+            j2 = obtener_jefe_nivel_arriba(emp, 2)
+            if j2: G.add_edge(emp, j2, color='#166534', width=3.5, dashes=True, title='Proyección N+2', is_jump=True, hidden=(emp not in nodos_visibles or j2 not in nodos_visibles), data_hidden=(emp not in nodos_visibles or j2 not in nodos_visibles))
 
-    for index, row in df.iterrows():
-        try:
-            id_empleado = clean_id(row['id Empleado'])
-            id_jefe = clean_id(row['ID Del Jefe'])
-            res_9box = str(row.get('Resultado 9 box', '')).strip().upper()
-            if not id_empleado: continue
-            if id_jefe in empleados_validos:
-                G.add_edge(id_jefe, id_empleado, color='#94a3b8', width=2, dashes=False, is_jump=False)
-            if res_9box in ['5', '2']:
-                G.add_edge(id_empleado, obtener_jefe_nivel_arriba(id_empleado, 1), color='#22c55e', width=3, dashes=True, title='Proyección N+1', is_jump=True)
-            if res_9box in ['1', '3']:
-                G.add_edge(id_empleado, obtener_jefe_nivel_arriba(id_empleado, 2), color='#166534', width=3.5, dashes=True, title='Proyección N+2', is_jump=True)
-        except: pass
-
+    # PASO 6: KPIs Calculados SÓLO con lo Visible
     kpis = {
-        'total': len(empleados_validos),
-        'criticas': sum(1 for v in info_nodos.values() if v['critica'].lower() == 'si'),
-        'sucesores': sum(1 for v in info_nodos.values() if v['suc1'].lower() not in ['pendiente', '', 'nan']),
-        'operativos': sum(1 for v in info_nodos.values() if v['mla'] == '1')
+        'total': len(nodos_visibles),
+        'criticas': sum(1 for emp in nodos_visibles if info_nodos[emp]['critica'].lower() == 'si'),
+        'sucesores': sum(1 for emp in nodos_visibles if info_nodos[emp]['suc1'].lower() not in ['pendiente', '', 'nan']),
+        'operativos': sum(1 for emp in nodos_visibles if info_nodos[emp]['mla'] == '1'),
+        'alertas': len(alertas_tabla)
     }
     df_alertas = pd.DataFrame(alertas_tabla)
     
+    # RENDERIZADO DEL MAPA
     net = Network(height='750px', width='100%', bgcolor='#ffffff', font_color='#333333', directed=True, cdn_resources='remote')
     net.from_nx(G)
     
@@ -327,15 +294,7 @@ def generar_mapa_html(url_sheets, direccion_permitida):
     var options = {
       "nodes": {
           "borderWidth": 2,
-          "shadow": {"enabled": true, "color": "rgba(0,0,0,0.4)", "size": 10, "x": 3, "y": 3},
-          "font": {
-              "color": "#1e293b", 
-              "strokeWidth": 4, 
-              "strokeColor": "#ffffff", 
-              "size": 14, 
-              "face": "Arial", 
-              "weight": "bold"
-          }
+          "shadow": {"enabled": true, "color": "rgba(0,0,0,0.4)", "size": 10, "x": 3, "y": 3}
       },
       "physics": {"enabled": false, "forceAtlas2Based": {"gravitationalConstant": -150, "centralGravity": 0.01, "springLength": 250, "springConstant": 0.08, "avoidOverlap": 0.5}, "solver": "forceAtlas2Based"},
       "edges": {"smooth": {"enabled": true, "type": "continuous", "roundness": 0.2}},
@@ -372,12 +331,6 @@ def generar_mapa_html(url_sheets, direccion_permitida):
     </script>
     """
     
-    opciones_direccion = "".join([f'<option value="{x}">{x}</option>' for x in sorted(direcciones_unicas)])
-    opciones_mla = "".join([f'<option value="{x}">{x}</option>' for x in sorted(mlas_unicos)])
-    opciones_box = "".join([f'<option value="{x}">{x}</option>' for x in sorted(box_unicos)])
-    opciones_lider = "".join([f'<option value="{x}">{x}</option>' for x in sorted(lideres_unicos)])
-    opciones_critica = "".join([f'<option value="{x}">{x}</option>' for x in sorted(criticas_unicas)])
-    
     boton_html = f"""
     <div id="fichaLateral" style="position: absolute; top: 0; left: -400px; width: 340px; height: 100vh; background: white; box-shadow: 2px 0 15px rgba(0,0,0,0.15); transition: left 0.3s ease; z-index: 10000; font-family: Arial, sans-serif; display: flex; flex-direction: column;">
         <div style="background: #1976d2; padding: 20px; color: white; position: relative; flex-shrink: 0;">
@@ -397,23 +350,19 @@ def generar_mapa_html(url_sheets, direccion_permitida):
                 <div><span style="font-size: 12px; color: #777; font-weight: bold;">NIVEL MLA</span><br><span id="fMLA" style="font-size: 16px; font-weight: bold; color: #1976d2;">-</span></div>
                 <div><span style="font-size: 12px; color: #777; font-weight: bold;">9-BOX</span><br><span id="f9Box" style="display: inline-block; padding: 2px 10px; border-radius: 12px; background: #eee; font-size: 14px; font-weight: bold; color: #333; margin-top: 2px;">-</span></div>
             </div>
-            
             <hr style="border: 0; border-top: 2px dashed #ddd; margin: 10px 0;">
             <div style="font-size: 14px; color: #1565c0; font-weight: bold; text-transform: uppercase; margin-bottom: -5px;">📈 Plan de Sucesión</div>
             <div><span style="font-size: 11px; color: #777; font-weight: bold;">INTERÉS DEL COLABORADOR</span><br><span id="fInteres" style="font-size: 14px; color: #333; font-weight:bold;">-</span></div>
-            
             <div id="divSucesor1" style="background: #f8f9fa; padding: 8px; border-radius: 6px; border-left: 3px solid #1976d2;">
                 <span style="font-size: 11px; color: #555; font-weight: bold;">OPCIÓN DE SUCESIÓN 1</span><br>
                 <span id="fSuc1" style="font-size: 14px; color: #333; font-weight:bold;">-</span><br>
                 <span id="fRead1" style="font-size: 13px; color: #555; margin-top:3px; display:inline-block;">-</span>
             </div>
-            
             <div id="divSucesor2" style="background: #f8f9fa; padding: 8px; border-radius: 6px; border-left: 3px solid #81c784; display:none;">
                 <span style="font-size: 11px; color: #555; font-weight: bold;">OPCIÓN DE SUCESIÓN 2</span><br>
                 <span id="fSuc2" style="font-size: 14px; color: #333; font-weight:bold;">-</span><br>
                 <span id="fRead2" style="font-size: 13px; color: #555; margin-top:3px; display:inline-block;">-</span>
             </div>
-            
             <div id="divSucesor3" style="background: #f8f9fa; padding: 8px; border-radius: 6px; border-left: 3px solid #fbc02d; display:none;">
                 <span style="font-size: 11px; color: #555; font-weight: bold;">OPCIÓN DE SUCESIÓN 3</span><br>
                 <span id="fSuc3" style="font-size: 14px; color: #333; font-weight:bold;">-</span><br>
@@ -421,9 +370,10 @@ def generar_mapa_html(url_sheets, direccion_permitida):
             </div>
         </div>
     </div>
+    
     <div style="position: absolute; bottom: 30px; right: 30px; z-index: 9999; background: white; border-radius: 8px; box-shadow: 0px 8px 20px rgba(0,0,0,0.25); border-left: 5px solid #1976d2; font-family: Arial, sans-serif; overflow: hidden; width: 280px;">
         <div style="padding: 12px 15px; background: #f8f9fa; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eaeaea;" onclick="toggleFiltrosPanel()">
-            <h3 style="margin: 0; font-size: 15px; color: #333;">Filtros y Controles</h3><span id="iconoFiltro" style="font-size: 12px; color: #666;">▼ Ocultar</span>
+            <h3 style="margin: 0; font-size: 15px; color: #333;">Opciones Visuales</h3><span id="iconoFiltro" style="font-size: 12px; color: #666;">▼ Ocultar</span>
         </div>
         <div id="cuerpoFiltros" style="padding: 15px; display: flex; flex-direction: column; gap: 8px; max-height: 70vh; overflow-y: auto;">
             <label style="font-size: 14px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; background: #e3f2fd; padding: 8px; border-radius: 5px; color: #1565c0;">
@@ -436,39 +386,15 @@ def generar_mapa_html(url_sheets, direccion_permitida):
                     <span id="valorSeparacion" style="font-size: 12px; font-weight:bold; color:#1976d2; min-width: 45px;">1000px</span>
                 </div>
             </div>
-            <hr style="margin: 5px 0; border: 0; border-top: 1px dashed #ccc;">
-            <label style="font-size: 14px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; color: #d32f2f; background: #ffebee; padding: 8px; border-radius: 5px;">
-                <input type="checkbox" id="toggleRiesgos" onchange="applyFilters()" style="width: 18px; height: 18px;"> 🚨 Mostrar Solo Riesgos
-            </label>
-            <label style="font-size: 13px; font-weight: bold; color: #555;">Dirección:</label>
-            <select id="filterDireccion" onchange="updateLiderDropdown(); applyFilters()" style="padding: 5px; border-radius: 4px; border: 1px solid #ccc; width: 100%;">
-                <option value="Todos">Todas las Direcciones</option>{opciones_direccion}
-            </select>
-            <label style="font-size: 13px; font-weight: bold; color: #555;">Líder:</label>
-            <select id="filterLider" onchange="applyFilters()" style="padding: 5px; border-radius: 4px; border: 1px solid #ccc; width: 100%;">
-                <option value="Todos">Todos los Líderes</option>{opciones_lider}
-            </select>
-            <label style="font-size: 13px; font-weight: bold; color: #555;">Posición Crítica:</label>
-            <select id="filterCritica" onchange="applyFilters()" style="padding: 5px; border-radius: 4px; border: 1px solid #ccc; width: 100%;">
-                <option value="Todos">Todas</option>{opciones_critica}
-            </select>
-            <label style="font-size: 13px; font-weight: bold; color: #555;">Nivel MLA:</label>
-            <select id="filterMLA" onchange="applyFilters()" style="padding: 5px; border-radius: 4px; border: 1px solid #ccc; width: 100%;">
-                <option value="Todos">Todos los Niveles</option>{opciones_mla}
-            </select>
-            <label style="font-size: 13px; font-weight: bold; color: #555;">9-Box:</label>
-            <select id="filter9Box" onchange="applyFilters()" style="padding: 5px; border-radius: 4px; border: 1px solid #ccc; width: 100%;">
-                <option value="Todos">Todos los Resultados</option>{opciones_box}
-            </select>
             <hr style="margin: 10px 0; border: 0; border-top: 1px solid #ddd;">
             <label style="font-size: 14px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px;">
-                <input type="checkbox" id="toggleNormal" checked onchange="applyFilters()" style="width: 16px; height: 16px;"> 🏢 Mostrar Estructura
+                <input type="checkbox" id="toggleNormal" checked onchange="applyVisualFilters()" style="width: 16px; height: 16px;"> 🏢 Mostrar Estructura
             </label>
             <label style="font-size: 14px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px;">
-                <input type="checkbox" id="toggleJumps" checked onchange="applyFilters()" style="width: 16px; height: 16px;"> 🔀 Mostrar Proyecciones
+                <input type="checkbox" id="toggleJumps" checked onchange="applyVisualFilters()" style="width: 16px; height: 16px;"> 🔀 Mostrar Proyecciones
             </label>
             <button onclick="enfocarPantalla()" style="margin-top: 10px; background: #1976d2; color: white; border: none; padding: 10px; border-radius: 5px; font-size: 14px; font-weight: bold; cursor: pointer; width: 100%;">
-                🔍 Enfocar Pantalla
+                🔍 Centrar Mapa
             </button>
         </div>
     </div>
@@ -508,9 +434,7 @@ def generar_mapa_html(url_sheets, direccion_permitida):
             document.getElementById('fCritica').innerText = node.Critica || "N/A";
             document.getElementById('fMLA').innerText = node.Nivel_MLA || "N/A";
             document.getElementById('fRiesgos').innerText = node.Riesgos || "Ninguno";
-            
             document.getElementById('fInteres').innerText = node.Interes || "Pendiente";
-            
             document.getElementById('fSuc1').innerText = node.Suc1 || "Pendiente";
             document.getElementById('fRead1').innerText = node.Read1 && node.Read1 !== 'Pendiente' ? node.Read1 : "Sin tiempo definido";
             
@@ -518,17 +442,13 @@ def generar_mapa_html(url_sheets, direccion_permitida):
                 document.getElementById('divSucesor2').style.display = "block";
                 document.getElementById('fSuc2').innerText = node.Suc2;
                 document.getElementById('fRead2').innerText = node.Read2 || "Sin tiempo definido";
-            }} else {{
-                document.getElementById('divSucesor2').style.display = "none";
-            }}
+            }} else {{ document.getElementById('divSucesor2').style.display = "none"; }}
             
             if(node.Suc3 && node.Suc3 !== "") {{
                 document.getElementById('divSucesor3').style.display = "block";
                 document.getElementById('fSuc3').innerText = node.Suc3;
                 document.getElementById('fRead3').innerText = node.Read3 || "Sin tiempo definido";
-            }} else {{
-                document.getElementById('divSucesor3').style.display = "none";
-            }}
+            }} else {{ document.getElementById('divSucesor3').style.display = "none"; }}
 
             var boxResult = node.Resultado_9Box || "N/A";
             var f9Box = document.getElementById('f9Box'); f9Box.innerText = boxResult;
@@ -543,76 +463,39 @@ def generar_mapa_html(url_sheets, direccion_permitida):
         if (cuerpo.style.display === 'none') {{ cuerpo.style.display = 'flex'; icono.innerText = '▼ Ocultar';
         }} else {{ cuerpo.style.display = 'none'; icono.innerText = '▲ Mostrar'; }}
     }}
-    function updateLiderDropdown() {{
-        var selectedDireccion = document.getElementById('filterDireccion').value;
-        var liderSelect = document.getElementById('filterLider'); var currentLider = liderSelect.value;
-        var allNodes = network.body.data.nodes.get(); var validLideres = new Set();
-        for (var i = 0; i < allNodes.length; i++) {{
-            var node = allNodes[i];
-            if (selectedDireccion === "Todos" || node.Direccion === selectedDireccion) {{
-                if (node.Lider) {{ validLideres.add(node.Lider); }}
-            }}
-        }}
-        liderSelect.innerHTML = '<option value="Todos">Todos los Líderes</option>';
-        var sortedLideres = Array.from(validLideres).sort();
-        for (var i = 0; i < sortedLideres.length; i++) {{
-            var opt = document.createElement('option'); opt.value = sortedLideres[i]; opt.innerHTML = sortedLideres[i]; liderSelect.appendChild(opt);
-        }}
-        if (validLideres.has(currentLider)) {{ liderSelect.value = currentLider; }} else {{ liderSelect.value = "Todos"; }}
-    }}
-    function applyFilters() {{
-        var showOnlyRiesgos = document.getElementById('toggleRiesgos').checked;
-        var selectedLider = document.getElementById('filterLider').value;
-        var selectedDireccion = document.getElementById('filterDireccion').value;
-        var selectedCritica = document.getElementById('filterCritica').value;
-        var selectedMLA = document.getElementById('filterMLA').value;
-        var selected9Box = document.getElementById('filter9Box').value;
+    function applyVisualFilters() {{
         var showNormal = document.getElementById('toggleNormal').checked;
         var showJumps = document.getElementById('toggleJumps').checked;
-        var allNodes = network.body.data.nodes.get();
-        var nodesToUpdate = []; var visibleNodeIds = new Set();
-        for (var i = 0; i < allNodes.length; i++) {{
-            var node = allNodes[i]; var isVisible = false;
-            if (selectedLider !== "Todos" && node.Nombre === selectedLider) {{ isVisible = true;
-            }} else {{
-                var matchLider = (selectedLider === "Todos") || (node.Lider == selectedLider);
-                var matchDireccion = (selectedDireccion === "Todos") || (node.Direccion == selectedDireccion) || (node.Nivel_MLA === "5");
-                var matchCritica = (selectedCritica === "Todos") || (node.Critica == selectedCritica);
-                var matchMLA = (selectedMLA === "Todos") || (node.Nivel_MLA == selectedMLA);
-                var match9Box = (selected9Box === "Todos") || (node.Resultado_9Box == selected9Box);
-                isVisible = matchLider && matchDireccion && matchCritica && matchMLA && match9Box;
-            }}
-            if (showOnlyRiesgos) {{ if (!node.Riesgos || node.Riesgos === "Ninguno") {{ isVisible = false; }} }}
-            nodesToUpdate.push({{id: node.id, hidden: !isVisible}});
-            if(isVisible) visibleNodeIds.add(node.id);
-        }}
-        network.body.data.nodes.update(nodesToUpdate);
-        var allEdges = network.body.data.edges.get(); var edgesToUpdate = [];
+        var allEdges = network.body.data.edges.get();
+        var edgesToUpdate = [];
         for (var i = 0; i < allEdges.length; i++) {{
             var edge = allEdges[i];
-            var nodesVisible = visibleNodeIds.has(edge.from) && visibleNodeIds.has(edge.to);
-            var edgeVisible = false;
-            if (nodesVisible) {{ if (edge.is_jump === true) {{ edgeVisible = showJumps; }} else {{ edgeVisible = showNormal; }} }}
-            edgesToUpdate.push({{id: edge.id, hidden: !edgeVisible}});
+            // Respetar lo que ocultó Python
+            if (edge.data_hidden === true) {{
+                edgesToUpdate.push({{id: edge.id, hidden: true}});
+            }} else {{
+                if (edge.is_jump === true) {{ edgesToUpdate.push({{id: edge.id, hidden: !showJumps}});
+                }} else {{ edgesToUpdate.push({{id: edge.id, hidden: !showNormal}}); }}
+            }}
         }}
         network.body.data.edges.update(edgesToUpdate);
     }}
-    function enfocarPantalla() {{ network.fit({{ animation: {{ duration: 800, easingFunction: 'easeInOutQuad' }} }}); }}
     
     // =========================================================
-    // LA SOLUCIÓN AL RECORTE: MOVER LA CÁMARA HACIA ARRIBA Y ALEJARLA
+    // ENFOQUE INTELIGENTE: Mueve la cámara arriba y aleja el zoom
     // =========================================================
-    setTimeout(function() {{
+    function enfocarPantalla() {{ 
         network.fit();
         setTimeout(function() {{
             var currentScale = network.getScale();
             network.moveTo({{
-                position: {{x: 0, y: -150}}, // Mueve la cámara 150px hacia arriba
-                scale: currentScale * 0.65, // Aleja la vista un 35% extra
+                position: {{x: 0, y: -150}}, 
+                scale: currentScale * 0.65, 
                 animation: {{ duration: 800, easingFunction: 'easeInOutQuad' }}
             }});
-        }}, 800); 
-    }}, 1000); 
+        }}, 800);
+    }}
+    setTimeout(enfocarPantalla, 1000); 
     // =========================================================
     
     </script>
@@ -661,51 +544,85 @@ def main():
             
     st.divider()
 
-    with st.spinner("Descargando base de datos y aplicando analítica de segmentación..."):
+    with st.spinner("Descargando base de datos y preparando filtros analíticos..."):
         link_google_sheets = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit?pli=1&gid=0#gid=0"
+        df_completo = cargar_datos_csv(link_google_sheets)
         
+        if df_completo.empty:
+            st.error("Error al conectar con la base de datos de Google Sheets.")
+            st.stop()
+
         direccion_permitida = USUARIOS_AUTORIZADOS[st.session_state["id_usuario"]]["direccion"]
-        html_mapa, df_alertas, kpis = generar_mapa_html(link_google_sheets, direccion_permitida)
+        if direccion_permitida != "TODAS":
+            df_seguro = df_completo[(df_completo['Dirección'].astype(str).str.upper().str.contains(direccion_permitida)) | (df_completo['Nivel MLA'].astype(str).str.strip() == '5')]
+        else:
+            df_seguro = df_completo.copy()
+
+        # =========================================================================
+        # NUEVO PANEL DE FILTROS MAESTROS (Streamlit)
+        # =========================================================================
+        st.markdown("### 🎛️ Filtros Globales (Controlan Mapa, KPIs y Tabla)")
+        
+        dirs = sorted([clean_text(x) for x in df_seguro['Dirección'].unique() if clean_text(x)])
+        mlas = sorted([clean_text(x) for x in df_seguro['Nivel MLA'].unique() if clean_text(x)])
+        boxes = sorted([clean_text(x).upper() for x in df_seguro['Resultado 9 box'].unique() if clean_text(x)])
+        criticas = sorted([clean_text(x) for x in df_seguro['Posición Crítica'].unique() if clean_text(x)])
+        
+        dict_nom = {clean_id(row['id Empleado']): clean_text(row['Nombre']) for _, row in df_seguro.iterrows()}
+        lideres_ids = df_seguro['ID Del Jefe'].dropna().unique()
+        lideres = sorted(list(set([dict_nom.get(clean_id(x), "Sin Líder") for x in lideres_ids if clean_id(x)])))
+
+        col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns(5)
+        f_dir = col_f1.selectbox("Dirección", ["Todas"] + dirs)
+        f_lid = col_f2.selectbox("Líder", ["Todos"] + lideres)
+        f_crit = col_f3.selectbox("Pos. Crítica", ["Todas"] + criticas)
+        f_mla = col_f4.selectbox("Nivel MLA", ["Todos"] + mlas)
+        f_box = col_f5.selectbox("9-Box", ["Todos"] + boxes)
+        
+        f_riesgos = st.checkbox("🚨 Mostrar Solo Colaboradores con Riesgos Detectados")
+        st.write("") # Espaciador
+
+        # Generar el mapa pasándole los filtros maestros
+        html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos)
         
         if kpis is not None:
             col_mapa, col_datos = st.columns([7, 3])
-            
             with col_mapa:
                 components.html(html_mapa, height=750, scrolling=False)
                 
             with col_datos:
                 st.markdown("### 📊 KPIs de Talento")
-                st.markdown(f"*(Basado en permisos de: {direccion_permitida})*")
                 st.write("")
                 st.metric("Total de Colaboradores", kpis['total'])
                 st.metric("Posiciones Críticas", kpis['criticas'])
                 st.metric("Sucesores Oficializados", kpis['sucesores'])
                 st.metric("Personal Operativo (MLA 1)", kpis['operativos'])
+                st.metric("🚨 Alertas Detectadas", kpis['alertas']) # NUEVO KPI
             
             st.divider()
-            st.markdown("### 🚨 Resumen de Alertas y Riesgos Detectados")
+            st.markdown("### 🚨 Resumen de Tareas y Alertas (Filtrable)")
             
             if not df_alertas.empty:
-                st.markdown("Filtra rápidamente la información para encontrar áreas de mejora:")
-                col_f1, col_f2 = st.columns(2)
+                col_t1, col_t2, col_t3 = st.columns(3)
                 
-                with col_f1:
-                    lista_areas = df_alertas['Dirección'].unique().tolist()
-                    filtro_area = st.multiselect("📌 Filtrar por Área / Dirección:", options=lista_areas)
+                # NUEVO: Filtros internos de la tabla (incluyendo Líder)
+                lista_areas = df_alertas['Dirección'].unique().tolist()
+                filtro_area = col_t1.multiselect("📌 Filtrar Tabla por Área:", options=lista_areas)
                 
-                with col_f2:
-                    lista_riesgos = df_alertas['Alerta Detectada por IA'].unique().tolist()
-                    filtro_riesgo = st.multiselect("⚠️ Filtrar por Tipo de Alerta:", options=lista_riesgos)
+                lista_lideres_tabla = df_alertas['Líder Directo'].unique().tolist()
+                filtro_lider_tabla = col_t2.multiselect("👥 Filtrar Tabla por Líder:", options=lista_lideres_tabla)
+                
+                lista_riesgos = df_alertas['Alerta Detectada por IA'].unique().tolist()
+                filtro_riesgo_tabla = col_t3.multiselect("⚠️ Filtrar por Tipo de Alerta:", options=lista_riesgos)
                 
                 df_filtrado = df_alertas.copy()
-                if filtro_area:
-                    df_filtrado = df_filtrado[df_filtrado['Dirección'].isin(filtro_area)]
-                if filtro_riesgo:
-                    df_filtrado = df_filtrado[df_filtrado['Alerta Detectada por IA'].isin(filtro_riesgo)]
+                if filtro_area: df_filtrado = df_filtrado[df_filtrado['Dirección'].isin(filtro_area)]
+                if filtro_lider_tabla: df_filtrado = df_filtrado[df_filtrado['Líder Directo'].isin(filtro_lider_tabla)]
+                if filtro_riesgo_tabla: df_filtrado = df_filtrado[df_filtrado['Alerta Detectada por IA'].isin(filtro_riesgo_tabla)]
                 
                 st.dataframe(df_filtrado, use_container_width=True, hide_index=True)
             else:
-                st.success("✅ ¡Excelente! No se detectaron alertas de sucesión ni sobrecarga de reportes en esta área.")
+                st.success("✅ ¡Excelente! No se detectaron alertas de sucesión ni sobrecarga de reportes con estos filtros.")
         else:
             components.html(html_mapa, height=400)
 
