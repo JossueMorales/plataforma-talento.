@@ -34,7 +34,6 @@ network.on("beforeDrawing", function(ctx) {
     var max_nivel_visible = 0;
     var paso = window.ringSpacing; 
     nodos_visibles.forEach(function(n) {
-        // Blindaje contra cambios de mayúsculas/minúsculas en PyVis
         var anillo = n.AnilloReal !== undefined ? n.AnilloReal : n.anilloreal;
         if(anillo !== undefined) { if (anillo > max_nivel_visible) { max_nivel_visible = anillo; } }
     });
@@ -144,7 +143,6 @@ function updateSpacing() {
     for (var i = 0; i < allNodes.length; i++) {
         var n = allNodes[i];
         
-        // Manejamos diferencias de exportación de PyVis
         var anillo = n.AnilloReal !== undefined ? n.AnilloReal : n.anilloreal;
         var angle = n.Angle !== undefined ? n.Angle : n.angle;
         var prof = n.Profundidad !== undefined ? n.Profundidad : n.profundidad;
@@ -155,14 +153,13 @@ function updateSpacing() {
         }
     }
     
-    // Actualizamos coordenadas de los nodos
+    // Actualizamos las posiciones de los nodos
     network.body.data.nodes.update(nodesToUpdate);
     
-    // Refresco FORZADO de aristas (Para que las líneas se ajusten con los nodos en curvas)
-    var allEdges = network.body.data.edges.get();
-    network.body.data.edges.update(allEdges);
-    
+    // TRUCO PARA REPARAR LOS ARCOS: Encendemos la física 1 milisegundo para que vis.js recalcule las curvas de Bezier
+    network.setOptions({ physics: { enabled: true, solver: 'repulsion' } });
     network.redraw();
+    network.setOptions({ physics: { enabled: false } });
 }
 
 network.on("click", function (params) {
@@ -226,7 +223,6 @@ function applyVisualFilters() {
             continue;
         }
         
-        // Blindamos el filtro buscando tanto la variable booleana como el color exacto
         var colorValue = edge.color;
         if (typeof colorValue === 'object' && colorValue !== null) {
             colorValue = colorValue.color || colorValue.inherit;
@@ -269,10 +265,6 @@ setTimeout(function() {
 # SISTEMA DE SEGURIDAD Y LOGIN
 # ==========================================
 def obtener_usuarios_autorizados():
-    """
-    Intenta obtener credenciales desde st.secrets. 
-    Si no existen (entorno local inicial), usa el diccionario (solo desarrollo).
-    """
     try:
         return st.secrets["usuarios"]
     except KeyError:
@@ -360,10 +352,28 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     empleados_validos = set()
     info_nodos = {}
     
+    # 1. Pre-cargamos los IDs y los nombres reales
     nombres_dict = {
         clean_id(row.get('id Empleado')): clean_text(row.get('Nombre')) 
         for row in df_seguro.to_dict('records') if clean_id(row.get('id Empleado'))
     }
+    
+    # 2. Diccionario Inverso: Permite buscar un ID si el Excel tiene escrito el Nombre
+    nombre_a_id = {nombre.strip().lower(): emp_id for emp_id, nombre in nombres_dict.items()}
+
+    def buscar_id_real(valor):
+        """Traduce de forma inteligente: si es un nombre, devuelve el ID. Si es un ID, lo limpia."""
+        if pd.isna(valor) or str(valor).strip().lower() in ['nan', 'none', 'pendiente', '']: 
+            return ''
+        v = str(valor).strip()
+        if v.endswith('.0'): 
+            v = v[:-2]
+        if v in nombres_dict: 
+            return v  # Ya era un ID correcto
+        v_lower = v.lower()
+        if v_lower in nombre_a_id: 
+            return nombre_a_id[v_lower] # Era un nombre, devolvemos el ID
+        return v # Retorno por defecto
             
     for row_dict in df_seguro.to_dict('records'):
         emp = clean_id(row_dict.get('id Empleado'))
@@ -372,6 +382,11 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         if emp:
             empleados_validos.add(emp)
             G_jerarquia.add_node(emp)
+            
+            # Usamos el traductor inteligente para las 3 columnas de sucesores
+            suc1_limpio = buscar_id_real(row_dict.get('Sucesor P.1', row_dict.get('Sucesor 1', '')))
+            suc2_limpio = buscar_id_real(row_dict.get('Sucesor P.2', row_dict.get('Sucesor 2', '')))
+            suc3_limpio = buscar_id_real(row_dict.get('Sucesor P.3', row_dict.get('Sucesor 3', '')))
             
             info_nodos[emp] = {
                 'mla': clean_text(row_dict.get('Nivel MLA'), 'N/A'),
@@ -382,11 +397,11 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                 'critica': clean_text(row_dict.get('Posición Crítica', row_dict.get('Posicion Critica')), 'No'),
                 'nombre': clean_text(row_dict.get('Nombre')),
                 'interes': clean_text(row_dict.get('Interés del Colaborador'), 'Pendiente'),
-                'suc1_id': clean_id(row_dict.get('Sucesor P.1')),
+                'suc1_id': suc1_limpio,
                 'read1': clean_text(row_dict.get('Tiempo de Readiness 1'), 'Pendiente'),
-                'suc2_id': clean_id(row_dict.get('Sucesor P.2')),
+                'suc2_id': suc2_limpio,
                 'read2': clean_text(row_dict.get('Tiempo de Readiness 2'), ''),
-                'suc3_id': clean_id(row_dict.get('Sucesor P.3')),
+                'suc3_id': suc3_limpio,
                 'read3': clean_text(row_dict.get('Tiempo de Readiness 3'), '')
             }
             if jefe:
