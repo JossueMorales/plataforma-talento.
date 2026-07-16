@@ -102,7 +102,6 @@ BOTON_HTML = """
         <div id="sliderContainer" style="transition: 0.3s;">
             <label style="font-size: 13px; font-weight: bold; color: #555;">Amplitud Radial:</label>
             <div style="display: flex; align-items: center; gap: 10px;">
-                <!-- Cambiado min a 100 -->
                 <input type="range" id="sliderSeparacion" min="100" max="3500" value="1800" oninput="updateSpacing()" style="width: 100%; cursor: pointer;">
                 <span id="valorSeparacion" style="font-size: 12px; font-weight:bold; color:#1976d2; min-width: 45px;">1800px</span>
             </div>
@@ -141,7 +140,6 @@ function updateSpacing() {
     var allNodes = network.body.data.nodes.get();
     var nodesToUpdate = [];
     
-    // Calculamos las nuevas posiciones
     for (var i = 0; i < allNodes.length; i++) {
         var n = allNodes[i];
         var anillo = n.AnilloReal !== undefined ? n.AnilloReal : n.anilloreal;
@@ -154,7 +152,6 @@ function updateSpacing() {
         }
     }
     
-    // Solo actualizamos los nodos. Las aristas rectas se adaptarán automáticamente sin arcos gigantes.
     network.body.data.nodes.update(nodesToUpdate);
 }
 
@@ -336,6 +333,23 @@ def obtener_color_9box(valor):
     if v in ['5', '2']: return '#16a34a' 
     if v in ['1', '3']: return '#14532d' 
     return '#94a3b8' 
+
+def acortar_nombre(nombre_completo):
+    """
+    Toma un nombre completo y devuelve el primer nombre y el primer apellido.
+    Si tiene 3 palabras (ej. Ana Perez Gomez) devuelve las dos primeras (Ana Perez).
+    Si tiene 4 o más (ej. Juan Carlos Perez Gomez) devuelve la 1ra y penúltima (Juan Perez).
+    """
+    if not nombre_completo: return ""
+    partes = str(nombre_completo).strip().split()
+    
+    if len(partes) <= 2:
+        return nombre_completo
+    elif len(partes) == 3:
+        return f"{partes[0]} {partes[1]}"
+    else:
+        # Asumimos formato tradicional de 4 palabras: Nombre1 Nombre2 Apellido1 Apellido2
+        return f"{partes[0]} {partes[-2]}"
 
 # ==========================================
 # MOTOR PRINCIPAL
@@ -586,9 +600,13 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         nom_suc2 = nombres_dict.get(info['suc2_id'], info['suc2_id']) if info['suc2_id'] else ""
         nom_suc3 = nombres_dict.get(info['suc3_id'], info['suc3_id']) if info['suc3_id'] else ""
         
+        # Generamos el nombre corto (ej: Juan Perez)
+        nombre_corto = acortar_nombre(info['nombre'])
+        
         G.add_node(
             emp, 
-            label=f"{prefijo}{info['nombre']}", 
+            # El salto de línea (\n) coloca el puesto justo debajo del nombre corto
+            label=f"{prefijo}{nombre_corto}\n({info['puesto']})", 
             title=f"<div style='padding: 5px; text-align: center;'><b>{prefijo}{info['nombre']}</b><br><small>{info['puesto']}</small></div>", 
             size=28 if emp == raiz_principal else 18, 
             color=obtener_color_9box(info['box']), 
