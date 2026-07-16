@@ -255,6 +255,19 @@ setTimeout(function() {
 """
 
 # ==========================================
+# FUNCIONES AUXILIARES DE DISEÑO
+# ==========================================
+def crear_tarjeta_kpi(titulo, valor, color_borde, color_texto, color_fondo):
+    """Genera el HTML para las minitarjetas de KPI"""
+    color_valor = color_texto if color_texto != "#64748b" else "#0f172a"
+    return f"""
+    <div style="background-color: {color_fondo}; border: 1px solid #e2e8f0; border-top: 3px solid {color_borde}; padding: 10px 5px 5px 5px; border-radius: 6px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); margin-bottom: 2px;">
+        <div style="font-size: 10px; color: {color_texto}; font-weight: 600; line-height: 1.1; margin-bottom: 4px;">{titulo}</div>
+        <div style="font-size: 16px; color: {color_valor}; font-weight: bold;">{valor}</div>
+    </div>
+    """
+
+# ==========================================
 # SISTEMA DE SEGURIDAD Y LOGIN
 # ==========================================
 def obtener_usuarios_autorizados():
@@ -577,9 +590,26 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
 
     alertas_tabla = []
     
+    # Listas para los Dataframes de los KPIs
+    data_total = []
+    data_criticas = []
+    data_sucesores = []
+    data_operativos = []
+    
     for emp, info in info_nodos.items():
         is_hidden = emp not in nodos_visibles
         if not is_hidden:
+            # Agregamos a las listas de KPIs con solo Nombre, Dirección y Puesto
+            nodo_data = {"Nombre": info['nombre'], "Dirección": info['direccion'], "Puesto": info['puesto']}
+            data_total.append(nodo_data)
+            
+            if info['critica'].lower() == 'si':
+                data_criticas.append(nodo_data)
+            if info['suc1_id']:
+                data_sucesores.append(nodo_data)
+            if info['mla'] == '1':
+                data_operativos.append(nodo_data)
+                
             for r in info['riesgos_lista']:
                 alertas_tabla.append({
                     "Colaborador": info['nombre'],
@@ -613,9 +643,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             hidden=is_hidden
         )
 
-    # =========================================================
-    # CONEXIONES ESTRUCTURALES Y PREDICTIVAS
-    # =========================================================
     for jefe, emp in G_jerarquia.edges():
         is_hidden_edge = jefe not in nodos_visibles or emp not in nodos_visibles
         G.add_edge(jefe, emp, color='#94a3b8', width=2, dashes=False, title='Estructura', hidden=is_hidden_edge, is_struct=True, is_9box=False, is_succ=False, smooth=False)
@@ -637,13 +664,22 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                 is_hidden_edge = (emp not in nodos_visibles or s_id not in nodos_visibles)
                 G.add_edge(emp, s_id, color='#9c27b0', width=5, dashes=False, title='🎯 Objetivo de Sucesión', hidden=is_hidden_edge, is_struct=False, is_9box=False, is_succ=True, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.6})
 
+    # Guardamos los conteos y las listas de datos en el diccionario kpis
+    data_alertas = [{"Nombre": a['Colaborador'], "Dirección": a['Dirección'], "Puesto": a['Puesto']} for a in alertas_tabla]
+    
     kpis = {
-        'total': len(nodos_visibles),
-        'criticas': sum(1 for emp in nodos_visibles if info_nodos[emp]['critica'].lower() == 'si'),
-        'sucesores': sum(1 for emp in nodos_visibles if info_nodos[emp]['suc1_id']),
-        'operativos': sum(1 for emp in nodos_visibles if info_nodos[emp]['mla'] == '1'),
-        'alertas': len(alertas_tabla)
+        'total': len(data_total),
+        'criticas': len(data_criticas),
+        'sucesores': len(data_sucesores),
+        'operativos': len(data_operativos),
+        'alertas': len(alertas_tabla),
+        'data_total': data_total,
+        'data_criticas': data_criticas,
+        'data_sucesores': data_sucesores,
+        'data_operativos': data_operativos,
+        'data_alertas': data_alertas
     }
+    
     df_alertas = pd.DataFrame(alertas_tabla)
     
     net = Network(height='750px', width='100%', bgcolor='#ffffff', font_color='#333333', directed=True, cdn_resources='remote')
@@ -662,9 +698,20 @@ def main():
     if not login():
         st.stop()
         
+    # Inicializar el estado de la vista de listas de KPIs
+    if "vista_kpi" not in st.session_state:
+        st.session_state["vista_kpi"] = None
+        
     st.markdown("""
         <style>
         .block-container { padding-top: 1rem; padding-bottom: 0rem; }
+        /* Hacemos los botones debajo de los KPIs más pequeños y sutiles */
+        div[data-testid="stButton"] > button {
+            padding: 2px 10px;
+            font-size: 12px;
+            height: auto;
+            min-height: 28px;
+        }
         </style>
     """, unsafe_allow_html=True)
     
@@ -718,7 +765,6 @@ def main():
         html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos)
         
         if kpis is not None:
-            # RESTAURAMOS LA ESTRUCTURA 7:3
             col_mapa, col_datos = st.columns([7, 3])
             
             with col_mapa:
@@ -727,32 +773,55 @@ def main():
             with col_datos:
                 st.markdown("### 📊 KPIs de Talento")
                 
-                # CREAMOS CAJAS HORIZONTALES CON HTML/CSS DIRECTAMENTE EN LA COLUMNA DE LA DERECHA
-                kpi_html = f"""
-                <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 20px;">
-                    <div style="flex: 1; min-width: 60px; background-color: #f8f9fa; border: 1px solid #e2e8f0; border-top: 3px solid #3b82f6; padding: 10px 5px; border-radius: 6px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                        <div style="font-size: 10px; color: #64748b; font-weight: 600; line-height: 1.1; margin-bottom: 4px;">Total<br>Colab.</div>
-                        <div style="font-size: 16px; color: #0f172a; font-weight: bold;">{kpis['total']}</div>
-                    </div>
-                    <div style="flex: 1; min-width: 60px; background-color: #f8f9fa; border: 1px solid #e2e8f0; border-top: 3px solid #ef4444; padding: 10px 5px; border-radius: 6px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                        <div style="font-size: 10px; color: #64748b; font-weight: 600; line-height: 1.1; margin-bottom: 4px;">Pos.<br>Críticas</div>
-                        <div style="font-size: 16px; color: #0f172a; font-weight: bold;">{kpis['criticas']}</div>
-                    </div>
-                    <div style="flex: 1; min-width: 60px; background-color: #f8f9fa; border: 1px solid #e2e8f0; border-top: 3px solid #8b5cf6; padding: 10px 5px; border-radius: 6px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                        <div style="font-size: 10px; color: #64748b; font-weight: 600; line-height: 1.1; margin-bottom: 4px;">Colab.<br>Perfil.</div>
-                        <div style="font-size: 16px; color: #0f172a; font-weight: bold;">{kpis['sucesores']}</div>
-                    </div>
-                    <div style="flex: 1; min-width: 60px; background-color: #f8f9fa; border: 1px solid #e2e8f0; border-top: 3px solid #10b981; padding: 10px 5px; border-radius: 6px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                        <div style="font-size: 10px; color: #64748b; font-weight: 600; line-height: 1.1; margin-bottom: 4px;">Operat.<br>(MLA 1)</div>
-                        <div style="font-size: 16px; color: #0f172a; font-weight: bold;">{kpis['operativos']}</div>
-                    </div>
-                    <div style="flex: 1; min-width: 60px; background-color: #fff1f2; border: 1px solid #fecdd3; border-top: 3px solid #e11d48; padding: 10px 5px; border-radius: 6px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                        <div style="font-size: 10px; color: #9f1239; font-weight: 600; line-height: 1.1; margin-bottom: 4px;">Alertas<br>Detect.</div>
-                        <div style="font-size: 16px; color: #e11d48; font-weight: bold;">{kpis['alertas']}</div>
-                    </div>
-                </div>
-                """
-                st.markdown(kpi_html, unsafe_allow_html=True)
+                # Renderizamos los KPIs en 5 columnas, con un botón debajo de cada uno
+                k1, k2, k3, k4, k5 = st.columns(5)
+                
+                with k1:
+                    st.markdown(crear_tarjeta_kpi("Total<br>Colab.", kpis['total'], "#3b82f6", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
+                    if st.button("🔍 Ver", key="b_tot", use_container_width=True):
+                        st.session_state["vista_kpi"] = "total"
+                with k2:
+                    st.markdown(crear_tarjeta_kpi("Pos.<br>Críticas", kpis['criticas'], "#ef4444", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
+                    if st.button("🔍 Ver", key="b_cri", use_container_width=True):
+                        st.session_state["vista_kpi"] = "criticas"
+                with k3:
+                    st.markdown(crear_tarjeta_kpi("Colab.<br>Perfil.", kpis['sucesores'], "#8b5cf6", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
+                    if st.button("🔍 Ver", key="b_suc", use_container_width=True):
+                        st.session_state["vista_kpi"] = "sucesores"
+                with k4:
+                    st.markdown(crear_tarjeta_kpi("Operat.<br>(MLA 1)", kpis['operativos'], "#10b981", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
+                    if st.button("🔍 Ver", key="b_ope", use_container_width=True):
+                        st.session_state["vista_kpi"] = "operativos"
+                with k5:
+                    st.markdown(crear_tarjeta_kpi("Alertas<br>Detect.", kpis['alertas'], "#e11d48", "#9f1239", "#fff1f2"), unsafe_allow_html=True)
+                    if st.button("🔍 Ver", key="b_ale", use_container_width=True):
+                        st.session_state["vista_kpi"] = "alertas"
+                
+                # Desplegar la lista seleccionada si se hizo clic en un botón
+                if st.session_state["vista_kpi"]:
+                    vista = st.session_state["vista_kpi"]
+                    titulos_kpi = {
+                        "total": "Total de Colaboradores",
+                        "criticas": "Posiciones Críticas",
+                        "sucesores": "Colaboradores Perfilados (Con Sucesor)",
+                        "operativos": "Personal Operativo (MLA 1)",
+                        "alertas": "Colaboradores con Riesgos / Alertas"
+                    }
+                    
+                    st.markdown(f"#### 📋 {titulos_kpi[vista]}")
+                    df_lista = pd.DataFrame(kpis[f"data_{vista}"])
+                    
+                    if not df_lista.empty:
+                        # Para evitar duplicados en la vista de Alertas (una persona puede tener varias alertas)
+                        if vista == "alertas":
+                            df_lista = df_lista.drop_duplicates(subset=["Nombre"]).reset_index(drop=True)
+                        st.dataframe(df_lista, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("No hay registros en esta categoría.")
+                        
+                    if st.button("❌ Cerrar Lista", use_container_width=True):
+                        st.session_state["vista_kpi"] = None
+                        st.rerun()
             
             st.divider()
             st.markdown("### 🚨 Resumen de Tareas y Alertas (Filtrable)")
