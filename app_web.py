@@ -20,7 +20,7 @@ def login():
         st.session_state["usuario_logueado"] = False
 
     if not st.session_state["usuario_logueado"]:
-        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v6.0</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v6.1</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #666;'>Inicia sesión para acceder al mapa organizacional</p>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1, 1, 1])
         with col2:
@@ -87,7 +87,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     
     nombres_dict = {clean_id(row['id Empleado']): clean_text(row.get('Nombre')) for _, row in df_seguro.iterrows() if clean_id(row['id Empleado'])}
             
-    # PASO 1: Armar diccionarios
     for index, row in df_seguro.iterrows():
         emp = clean_id(row['id Empleado'])
         jefe = clean_id(row['ID Del Jefe'])
@@ -96,7 +95,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             empleados_validos.add(emp)
             G_jerarquia.add_node(emp)
             
-            # Ahora los sucesores son IDs
             info_nodos[emp] = {
                 'mla': clean_text(row.get('Nivel MLA'), 'N/A'),
                 'puesto': clean_text(row.get('Nombre de la Posición')).upper(),
@@ -124,15 +122,13 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             actual = jefes_dict[actual]
         return actual
 
-    # PASO 2: Calcular métricas (IA de Sucesión Bottom-Up)
     reportes_directos = {n: 0 for n in G_jerarquia.nodes()}
     for jefe, emp in G_jerarquia.edges(): reportes_directos[jefe] += 1
 
     sucesores_de_9box = {n: 0 for n in G_jerarquia.nodes()}
-    sucesores_oficiales_de = {n: 0 for n in G_jerarquia.nodes()} # NUEVO: Mapeo de quienes apuntan a ti
+    sucesores_oficiales_de = {n: 0 for n in G_jerarquia.nodes()} 
 
     for emp, info in info_nodos.items():
-        # IA 9-Box
         box = info['box'].upper()
         if box in ['5', '2']: 
             j1 = obtener_jefe_nivel_arriba(emp, 1)
@@ -141,12 +137,10 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             j2 = obtener_jefe_nivel_arriba(emp, 2)
             if j2: sucesores_de_9box[j2] += 1
             
-        # IA Oficial (Quien sea que apunte su ID al tuyo)
         for s_id in [info['suc1_id'], info['suc2_id'], info['suc3_id']]:
             if s_id in sucesores_oficiales_de:
                 sucesores_oficiales_de[s_id] += 1
 
-    # PASO 3: Riesgos Inteligentes
     for emp, info in info_nodos.items():
         es_critica = (info['critica'].lower() == 'si')
         tiene_oficial = (sucesores_oficiales_de.get(emp, 0) > 0)
@@ -164,7 +158,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         info_nodos[emp]['riesgos_lista'] = r_list
         info_nodos[emp]['riesgos'] = " | ".join(r_list) if r_list else "Ninguno"
 
-    # PASO 4: Filtros Maestros
     nodos_visibles = set()
     for emp, info in info_nodos.items():
         if info['mla'] == '5':
@@ -178,7 +171,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         if f_riesgos and not info['riesgos_lista']: continue
         nodos_visibles.add(emp)
 
-    # PASO 5: Geometría
     raiz_principal = None
     for emp, info in info_nodos.items():
         if info['mla'] == '5':
@@ -231,7 +223,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         coords[raiz_principal] = {'x': 0, 'y': 0, 'angle': 0, 'anillo_real': 0, 'profundidad': 0}
         asignar_coordenada_radial(raiz_principal, 0, 2 * math.pi)
 
-    # PASO 6: Construcción de Grafos y Traducción de Nombres
     alertas_tabla = []
     
     for emp, info in info_nodos.items():
@@ -249,7 +240,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         prefijo = "🚨 " if info['riesgos_lista'] else ""
         coord_data = coords.get(emp, {'x':5000, 'y':5000, 'angle':0, 'anillo_real':5, 'profundidad':5})
         
-        # Traducir IDs a Nombres para mostrarlos bonitos en la interfaz
         nom_suc1 = nombres_dict.get(info['suc1_id'], info['suc1_id']) if info['suc1_id'] else ""
         nom_suc2 = nombres_dict.get(info['suc2_id'], info['suc2_id']) if info['suc2_id'] else ""
         nom_suc3 = nombres_dict.get(info['suc3_id'], info['suc3_id']) if info['suc3_id'] else ""
@@ -269,7 +259,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         G.add_edge(jefe, emp, color='#94a3b8', width=2, dashes=False, is_jump=False, is_succession=False, hidden=is_hidden, data_hidden=is_hidden)
 
     for emp, info in info_nodos.items():
-        # Líneas IA de 9-Box
         box = info['box'].upper()
         if box in ['5', '2']:
             j1 = obtener_jefe_nivel_arriba(emp, 1)
@@ -278,10 +267,14 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             j2 = obtener_jefe_nivel_arriba(emp, 2)
             if j2: G.add_edge(emp, j2, color='#166534', width=3.5, dashes=True, title='Proyección N+2', is_jump=True, is_succession=False, hidden=(emp not in nodos_visibles or j2 not in nodos_visibles), data_hidden=(emp not in nodos_visibles or j2 not in nodos_visibles))
             
-        # NUEVO: LÍNEAS OFICIALES DE SUCESIÓN (MORADAS PUNTEADAS)
+        # =========================================================
+        # REPARADO: LÍNEA DE SUCESIÓN SEGURA
+        # Se usó dashes=True para evitar errores de PyVis
+        # =========================================================
         for s_id in [info['suc1_id'], info['suc2_id'], info['suc3_id']]:
             if s_id in empleados_validos:
-                G.add_edge(emp, s_id, color='#9c27b0', width=3, dashes=[5, 5], title='Objetivo de Sucesión', is_jump=False, is_succession=True, hidden=(emp not in nodos_visibles or s_id not in nodos_visibles), data_hidden=(emp not in nodos_visibles or s_id not in nodos_visibles))
+                is_hidden_edge = (emp not in nodos_visibles or s_id not in nodos_visibles)
+                G.add_edge(emp, s_id, color='#9c27b0', width=4, dashes=True, title='🎯 Objetivo de Sucesión', is_jump=False, is_succession=True, hidden=is_hidden_edge, data_hidden=is_hidden_edge)
 
     kpis = {
         'total': len(nodos_visibles),
@@ -295,6 +288,9 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     net = Network(height='750px', width='100%', bgcolor='#ffffff', font_color='#333333', directed=True, cdn_resources='remote')
     net.from_nx(G)
     
+    # =========================================================
+    # REPARADO: Se agregó curvedCW para que las líneas opuestas formen un óvalo y no se tapen
+    # =========================================================
     net.set_options("""
     var options = {
       "nodes": {
@@ -302,7 +298,7 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
           "shadow": {"enabled": true, "color": "rgba(0,0,0,0.4)", "size": 10, "x": 3, "y": 3}
       },
       "physics": {"enabled": false, "forceAtlas2Based": {"gravitationalConstant": -150, "centralGravity": 0.01, "springLength": 250, "springConstant": 0.08, "avoidOverlap": 0.5}, "solver": "forceAtlas2Based"},
-      "edges": {"smooth": {"enabled": true, "type": "continuous", "roundness": 0.2}},
+      "edges": {"smooth": {"enabled": true, "type": "curvedCW", "roundness": 0.2}},
       "interaction": {"hover": true, "tooltipDelay": 200}
     }
     """)
@@ -481,12 +477,18 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         var edgesToUpdate = [];
         for (var i = 0; i < allEdges.length; i++) {{
             var edge = allEdges[i];
-            if (edge.data_hidden === true) {{
+            
+            // Verificación segura de lectura para la librería
+            if (edge.data_hidden == true || edge.data_hidden === 'True' || edge.data_hidden === 'true') {{
                 edgesToUpdate.push({{id: edge.id, hidden: true}});
             }} else {{
-                if (edge.is_succession === true) {{ edgesToUpdate.push({{id: edge.id, hidden: !showSucc}});
-                }} else if (edge.is_jump === true) {{ edgesToUpdate.push({{id: edge.id, hidden: !showJumps}});
-                }} else {{ edgesToUpdate.push({{id: edge.id, hidden: !showNormal}}); }}
+                if (edge.is_succession == true || edge.is_succession === 'True' || edge.is_succession === 'true') {{ 
+                    edgesToUpdate.push({{id: edge.id, hidden: !showSucc}});
+                }} else if (edge.is_jump == true || edge.is_jump === 'True' || edge.is_jump === 'true') {{ 
+                    edgesToUpdate.push({{id: edge.id, hidden: !showJumps}});
+                }} else {{ 
+                    edgesToUpdate.push({{id: edge.id, hidden: !showNormal}}); 
+                }}
             }}
         }}
         network.body.data.edges.update(edgesToUpdate);
@@ -503,7 +505,12 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             }});
         }}, 800);
     }}
-    setTimeout(enfocarPantalla, 1000); 
+    
+    // Forzamos los filtros visuales al iniciar para evitar fallos de Pyvis
+    setTimeout(function() {{
+        applyVisualFilters();
+        enfocarPantalla();
+    }}, 1000); 
     </script>
     """
     
