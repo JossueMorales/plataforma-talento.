@@ -53,7 +53,7 @@ def generar_mapa_html(url_sheets, direccion_permitida):
     try:
         df = pd.read_csv(csv_url)
     except Exception as e:
-        return f"<div style='color:red;'>Error al leer el archivo: {e}</div>"
+        return f"<div style='color:red;'>Error al leer el archivo: {e}</div>", None, None
 
     df.columns = [str(col).strip() for col in df.columns]
 
@@ -62,7 +62,7 @@ def generar_mapa_html(url_sheets, direccion_permitida):
         es_raiz = df['Nivel MLA'].astype(str).str.strip() == '5'
         df = df[es_del_area | es_raiz]
         if df.empty:
-            return f"<div style='padding:50px; text-align:center;'><h3>No hay datos para la {direccion_permitida}</h3></div>"
+            return f"<div style='padding:50px; text-align:center;'><h3>No hay datos para la {direccion_permitida}</h3></div>", None, None
 
     G = nx.MultiDiGraph()
     G_jerarquia = nx.DiGraph() 
@@ -230,6 +230,9 @@ def generar_mapa_html(url_sheets, direccion_permitida):
         coords[raiz_principal] = {'x': 0, 'y': 0, 'angle': 0, 'anillo_real': 0, 'profundidad': 0}
         asignar_coordenada_radial(raiz_principal, 0, 2 * math.pi)
 
+    # NUEVO: Lista para recolectar alertas para la tabla inferior
+    alertas_tabla = []
+
     for index, row in df.iterrows():
         try:
             id_empleado = clean_id(row['id Empleado'])
@@ -254,9 +257,6 @@ def generar_mapa_html(url_sheets, direccion_permitida):
             
             riesgos_lista = []
             
-            # ========================================================
-            # NUEVO CEREBRO DE IA PARA SUCESORES ESCALONADOS
-            # ========================================================
             es_critica = (critica.lower() == 'si')
             tiene_oficial = (suc1.lower() != 'pendiente' and suc1 != '')
             tiene_hipos_9box = (sucesores_de.get(id_empleado, 0) > 0)
@@ -266,12 +266,20 @@ def generar_mapa_html(url_sheets, direccion_permitida):
                     riesgos_lista.append("🔥 Riesgo Crítico: Sin Sucesor ni HiPos")
                 elif not tiene_oficial and tiene_hipos_9box:
                     riesgos_lista.append("⚠️ Sugerencia: HiPo disponible, falta oficializar")
-            # ========================================================
                     
             reps = reportes_directos.get(id_empleado, 0)
             if reps >= 12: riesgos_lista.append(f"⚠️ Sobrecarga ({reps} reportes)")
             elif reps == 1: riesgos_lista.append("⚠️ Ineficiencia (1 reporte)")
                 
+            # Recolectar para la tabla inferior
+            for r in riesgos_lista:
+                alertas_tabla.append({
+                    "Colaborador": nombre,
+                    "Puesto": puesto,
+                    "Dirección": direccion,
+                    "Alerta Detectada por IA": r
+                })
+
             riesgos_str = " | ".join(riesgos_lista) if riesgos_lista else "Ninguno"
             prefijo = "🚨 " if riesgos_lista else ""
 
@@ -307,7 +315,19 @@ def generar_mapa_html(url_sheets, direccion_permitida):
                 if j2: G.add_edge(id_empleado, j2, color='#388e3c', width=3, dashes=True, title='Proyección N+2', is_jump=True)
         except: pass
 
-    net = Network(height='1000px', width='100%', bgcolor='#f8f9fa', font_color='#333333', directed=True, cdn_resources='remote')
+    # =========================================================================
+    # CÁLCULO DE KPIS AUTOMÁTICO
+    # =========================================================================
+    kpis = {
+        'total': len(empleados_validos),
+        'criticas': sum(1 for v in info_nodos.values() if v['critica'].lower() == 'si'),
+        'sucesores': sum(1 for v in info_nodos.values() if v['suc1'].lower() not in ['pendiente', '', 'nan']),
+        'operativos': sum(1 for v in info_nodos.values() if v['mla'] == '1')
+    }
+    df_alertas = pd.DataFrame(alertas_tabla)
+    
+    # Reducimos la altura a 750px para que encaje mejor con el dashboard
+    net = Network(height='750px', width='100%', bgcolor='#f8f9fa', font_color='#333333', directed=True, cdn_resources='remote')
     net.from_nx(G)
     net.set_options("""
     var options = {
@@ -488,9 +508,6 @@ def generar_mapa_html(url_sheets, direccion_permitida):
             document.getElementById('fSuc1').innerText = node.Suc1 || "Pendiente";
             document.getElementById('fRead1').innerText = node.Read1 && node.Read1 !== 'Pendiente' ? node.Read1 : "Sin tiempo definido";
             
-            // ==========================================
-            // AQUÍ ESTÁN LAS LLAVES DOBLES CORREGIDAS
-            // ==========================================
             if(node.Suc2 && node.Suc2 !== "") {{
                 document.getElementById('divSucesor2').style.display = "block";
                 document.getElementById('fSuc2').innerText = node.Suc2;
@@ -506,7 +523,6 @@ def generar_mapa_html(url_sheets, direccion_permitida):
             }} else {{
                 document.getElementById('divSucesor3').style.display = "none";
             }}
-            // ==========================================
 
             var boxResult = node.Resultado_9Box || "N/A";
             var f9Box = document.getElementById('f9Box'); f9Box.innerText = boxResult;
@@ -580,7 +596,7 @@ def generar_mapa_html(url_sheets, direccion_permitida):
     """
     
     html = html.replace('</body>', boton_html + '\n' + script_anillos + '\n</body>')
-    return html
+    return html, df_alertas, kpis
 
 # ==========================================
 # INTERFAZ PRINCIPAL DE LA PLATAFORMA WEB
@@ -592,6 +608,14 @@ def main():
     st.markdown("""
         <style>
         .block-container { padding-top: 1rem; padding-bottom: 0rem; }
+        div[data-testid="metric-container"] {
+            background-color: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 5px solid #1976d2;
+            margin-bottom: 10px;
+        }
         </style>
     """, unsafe_allow_html=True)
     
@@ -605,13 +629,44 @@ def main():
             
     st.divider()
 
-    with st.spinner("Descargando base de datos y aplicando seguridad de segmentación..."):
+    with st.spinner("Descargando base de datos y aplicando analítica de segmentación..."):
         link_google_sheets = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit?pli=1&gid=0#gid=0"
         
         direccion_permitida = USUARIOS_AUTORIZADOS[st.session_state["id_usuario"]]["direccion"]
-        html_mapa = generar_mapa_html(link_google_sheets, direccion_permitida)
+        html_mapa, df_alertas, kpis = generar_mapa_html(link_google_sheets, direccion_permitida)
         
-        components.html(html_mapa, height=1000, scrolling=False)
+        if kpis is not None:
+            # =========================================================
+            # NUEVO LAYOUT TIPO DASHBOARD (70% Mapa, 30% KPIs)
+            # =========================================================
+            col_mapa, col_datos = st.columns([7, 3])
+            
+            with col_mapa:
+                # El mapa ahora vive dentro de esta columna (su ancho se adapta al 70%)
+                components.html(html_mapa, height=750, scrolling=False)
+                
+            with col_datos:
+                st.markdown("### 📊 KPIs de Talento")
+                st.markdown(f"*(Basado en permisos de: {direccion_permitida})*")
+                st.write("")
+                st.metric("Total de Colaboradores", kpis['total'])
+                st.metric("Posiciones Críticas", kpis['criticas'])
+                st.metric("Sucesores Oficializados", kpis['sucesores'])
+                st.metric("Personal Operativo (MLA 1)", kpis['operativos'])
+            
+            # =========================================================
+            # SECCIÓN INFERIOR: TABLA DE ALERTAS
+            # =========================================================
+            st.divider()
+            st.markdown("### 🚨 Resumen de Alertas y Riesgos Detectados")
+            
+            if not df_alertas.empty:
+                st.dataframe(df_alertas, use_container_width=True)
+            else:
+                st.success("✅ ¡Excelente! No se detectaron alertas de sucesión ni sobrecarga de reportes en esta área.")
+        else:
+            # En caso de error de lectura
+            components.html(html_mapa, height=400)
 
 if __name__ == "__main__":
     main()
