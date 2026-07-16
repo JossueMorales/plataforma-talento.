@@ -665,23 +665,6 @@ def main():
     st.markdown("""
         <style>
         .block-container { padding-top: 1rem; padding-bottom: 0rem; }
-        
-        div[data-testid="metric-container"] {
-            background-color: #ffffff;
-            border: 1px solid #e2e8f0;
-            padding: 15px;
-            border-radius: 10px;
-            border-left: 6px solid #2563eb;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            margin-bottom: 12px;
-        }
-        div[data-testid="metric-container"] label {
-            color: #475569 !important;
-            font-weight: 600 !important;
-        }
-        div[data-testid="metric-container"] div[data-testid="stMetricValue"] {
-            color: #0f172a !important;
-        }
         </style>
     """, unsafe_allow_html=True)
     
@@ -735,27 +718,42 @@ def main():
         html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos)
         
         if kpis is not None:
-            # ==========================================
-            # SECCIÓN DE KPIs HORIZONTALES
-            # ==========================================
-            st.markdown("### 📊 KPIs de Talento")
+            # RESTAURAMOS LA ESTRUCTURA 7:3
+            col_mapa, col_datos = st.columns([7, 3])
             
-            # Usamos 5 columnas para que se desplieguen horizontalmente
-            kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
-            
-            kpi1.metric("Total de Colaboradores", kpis['total'])
-            kpi2.metric("Posiciones Críticas", kpis['criticas'])
-            kpi3.metric("Colaboradores Perfilados", kpis['sucesores'])
-            kpi4.metric("Personal Operativo (MLA 1)", kpis['operativos'])
-            kpi5.metric("🚨 Alertas Detectadas", kpis['alertas'])
-            
-            st.write("") # Espacio para que respire el diseño
-            
-            # ==========================================
-            # EL MAPA AHORA USA EL 100% DEL ANCHO
-            # ==========================================
-            components.html(html_mapa, height=750, scrolling=False)
+            with col_mapa:
+                components.html(html_mapa, height=750, scrolling=False)
                 
+            with col_datos:
+                st.markdown("### 📊 KPIs de Talento")
+                
+                # CREAMOS CAJAS HORIZONTALES CON HTML/CSS DIRECTAMENTE EN LA COLUMNA DE LA DERECHA
+                kpi_html = f"""
+                <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 20px;">
+                    <div style="flex: 1; min-width: 60px; background-color: #f8f9fa; border: 1px solid #e2e8f0; border-top: 3px solid #3b82f6; padding: 10px 5px; border-radius: 6px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                        <div style="font-size: 10px; color: #64748b; font-weight: 600; line-height: 1.1; margin-bottom: 4px;">Total<br>Colab.</div>
+                        <div style="font-size: 16px; color: #0f172a; font-weight: bold;">{kpis['total']}</div>
+                    </div>
+                    <div style="flex: 1; min-width: 60px; background-color: #f8f9fa; border: 1px solid #e2e8f0; border-top: 3px solid #ef4444; padding: 10px 5px; border-radius: 6px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                        <div style="font-size: 10px; color: #64748b; font-weight: 600; line-height: 1.1; margin-bottom: 4px;">Pos.<br>Críticas</div>
+                        <div style="font-size: 16px; color: #0f172a; font-weight: bold;">{kpis['criticas']}</div>
+                    </div>
+                    <div style="flex: 1; min-width: 60px; background-color: #f8f9fa; border: 1px solid #e2e8f0; border-top: 3px solid #8b5cf6; padding: 10px 5px; border-radius: 6px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                        <div style="font-size: 10px; color: #64748b; font-weight: 600; line-height: 1.1; margin-bottom: 4px;">Colab.<br>Perfil.</div>
+                        <div style="font-size: 16px; color: #0f172a; font-weight: bold;">{kpis['sucesores']}</div>
+                    </div>
+                    <div style="flex: 1; min-width: 60px; background-color: #f8f9fa; border: 1px solid #e2e8f0; border-top: 3px solid #10b981; padding: 10px 5px; border-radius: 6px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                        <div style="font-size: 10px; color: #64748b; font-weight: 600; line-height: 1.1; margin-bottom: 4px;">Operat.<br>(MLA 1)</div>
+                        <div style="font-size: 16px; color: #0f172a; font-weight: bold;">{kpis['operativos']}</div>
+                    </div>
+                    <div style="flex: 1; min-width: 60px; background-color: #fff1f2; border: 1px solid #fecdd3; border-top: 3px solid #e11d48; padding: 10px 5px; border-radius: 6px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                        <div style="font-size: 10px; color: #9f1239; font-weight: 600; line-height: 1.1; margin-bottom: 4px;">Alertas<br>Detect.</div>
+                        <div style="font-size: 16px; color: #e11d48; font-weight: bold;">{kpis['alertas']}</div>
+                    </div>
+                </div>
+                """
+                st.markdown(kpi_html, unsafe_allow_html=True)
+            
             st.divider()
             st.markdown("### 🚨 Resumen de Tareas y Alertas (Filtrable)")
             
