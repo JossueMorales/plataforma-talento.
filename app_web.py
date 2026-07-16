@@ -20,7 +20,7 @@ def login():
         st.session_state["usuario_logueado"] = False
 
     if not st.session_state["usuario_logueado"]:
-        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v6.2</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v6.3</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #666;'>Inicia sesión para acceder al mapa organizacional</p>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1, 1, 1])
         with col2:
@@ -158,19 +158,14 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         info_nodos[emp]['riesgos_lista'] = r_list
         info_nodos[emp]['riesgos'] = " | ".join(r_list) if r_list else "Ninguno"
 
-    # =========================================================
-    # NUEVA LÓGICA DE FILTROS EN CASCADA E INMUNIDAD
-    # =========================================================
     descendientes_validos = set()
     if f_lid != "Todos":
         lider_ids = [emp for emp, inf in info_nodos.items() if inf['nombre'] == f_lid]
         for l_id in lider_ids:
             descendientes_validos.add(l_id)
             try:
-                # Agregamos automáticamente a todos los "hijos, nietos y bisnietos"
                 descendientes_validos.update(nx.descendants(G_jerarquia, l_id))
-            except:
-                pass
+            except: pass
 
     nodos_visibles = set()
     for emp, info in info_nodos.items():
@@ -187,16 +182,13 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         
         nodos_visibles.add(emp)
 
-    # REGLA DE INMUNIDAD DE TRAZABILIDAD (Evita que las líneas moradas se rompan)
     nodos_rescatados = set(nodos_visibles)
     for emp in nodos_visibles:
         info = info_nodos[emp]
         for s_id in [info['suc1_id'], info['suc2_id'], info['suc3_id']]:
             if s_id and s_id in info_nodos:
                 nodos_rescatados.add(s_id)
-    
     nodos_visibles = nodos_rescatados
-    # =========================================================
 
     raiz_principal = None
     for emp, info in info_nodos.items():
@@ -250,6 +242,27 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         coords[raiz_principal] = {'x': 0, 'y': 0, 'angle': 0, 'anillo_real': 0, 'profundidad': 0}
         asignar_coordenada_radial(raiz_principal, 0, 2 * math.pi)
 
+    # =========================================================
+    # NUEVO: LÓGICA ANTI-APILAMIENTO (Rescate de Islas)
+    # =========================================================
+    nodos_sin_coords = [n for n in G_jerarquia.nodes() if n not in coords]
+    if nodos_sin_coords:
+        angulo_extra = (2 * math.pi) / len(nodos_sin_coords)
+        angulo_actual = 0
+        for n in nodos_sin_coords:
+            anillo = obtener_anillo_estricto(n, 5)
+            # Les damos un radio amplio para que no se empalmen
+            radio = (anillo * 1000) + 600 if anillo != 0 else 1000
+            coords[n] = {
+                'x': radio * math.cos(angulo_actual), 
+                'y': radio * math.sin(angulo_actual), 
+                'angle': angulo_actual, 
+                'anillo_real': anillo, 
+                'profundidad': 5
+            }
+            angulo_actual += angulo_extra
+    # =========================================================
+
     alertas_tabla = []
     
     for emp, info in info_nodos.items():
@@ -289,16 +302,15 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         box = info['box'].upper()
         if box in ['5', '2']:
             j1 = obtener_jefe_nivel_arriba(emp, 1)
-            if j1: G.add_edge(emp, j1, color='#22c55e', width=3, dashes=True, title='Proyección N+1', is_jump=True, is_succession=False, hidden=(emp not in nodos_visibles or j1 not in nodos_visibles), data_hidden=(emp not in nodos_visibles or j1 not in nodos_visibles))
+            if j1: G.add_edge(emp, j1, color='#22c55e', width=3, dashes=[5,5], title='Proyección N+1', is_jump=True, is_succession=False, hidden=(emp not in nodos_visibles or j1 not in nodos_visibles), data_hidden=(emp not in nodos_visibles or j1 not in nodos_visibles))
         if box in ['1', '3']:
             j2 = obtener_jefe_nivel_arriba(emp, 2)
-            if j2: G.add_edge(emp, j2, color='#166534', width=3.5, dashes=True, title='Proyección N+2', is_jump=True, is_succession=False, hidden=(emp not in nodos_visibles or j2 not in nodos_visibles), data_hidden=(emp not in nodos_visibles or j2 not in nodos_visibles))
+            if j2: G.add_edge(emp, j2, color='#166534', width=3.5, dashes=[5,5], title='Proyección N+2', is_jump=True, is_succession=False, hidden=(emp not in nodos_visibles or j2 not in nodos_visibles), data_hidden=(emp not in nodos_visibles or j2 not in nodos_visibles))
             
         for s_id in [info['suc1_id'], info['suc2_id'], info['suc3_id']]:
             if s_id in empleados_validos:
                 is_hidden_edge = (emp not in nodos_visibles or s_id not in nodos_visibles)
-                # Formato dashes=True obligatorio para evitar bugs visuales
-                G.add_edge(emp, s_id, color='#9c27b0', width=4, dashes=True, title='🎯 Objetivo de Sucesión', is_jump=False, is_succession=True, hidden=is_hidden_edge, data_hidden=is_hidden_edge)
+                G.add_edge(emp, s_id, color='#9c27b0', width=4, dashes=[8, 8], title='🎯 Objetivo de Sucesión', is_jump=False, is_succession=True, hidden=is_hidden_edge, data_hidden=is_hidden_edge)
 
     kpis = {
         'total': len(nodos_visibles),
