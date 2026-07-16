@@ -26,7 +26,7 @@ var options = {
 SCRIPT_ANILLOS = """
 <script>
 window.onionMode = true; 
-window.ringSpacing = 1000; 
+window.ringSpacing = 1800; 
 network.on("beforeDrawing", function(ctx) {
     if (!window.onionMode) return; 
     ctx.save(); 
@@ -102,8 +102,8 @@ BOTON_HTML = """
         <div id="sliderContainer" style="transition: 0.3s;">
             <label style="font-size: 13px; font-weight: bold; color: #555;">Amplitud Radial:</label>
             <div style="display: flex; align-items: center; gap: 10px;">
-                <input type="range" id="sliderSeparacion" min="100" max="1500" value="1000" oninput="updateSpacing()" style="width: 100%; cursor: pointer;">
-                <span id="valorSeparacion" style="font-size: 12px; font-weight:bold; color:#1976d2; min-width: 45px;">1000px</span>
+                <input type="range" id="sliderSeparacion" min="800" max="3500" value="1800" oninput="updateSpacing()" style="width: 100%; cursor: pointer;">
+                <span id="valorSeparacion" style="font-size: 12px; font-weight:bold; color:#1976d2; min-width: 45px;">1800px</span>
             </div>
         </div>
         <hr style="margin: 10px 0; border: 0; border-top: 1px solid #ddd;">
@@ -111,10 +111,10 @@ BOTON_HTML = """
             <input type="checkbox" id="toggleNormal" checked onchange="applyVisualFilters()" style="width: 16px; height: 16px;"> 🏢 Reporte Estructural
         </label>
         <label style="font-size: 14px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; color: #9c27b0;">
-            <input type="checkbox" id="toggleSucc" checked onchange="applyVisualFilters()" style="width: 16px; height: 16px;"> 🔀 Rutas de Sucesión
+            <input type="checkbox" id="toggleSucc" onchange="applyVisualFilters()" style="width: 16px; height: 16px;"> 🔀 Rutas de Sucesión
         </label>
         <label style="font-size: 14px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; color: #16a34a;">
-            <input type="checkbox" id="toggleJumps" checked onchange="applyVisualFilters()" style="width: 16px; height: 16px;"> 📈 Proyecciones 9-Box
+            <input type="checkbox" id="toggleJumps" onchange="applyVisualFilters()" style="width: 16px; height: 16px;"> 📈 Proyecciones 9-Box
         </label>
         <button onclick="enfocarPantalla()" style="margin-top: 10px; background: #1976d2; color: white; border: none; padding: 10px; border-radius: 5px; font-size: 14px; font-weight: bold; cursor: pointer; width: 100%;">
             🔍 Centrar Mapa
@@ -153,10 +153,7 @@ function updateSpacing() {
         }
     }
     
-    // Actualizamos las posiciones de los nodos
     network.body.data.nodes.update(nodesToUpdate);
-    
-    // TRUCO PARA REPARAR LOS ARCOS: Encendemos la física 1 milisegundo para que vis.js recalcule las curvas de Bezier
     network.setOptions({ physics: { enabled: true, solver: 'repulsion' } });
     network.redraw();
     network.setOptions({ physics: { enabled: false } });
@@ -352,28 +349,25 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     empleados_validos = set()
     info_nodos = {}
     
-    # 1. Pre-cargamos los IDs y los nombres reales
     nombres_dict = {
         clean_id(row.get('id Empleado')): clean_text(row.get('Nombre')) 
         for row in df_seguro.to_dict('records') if clean_id(row.get('id Empleado'))
     }
     
-    # 2. Diccionario Inverso: Permite buscar un ID si el Excel tiene escrito el Nombre
     nombre_a_id = {nombre.strip().lower(): emp_id for emp_id, nombre in nombres_dict.items()}
 
     def buscar_id_real(valor):
-        """Traduce de forma inteligente: si es un nombre, devuelve el ID. Si es un ID, lo limpia."""
         if pd.isna(valor) or str(valor).strip().lower() in ['nan', 'none', 'pendiente', '']: 
             return ''
         v = str(valor).strip()
         if v.endswith('.0'): 
             v = v[:-2]
         if v in nombres_dict: 
-            return v  # Ya era un ID correcto
+            return v  
         v_lower = v.lower()
         if v_lower in nombre_a_id: 
-            return nombre_a_id[v_lower] # Era un nombre, devolvemos el ID
-        return v # Retorno por defecto
+            return nombre_a_id[v_lower] 
+        return v 
             
     for row_dict in df_seguro.to_dict('records'):
         emp = clean_id(row_dict.get('id Empleado'))
@@ -383,7 +377,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             empleados_validos.add(emp)
             G_jerarquia.add_node(emp)
             
-            # Usamos el traductor inteligente para las 3 columnas de sucesores
             suc1_limpio = buscar_id_real(row_dict.get('Sucesor P.1', row_dict.get('Sucesor 1', '')))
             suc2_limpio = buscar_id_real(row_dict.get('Sucesor P.2', row_dict.get('Sucesor 2', '')))
             suc3_limpio = buscar_id_real(row_dict.get('Sucesor P.3', row_dict.get('Sucesor 3', '')))
@@ -519,7 +512,7 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         if mla == '1': return 4 
         return min(depth_arbol, 5)
 
-    SEPARACION_ANILLOS = 1000 
+    SEPARACION_ANILLOS = 1800 
     conteo_hojas = {}
     
     def calcular_hojas(n):
@@ -597,13 +590,13 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         G.add_node(
             emp, label=f"{prefijo}{info['nombre']}\n({info['puesto']})", 
             title=f"<div style='padding: 5px; text-align: center;'><b>{prefijo}{info['nombre']}</b></div>", 
-            size=35 if emp == raiz_principal else 22, 
+            size=28 if emp == raiz_principal else 18, 
             color=obtener_color_9box(info['box']), 
             shape='dot', group=info['mla'], 
             Nivel_MLA=info['mla'], Resultado_9Box=info['box'], Direccion=info['direccion'], Lider=info['lider'], 
             Critica=info['critica'], Nombre=info['nombre'], Puesto=info['puesto'], Riesgos=info['riesgos'], Interes=info['interes'], 
             NomSuc1=nom_suc1, Read1=info['read1'], NomSuc2=nom_suc2, Read2=info['read2'], NomSuc3=nom_suc3, Read3=info['read3'],
-            font={'color': '#0f172a', 'strokeWidth': 4, 'strokeColor': '#ffffff', 'size': 12, 'face': 'Arial', 'weight': 'bold'},
+            font={'color': '#0f172a', 'strokeWidth': 2, 'strokeColor': '#ffffff', 'size': 10, 'face': 'Arial', 'weight': 'bold'},
             x=coord_data['x'], y=coord_data['y'], Angle=coord_data['angle'], AnilloReal=coord_data['anillo_real'], Profundidad=coord_data['profundidad'],
             hidden=is_hidden
         )
