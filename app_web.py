@@ -20,7 +20,7 @@ def login():
         st.session_state["usuario_logueado"] = False
 
     if not st.session_state["usuario_logueado"]:
-        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v6.4</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v7.1</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #666;'>Inicia sesión para acceder al mapa organizacional</p>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1, 1, 1])
         with col2:
@@ -173,8 +173,12 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             nodos_visibles.add(emp)
             continue
             
+        if f_lid != "Todos" and info['nombre'] == f_lid:
+            nodos_visibles.add(emp)
+            continue
+            
         if f_dir != "Todas" and info['direccion'] != f_dir: continue
-        if f_lid != "Todos" and emp not in descendientes_validos and info['nombre'] != f_lid: continue
+        if f_lid != "Todos" and emp not in descendientes_validos: continue
         if f_crit != "Todas" and info['critica'] != f_crit: continue
         if f_mla != "Todos" and info['mla'] != f_mla: continue
         if f_box != "Todos" and info['box'] != f_box: continue
@@ -210,6 +214,7 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         elif mla == '1': return 4 
         return min(depth_arbol, 5)
 
+    SEPARACION_ANILLOS = 1000 
     conteo_hojas = {}
     def calcular_hojas(n):
         hijos = list(Arbol.successors(n))
@@ -223,7 +228,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     if raiz_principal: calcular_hojas(raiz_principal)
 
     coords = {}
-    SEPARACION_ANILLOS = 1000 
     def asignar_coordenada_radial(nodo, angulo_inicio, angulo_fin):
         hijos = list(Arbol.successors(nodo))
         if not hijos: return
@@ -243,7 +247,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         coords[raiz_principal] = {'x': 0, 'y': 0, 'angle': 0, 'anillo_real': 0, 'profundidad': 0}
         asignar_coordenada_radial(raiz_principal, 0, 2 * math.pi)
 
-    # ANTI-APILAMIENTO SUAVE
     nodos_sin_coords = [n for n in G_jerarquia.nodes() if n not in coords]
     if nodos_sin_coords:
         angulo_extra = (2 * math.pi) / len(nodos_sin_coords)
@@ -251,16 +254,11 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         for n in nodos_sin_coords:
             anillo = obtener_anillo_estricto(n, 5)
             radio = (anillo * SEPARACION_ANILLOS) + 200 if anillo != 0 else 500
-            coords[n] = {
-                'x': radio * math.cos(angulo_actual), 
-                'y': radio * math.sin(angulo_actual), 
-                'angle': angulo_actual, 
-                'anillo_real': anillo, 
-                'profundidad': 5
-            }
+            coords[n] = {'x': radio * math.cos(angulo_actual), 'y': radio * math.sin(angulo_actual), 'angle': angulo_actual, 'anillo_real': anillo, 'profundidad': 5}
             angulo_actual += angulo_extra
 
     alertas_tabla = []
+    
     for emp, info in info_nodos.items():
         is_hidden = emp not in nodos_visibles
         if not is_hidden:
@@ -287,26 +285,29 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             NomSuc1=nom_suc1, Read1=info['read1'], NomSuc2=nom_suc2, Read2=info['read2'], NomSuc3=nom_suc3, Read3=info['read3'],
             font={'color': '#0f172a', 'strokeWidth': 4, 'strokeColor': '#ffffff', 'size': 12, 'face': 'Arial', 'weight': 'bold'},
             x=coord_data['x'], y=coord_data['y'], Angle=coord_data['angle'], AnilloReal=coord_data['anillo_real'], Profundidad=coord_data['profundidad'],
-            hidden=is_hidden, data_hidden=is_hidden 
+            hidden=is_hidden
         )
 
+    # LÍNEAS ESTRUCTURALES GRISES
     for jefe, emp in G_jerarquia.edges():
-        is_hidden = jefe not in nodos_visibles or emp not in nodos_visibles
-        G.add_edge(jefe, emp, color='#94a3b8', width=2, dashes=False, is_jump=False, is_succession=False, hidden=is_hidden, data_hidden=is_hidden)
+        is_hidden_edge = jefe not in nodos_visibles or emp not in nodos_visibles
+        G.add_edge(jefe, emp, color='#94a3b8', width=2, dashes=False, title='Estructura', hidden=is_hidden_edge)
 
+    # LÍNEAS PREDICTIVAS Y DE SUCESIÓN
     for emp, info in info_nodos.items():
         box = info['box'].upper()
         if box in ['5', '2']:
             j1 = obtener_jefe_nivel_arriba(emp, 1)
-            if j1: G.add_edge(emp, j1, color='#22c55e', width=3, dashes=[5,5], title='Proyección N+1', is_jump=True, is_succession=False, hidden=(emp not in nodos_visibles or j1 not in nodos_visibles), data_hidden=(emp not in nodos_visibles or j1 not in nodos_visibles))
+            if j1: G.add_edge(emp, j1, color='#22c55e', width=3, dashes=[5,5], title='Proyección N+1', hidden=(emp not in nodos_visibles or j1 not in nodos_visibles))
         if box in ['1', '3']:
             j2 = obtener_jefe_nivel_arriba(emp, 2)
-            if j2: G.add_edge(emp, j2, color='#166534', width=3.5, dashes=[5,5], title='Proyección N+2', is_jump=True, is_succession=False, hidden=(emp not in nodos_visibles or j2 not in nodos_visibles), data_hidden=(emp not in nodos_visibles or j2 not in nodos_visibles))
+            if j2: G.add_edge(emp, j2, color='#166534', width=3.5, dashes=[5,5], title='Proyección N+2', hidden=(emp not in nodos_visibles or j2 not in nodos_visibles))
             
         for s_id in [info['suc1_id'], info['suc2_id'], info['suc3_id']]:
             if s_id in empleados_validos:
                 is_hidden_edge = (emp not in nodos_visibles or s_id not in nodos_visibles)
-                G.add_edge(emp, s_id, color='#9c27b0', width=4, dashes=True, title='🎯 Objetivo de Sucesión', is_jump=False, is_succession=True, hidden=is_hidden_edge, data_hidden=is_hidden_edge)
+                # COLOR ÚNICO #9c27b0 QUE SERÁ LEÍDO POR EL JAVASCRIPT
+                G.add_edge(emp, s_id, color='#9c27b0', width=4, dashes=True, title='🎯 Objetivo de Sucesión', hidden=is_hidden_edge)
 
     kpis = {
         'total': len(nodos_visibles),
@@ -326,7 +327,11 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
           "borderWidth": 2,
           "shadow": {"enabled": true, "color": "rgba(0,0,0,0.4)", "size": 10, "x": 3, "y": 3}
       },
-      "physics": {"enabled": false, "forceAtlas2Based": {"gravitationalConstant": -150, "centralGravity": 0.01, "springLength": 250, "springConstant": 0.08, "avoidOverlap": 0.5}, "solver": "forceAtlas2Based"},
+      "physics": {
+          "enabled": true,
+          "forceAtlas2Based": {"gravitationalConstant": -200, "centralGravity": 0.005, "springLength": 200, "springConstant": 0.08, "avoidOverlap": 0.4},
+          "solver": "forceAtlas2Based"
+      },
       "edges": {"smooth": {"enabled": true, "type": "curvedCW", "roundness": 0.2}},
       "interaction": {"hover": true, "tooltipDelay": 200}
     }
@@ -497,6 +502,10 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         if (cuerpo.style.display === 'none') {{ cuerpo.style.display = 'flex'; icono.innerText = '▼ Ocultar';
         }} else {{ cuerpo.style.display = 'none'; icono.innerText = '▲ Mostrar'; }}
     }}
+    
+    // =========================================================================
+    // FILTROS VISUALES BLINDADOS (Se basan en el Color de la línea)
+    // =========================================================================
     function applyVisualFilters() {{
         var showNormal = document.getElementById('toggleNormal').checked;
         var showJumps = document.getElementById('toggleJumps').checked;
@@ -504,19 +513,35 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         
         var allEdges = network.body.data.edges.get();
         var edgesToUpdate = [];
+        
         for (var i = 0; i < allEdges.length; i++) {{
             var edge = allEdges[i];
             
-            if (edge.data_hidden == true || edge.data_hidden === 'True' || edge.data_hidden === 'true') {{
+            // 1. Si los filtros globales de Python ocultaron la línea, se respeta siempre
+            var fromNode = network.body.data.nodes.get(edge.from);
+            var toNode = network.body.data.nodes.get(edge.to);
+            if (!fromNode || !toNode || fromNode.hidden === true || toNode.hidden === true) {{
                 edgesToUpdate.push({{id: edge.id, hidden: true}});
-            }} else {{
-                if (edge.is_succession == true || edge.is_succession === 'True' || edge.is_succession === 'true') {{ 
-                    edgesToUpdate.push({{id: edge.id, hidden: !showSucc}});
-                }} else if (edge.is_jump == true || edge.is_jump === 'True' || edge.is_jump === 'true') {{ 
-                    edgesToUpdate.push({{id: edge.id, hidden: !showJumps}});
-                }} else {{ 
-                    edgesToUpdate.push({{id: edge.id, hidden: !showNormal}}); 
+                continue;
+            }}
+            
+            // 2. Extraer el color real de la línea para no depender de etiquetas ocultas
+            var edgeColor = "";
+            if (edge.color) {{
+                if (typeof edge.color === 'string') {{
+                    edgeColor = edge.color.toLowerCase();
+                }} else if (typeof edge.color.color === 'string') {{
+                    edgeColor = edge.color.color.toLowerCase();
                 }}
+            }}
+            
+            // 3. Filtrar según el color (Morado=Sucesión, Verde=9Box, Gris=Normal)
+            if (edgeColor === '#9c27b0') {{
+                edgesToUpdate.push({{id: edge.id, hidden: !showSucc}});
+            }} else if (edgeColor === '#22c55e' || edgeColor === '#166534') {{
+                edgesToUpdate.push({{id: edge.id, hidden: !showJumps}});
+            }} else {{
+                edgesToUpdate.push({{id: edge.id, hidden: !showNormal}});
             }}
         }}
         network.body.data.edges.update(edgesToUpdate);
