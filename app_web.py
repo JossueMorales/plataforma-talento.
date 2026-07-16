@@ -78,14 +78,15 @@ def generar_mapa_html(url_sheets, direccion_permitida):
             return default
         return str(val).strip()
 
+    # COLORES MÁS VIBRANTES (Alto Contraste)
     def obtener_color_9box(valor):
         v = str(valor).strip().upper()
-        if v in ['9', '7A', '7B', '7']: return '#d32f2f' 
-        elif v == '4': return '#1976d2' 
-        elif v == '6': return '#fbc02d' 
-        elif v in ['5', '2']: return '#81c784' 
-        elif v in ['1', '3']: return '#388e3c' 
-        else: return '#9e9e9e' 
+        if v in ['9', '7A', '7B', '7']: return '#dc2626' # Rojo Intenso
+        elif v == '4': return '#2563eb' # Azul Intenso
+        elif v == '6': return '#ca8a04' # Mostaza Intenso
+        elif v in ['5', '2']: return '#16a34a' # Verde Intenso
+        elif v in ['1', '3']: return '#14532d' # Verde Oscuro
+        else: return '#94a3b8' # Gris Frío
 
     jefes_dict = {}
     empleados_validos = set()
@@ -292,6 +293,8 @@ def generar_mapa_html(url_sheets, direccion_permitida):
                 shape='dot', group=nivel_mla, Nivel_MLA=nivel_mla, Resultado_9Box=resultado_9box, 
                 Direccion=direccion, Lider=lider, Critica=critica, Nombre=nombre, Puesto=puesto, Riesgos=riesgos_str,
                 Interes=interes, Suc1=suc1, Read1=read1, Suc2=suc2, Read2=read2, Suc3=suc3, Read3=read3,
+                # AQUI AGREGAMOS LA FUENTE DE ALTO CONTRASTE CON HALO BLANCO
+                font={'color': '#0f172a', 'strokeWidth': 4, 'strokeColor': '#ffffff', 'size': 12, 'face': 'Arial', 'weight': 'bold'},
                 x=coord_data['x'], y=coord_data['y'], 
                 Angle=coord_data['angle'], AnilloReal=coord_data['anillo_real'], Profundidad=coord_data['profundidad']
             )
@@ -304,13 +307,12 @@ def generar_mapa_html(url_sheets, direccion_permitida):
             res_9box = str(row.get('Resultado 9 box', '')).strip().upper()
             if not id_empleado: continue
             if id_jefe in empleados_validos:
-                G.add_edge(id_jefe, id_empleado, color='#b0bec5', width=1.5, dashes=False, is_jump=False)
+                # Líneas grises más oscuras para mayor contraste
+                G.add_edge(id_jefe, id_empleado, color='#94a3b8', width=2, dashes=False, is_jump=False)
             if res_9box in ['5', '2']:
-                j1 = obtener_jefe_nivel_arriba(id_empleado, 1)
-                if j1: G.add_edge(id_empleado, j1, color='#81c784', width=2.5, dashes=True, title='Proyección N+1', is_jump=True)
+                G.add_edge(id_empleado, obtener_jefe_nivel_arriba(id_empleado, 1), color='#22c55e', width=3, dashes=True, title='Proyección N+1', is_jump=True)
             if res_9box in ['1', '3']:
-                j2 = obtener_jefe_nivel_arriba(id_empleado, 2)
-                if j2: G.add_edge(id_empleado, j2, color='#388e3c', width=3, dashes=True, title='Proyección N+2', is_jump=True)
+                G.add_edge(id_empleado, obtener_jefe_nivel_arriba(id_empleado, 2), color='#166534', width=3.5, dashes=True, title='Proyección N+2', is_jump=True)
         except: pass
 
     kpis = {
@@ -321,10 +323,16 @@ def generar_mapa_html(url_sheets, direccion_permitida):
     }
     df_alertas = pd.DataFrame(alertas_tabla)
     
-    net = Network(height='750px', width='100%', bgcolor='#f8f9fa', font_color='#333333', directed=True, cdn_resources='remote')
+    net = Network(height='750px', width='100%', bgcolor='#ffffff', font_color='#333333', directed=True, cdn_resources='remote')
     net.from_nx(G)
+    
+    # AQUI AGREGAMOS SOMBRAS Y BORDES A LOS NODOS
     net.set_options("""
     var options = {
+      "nodes": {
+          "borderWidth": 2,
+          "shadow": {"enabled": true, "color": "rgba(0,0,0,0.25)", "size": 8, "x": 3, "y": 3}
+      },
       "physics": {"enabled": false, "forceAtlas2Based": {"gravitationalConstant": -150, "centralGravity": 0.01, "springLength": 250, "springConstant": 0.08, "avoidOverlap": 0.5}, "solver": "forceAtlas2Based"},
       "edges": {"smooth": {"enabled": true, "type": "continuous", "roundness": 0.2}},
       "interaction": {"hover": true, "tooltipDelay": 200}
@@ -347,7 +355,7 @@ def generar_mapa_html(url_sheets, direccion_permitida):
             if(n.AnilloReal !== undefined) { if (n.AnilloReal > max_nivel_visible) { max_nivel_visible = n.AnilloReal; } }
         });
         var limite_anillos = Math.max(max_nivel_visible, 1);
-        ctx.strokeStyle = '#d3d3d3'; ctx.setLineDash([5, 5]); ctx.lineWidth = 1.5; ctx.font = "bold 22px Arial"; ctx.fillStyle = "#a9a9a9"; ctx.textAlign = "center";
+        ctx.strokeStyle = '#cbd5e1'; ctx.setLineDash([8, 8]); ctx.lineWidth = 2; ctx.font = "bold 24px Arial"; ctx.fillStyle = "#64748b"; ctx.textAlign = "center";
         for (var i = 1; i <= limite_anillos; i++) {
             if (i > 5) break; 
             var r = i * paso; ctx.beginPath(); ctx.arc(0, 0, r, 0, 2 * Math.PI); ctx.stroke();
@@ -409,7 +417,7 @@ def generar_mapa_html(url_sheets, direccion_permitida):
             </div>
         </div>
     </div>
-    <div style="position: absolute; bottom: 30px; right: 30px; z-index: 9999; background: white; border-radius: 8px; box-shadow: 0px 4px 15px rgba(0,0,0,0.2); border-left: 5px solid #1976d2; font-family: Arial, sans-serif; overflow: hidden; width: 280px;">
+    <div style="position: absolute; bottom: 30px; right: 30px; z-index: 9999; background: white; border-radius: 8px; box-shadow: 0px 8px 20px rgba(0,0,0,0.25); border-left: 5px solid #1976d2; font-family: Arial, sans-serif; overflow: hidden; width: 280px;">
         <div style="padding: 12px 15px; background: #f8f9fa; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eaeaea;" onclick="toggleFiltrosPanel()">
             <h3 style="margin: 0; font-size: 15px; color: #333;">Filtros y Controles</h3><span id="iconoFiltro" style="font-size: 12px; color: #666;">▼ Ocultar</span>
         </div>
@@ -588,10 +596,17 @@ def generar_mapa_html(url_sheets, direccion_permitida):
     function enfocarPantalla() {{ network.fit({{ animation: {{ duration: 800, easingFunction: 'easeInOutQuad' }} }}); }}
     
     // =========================================================
-    // NUEVA FUNCIÓN MÁGICA: AUTO-ENFOQUE INICIAL
+    // NUEVA MAGIA: ENFOQUE Y ZOOM-OUT PARA QUE NO SE CORTE
     // =========================================================
     setTimeout(function() {{
-        network.fit();
+        network.fit({{ animation: {{ duration: 800, easingFunction: 'easeInOutQuad' }} }});
+        setTimeout(function() {{
+            var currentScale = network.getScale();
+            network.moveTo({{
+                scale: currentScale * 0.75, // Esto aleja la cámara 25% para dejar margen al texto
+                animation: {{ duration: 500, easingFunction: 'easeInOutQuad' }}
+            }});
+        }}, 900); 
     }}, 1000); 
     // =========================================================
     
@@ -611,13 +626,23 @@ def main():
     st.markdown("""
         <style>
         .block-container { padding-top: 1rem; padding-bottom: 0rem; }
+        
+        /* ESTILO PREMIUM PARA LAS TARJETAS DE KPIs */
         div[data-testid="metric-container"] {
-            background-color: #f8f9fa;
-            border: 1px solid #e0e0e0;
+            background-color: #ffffff;
+            border: 1px solid #e2e8f0;
             padding: 15px;
-            border-radius: 8px;
-            border-left: 5px solid #1976d2;
-            margin-bottom: 10px;
+            border-radius: 10px;
+            border-left: 6px solid #2563eb;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            margin-bottom: 12px;
+        }
+        div[data-testid="metric-container"] label {
+            color: #475569 !important;
+            font-weight: 600 !important;
+        }
+        div[data-testid="metric-container"] div[data-testid="stMetricValue"] {
+            color: #0f172a !important;
         }
         </style>
     """, unsafe_allow_html=True)
