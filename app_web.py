@@ -230,7 +230,6 @@ def generar_mapa_html(url_sheets, direccion_permitida):
         coords[raiz_principal] = {'x': 0, 'y': 0, 'angle': 0, 'anillo_real': 0, 'profundidad': 0}
         asignar_coordenada_radial(raiz_principal, 0, 2 * math.pi)
 
-    # NUEVO: Lista para recolectar alertas para la tabla inferior
     alertas_tabla = []
 
     for index, row in df.iterrows():
@@ -271,7 +270,6 @@ def generar_mapa_html(url_sheets, direccion_permitida):
             if reps >= 12: riesgos_lista.append(f"⚠️ Sobrecarga ({reps} reportes)")
             elif reps == 1: riesgos_lista.append("⚠️ Ineficiencia (1 reporte)")
                 
-            # Recolectar para la tabla inferior
             for r in riesgos_lista:
                 alertas_tabla.append({
                     "Colaborador": nombre,
@@ -315,9 +313,6 @@ def generar_mapa_html(url_sheets, direccion_permitida):
                 if j2: G.add_edge(id_empleado, j2, color='#388e3c', width=3, dashes=True, title='Proyección N+2', is_jump=True)
         except: pass
 
-    # =========================================================================
-    # CÁLCULO DE KPIS AUTOMÁTICO
-    # =========================================================================
     kpis = {
         'total': len(empleados_validos),
         'criticas': sum(1 for v in info_nodos.values() if v['critica'].lower() == 'si'),
@@ -326,7 +321,6 @@ def generar_mapa_html(url_sheets, direccion_permitida):
     }
     df_alertas = pd.DataFrame(alertas_tabla)
     
-    # Reducimos la altura a 750px para que encaje mejor con el dashboard
     net = Network(height='750px', width='100%', bgcolor='#f8f9fa', font_color='#333333', directed=True, cdn_resources='remote')
     net.from_nx(G)
     net.set_options("""
@@ -592,6 +586,15 @@ def generar_mapa_html(url_sheets, direccion_permitida):
         network.body.data.edges.update(edgesToUpdate);
     }}
     function enfocarPantalla() {{ network.fit({{ animation: {{ duration: 800, easingFunction: 'easeInOutQuad' }} }}); }}
+    
+    // =========================================================
+    // NUEVA FUNCIÓN MÁGICA: AUTO-ENFOQUE INICIAL
+    // =========================================================
+    setTimeout(function() {{
+        network.fit();
+    }}, 1000); 
+    // =========================================================
+    
     </script>
     """
     
@@ -636,13 +639,9 @@ def main():
         html_mapa, df_alertas, kpis = generar_mapa_html(link_google_sheets, direccion_permitida)
         
         if kpis is not None:
-            # =========================================================
-            # NUEVO LAYOUT TIPO DASHBOARD (70% Mapa, 30% KPIs)
-            # =========================================================
             col_mapa, col_datos = st.columns([7, 3])
             
             with col_mapa:
-                # El mapa ahora vive dentro de esta columna (su ancho se adapta al 70%)
                 components.html(html_mapa, height=750, scrolling=False)
                 
             with col_datos:
@@ -654,9 +653,6 @@ def main():
                 st.metric("Sucesores Oficializados", kpis['sucesores'])
                 st.metric("Personal Operativo (MLA 1)", kpis['operativos'])
             
-            # =========================================================
-            # SECCIÓN INFERIOR: TABLA DE ALERTAS
-            # =========================================================
             st.divider()
             st.markdown("### 🚨 Resumen de Alertas y Riesgos Detectados")
             
@@ -665,7 +661,6 @@ def main():
             else:
                 st.success("✅ ¡Excelente! No se detectaron alertas de sucesión ni sobrecarga de reportes en esta área.")
         else:
-            # En caso de error de lectura
             components.html(html_mapa, height=400)
 
 if __name__ == "__main__":
