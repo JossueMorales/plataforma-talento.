@@ -335,11 +335,6 @@ def obtener_color_9box(valor):
     return '#94a3b8' 
 
 def acortar_nombre(nombre_completo):
-    """
-    Toma un nombre completo y devuelve el primer nombre y el primer apellido.
-    Si tiene 3 palabras (ej. Ana Perez Gomez) devuelve las dos primeras (Ana Perez).
-    Si tiene 4 o más (ej. Juan Carlos Perez Gomez) devuelve la 1ra y penúltima (Juan Perez).
-    """
     if not nombre_completo: return ""
     partes = str(nombre_completo).strip().split()
     
@@ -348,7 +343,6 @@ def acortar_nombre(nombre_completo):
     elif len(partes) == 3:
         return f"{partes[0]} {partes[1]}"
     else:
-        # Asumimos formato tradicional de 4 palabras: Nombre1 Nombre2 Apellido1 Apellido2
         return f"{partes[0]} {partes[-2]}"
 
 # ==========================================
@@ -445,23 +439,26 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                 sucesores_oficiales_de[s_id] += 1
 
     for emp, info in info_nodos.items():
-        es_critica = (info['critica'].lower() == 'si')
-        tiene_oficial = (sucesores_oficiales_de.get(emp, 0) > 0)
-        tiene_hipos_9box = (sucesores_de_9box.get(emp, 0) > 0)
-        
         r_list = []
-        if es_critica:
-            if not tiene_oficial and not tiene_hipos_9box: 
-                r_list.append("🔥 Riesgo Crítico: Sin Sucesor ni HiPos")
-            elif not tiene_oficial and tiene_hipos_9box: 
-                r_list.append("⚠️ Sugerencia: HiPo disponible, falta oficializar")
-                
-        reps = reportes_directos.get(emp, 0)
-        if reps >= 12: 
-            r_list.append(f"⚠️ Sobrecarga ({reps} reportes)")
-        elif reps == 1: 
-            r_list.append("⚠️ Ineficiencia (1 reporte)")
+        
+        # EXCEPCIÓN: Si el empleado es Nivel MLA 5 (Director General), no se calculan riesgos.
+        if info['mla'] != '5':
+            es_critica = (info['critica'].lower() == 'si')
+            tiene_oficial = (sucesores_oficiales_de.get(emp, 0) > 0)
+            tiene_hipos_9box = (sucesores_de_9box.get(emp, 0) > 0)
             
+            if es_critica:
+                if not tiene_oficial and not tiene_hipos_9box: 
+                    r_list.append("🔥 Riesgo Crítico: Sin Sucesor ni HiPos")
+                elif not tiene_oficial and tiene_hipos_9box: 
+                    r_list.append("⚠️ Sugerencia: HiPo disponible, falta oficializar")
+                    
+            reps = reportes_directos.get(emp, 0)
+            if reps >= 12: 
+                r_list.append(f"⚠️ Sobrecarga ({reps} reportes)")
+            elif reps == 1: 
+                r_list.append("⚠️ Ineficiencia (1 reporte)")
+                
         info_nodos[emp]['riesgos_lista'] = r_list
         info_nodos[emp]['riesgos'] = " | ".join(r_list) if r_list else "Ninguno"
 
@@ -600,12 +597,10 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         nom_suc2 = nombres_dict.get(info['suc2_id'], info['suc2_id']) if info['suc2_id'] else ""
         nom_suc3 = nombres_dict.get(info['suc3_id'], info['suc3_id']) if info['suc3_id'] else ""
         
-        # Generamos el nombre corto (ej: Juan Perez)
         nombre_corto = acortar_nombre(info['nombre'])
         
         G.add_node(
             emp, 
-            # El salto de línea (\n) coloca el puesto justo debajo del nombre corto
             label=f"{prefijo}{nombre_corto}\n({info['puesto']})", 
             title=f"<div style='padding: 5px; text-align: center;'><b>{prefijo}{info['nombre']}</b><br><small>{info['puesto']}</small></div>", 
             size=28 if emp == raiz_principal else 18, 
