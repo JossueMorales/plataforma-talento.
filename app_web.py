@@ -21,7 +21,7 @@ def login():
         st.session_state["usuario_logueado"] = False
 
     if not st.session_state["usuario_logueado"]:
-        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v5.1</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v5.2</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #666;'>Inicia sesión para acceder al mapa organizacional</p>", unsafe_allow_html=True)
         
         col1, col2, col3 = st.columns([1, 1, 1])
@@ -160,7 +160,7 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         info_nodos[emp]['riesgos'] = " | ".join(r_list) if r_list else "Ninguno"
 
     # =========================================================================
-    # APLICAR FILTROS MAESTROS DE STREAMLIT (CORREGIDOS)
+    # APLICAR FILTROS MAESTROS DE STREAMLIT
     # =========================================================================
     nodos_visibles = set()
     for emp, info in info_nodos.items():
@@ -181,7 +181,7 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         
         nodos_visibles.add(emp)
 
-    # PASO 4: Construir Jerarquía Estructural (Sin romper anillos)
+    # PASO 4: Construir Jerarquía Estructural
     raiz_principal = None
     for emp, info in info_nodos.items():
         if info['mla'] == '5':
@@ -245,7 +245,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     for emp, info in info_nodos.items():
         is_hidden = emp not in nodos_visibles
         
-        # Llenar la tabla de alertas SOLO con los visibles
         if not is_hidden:
             for r in info['riesgos_lista']:
                 alertas_tabla.append({
@@ -269,7 +268,7 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             Interes=info['interes'], Suc1=info['suc1'], Read1=info['read1'], Suc2=info['suc2'], Read2=info['read2'], Suc3=info['suc3'], Read3=info['read3'],
             font={'color': '#0f172a', 'strokeWidth': 4, 'strokeColor': '#ffffff', 'size': 12, 'face': 'Arial', 'weight': 'bold'},
             x=coord_data['x'], y=coord_data['y'], Angle=coord_data['angle'], AnilloReal=coord_data['anillo_real'], Profundidad=coord_data['profundidad'],
-            hidden=is_hidden, data_hidden=is_hidden # Le pasamos el ocultamiento al mapa
+            hidden=is_hidden, data_hidden=is_hidden 
         )
 
     for jefe, emp in G_jerarquia.edges():
@@ -488,18 +487,24 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         }}
         network.body.data.edges.update(edgesToUpdate);
     }}
+    
+    // =========================================================
+    // ZOOM CORREGIDO: Menos agresivo para no alejar tanto
+    // =========================================================
     function enfocarPantalla() {{ 
         network.fit();
         setTimeout(function() {{
             var currentScale = network.getScale();
             network.moveTo({{
-                position: {{x: 0, y: -150}}, 
-                scale: currentScale * 0.65, 
+                position: {{x: 0, y: -80}}, // Solo sube un poquito
+                scale: currentScale * 0.85, // Aleja solo 15% (antes era 35%)
                 animation: {{ duration: 800, easingFunction: 'easeInOutQuad' }}
             }});
         }}, 800);
     }}
     setTimeout(enfocarPantalla, 1000); 
+    // =========================================================
+    
     </script>
     """
     
