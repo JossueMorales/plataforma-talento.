@@ -20,7 +20,7 @@ def login():
         st.session_state["usuario_logueado"] = False
 
     if not st.session_state["usuario_logueado"]:
-        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v6.3</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v7.0</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #666;'>Inicia sesión para acceder al mapa organizacional</p>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1, 1, 1])
         with col2:
@@ -158,6 +158,9 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         info_nodos[emp]['riesgos_lista'] = r_list
         info_nodos[emp]['riesgos'] = " | ".join(r_list) if r_list else "Ninguno"
 
+    # =========================================================
+    # NUEVA LÓGICA: INMUNIDAD TOTAL PARA EL LÍDER SELECCIONADO
+    # =========================================================
     descendientes_validos = set()
     if f_lid != "Todos":
         lider_ids = [emp for emp, inf in info_nodos.items() if inf['nombre'] == f_lid]
@@ -169,10 +172,17 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
 
     nodos_visibles = set()
     for emp, info in info_nodos.items():
+        # Inmunidad Nivel 5 (Andrés)
         if info['mla'] == '5':
             nodos_visibles.add(emp)
             continue
             
+        # Inmunidad absoluta al Líder seleccionado (Si filtras por Luis, Luis SIEMPRE aparece)
+        if f_lid != "Todos" and info['nombre'] == f_lid:
+            nodos_visibles.add(emp)
+            continue
+            
+        # Filtros normales para todos los demás
         if f_dir != "Todas" and info['direccion'] != f_dir: continue
         if f_lid != "Todos" and emp not in descendientes_validos: continue
         if f_crit != "Todas" and info['critica'] != f_crit: continue
@@ -182,6 +192,7 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         
         nodos_visibles.add(emp)
 
+    # Inmunidad de Trazabilidad (Rescatar a los objetivos de sucesión para no romper la línea)
     nodos_rescatados = set(nodos_visibles)
     for emp in nodos_visibles:
         info = info_nodos[emp]
@@ -190,6 +201,9 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                 nodos_rescatados.add(s_id)
     nodos_visibles = nodos_rescatados
 
+    # =========================================================
+    # CONSTRUCCIÓN DE GEOMETRÍA
+    # =========================================================
     raiz_principal = None
     for emp, info in info_nodos.items():
         if info['mla'] == '5':
@@ -210,6 +224,7 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         elif mla == '1': return 4 
         return min(depth_arbol, 5)
 
+    SEPARACION_ANILLOS = 1000 
     conteo_hojas = {}
     def calcular_hojas(n):
         hijos = list(Arbol.successors(n))
@@ -233,7 +248,7 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             angulo_hijo = angulo_actual + (rebanada / 2)
             profundidad = nx.shortest_path_length(Arbol, raiz_principal, c) if raiz_principal and c in Arbol else 5
             anillo_real = obtener_anillo_estricto(c, profundidad)
-            radio_final = (anillo_real * 1000) + (profundidad * 120) if anillo_real != 0 else 0
+            radio_final = (anillo_real * SEPARACION_ANILLOS) + (profundidad * 120) if anillo_real != 0 else 0
             coords[c] = {'x': radio_final * math.cos(angulo_hijo), 'y': radio_final * math.sin(angulo_hijo), 'angle': angulo_hijo, 'anillo_real': anillo_real, 'profundidad': profundidad}
             asignar_coordenada_radial(c, angulo_actual, angulo_actual + rebanada)
             angulo_actual += rebanada
@@ -243,7 +258,8 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         asignar_coordenada_radial(raiz_principal, 0, 2 * math.pi)
 
     # =========================================================
-    # NUEVO: LÓGICA ANTI-APILAMIENTO (Rescate de Islas)
+    # REPARACIÓN DE EXTREMOS (Islas Flotantes)
+    # Acomoda a los desconectados exactamente en el anillo que les toca
     # =========================================================
     nodos_sin_coords = [n for n in G_jerarquia.nodes() if n not in coords]
     if nodos_sin_coords:
@@ -251,8 +267,8 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         angulo_actual = 0
         for n in nodos_sin_coords:
             anillo = obtener_anillo_estricto(n, 5)
-            # Les damos un radio amplio para que no se empalmen
-            radio = (anillo * 1000) + 600 if anillo != 0 else 1000
+            # Usa la MISMA fórmula de radio para que se queden en los círculos
+            radio = (anillo * SEPARACION_ANILLOS) + (5 * 120) if anillo != 0 else 0
             coords[n] = {
                 'x': radio * math.cos(angulo_actual), 
                 'y': radio * math.sin(angulo_actual), 
@@ -261,7 +277,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                 'profundidad': 5
             }
             angulo_actual += angulo_extra
-    # =========================================================
 
     alertas_tabla = []
     
@@ -310,7 +325,7 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         for s_id in [info['suc1_id'], info['suc2_id'], info['suc3_id']]:
             if s_id in empleados_validos:
                 is_hidden_edge = (emp not in nodos_visibles or s_id not in nodos_visibles)
-                G.add_edge(emp, s_id, color='#9c27b0', width=4, dashes=[8, 8], title='🎯 Objetivo de Sucesión', is_jump=False, is_succession=True, hidden=is_hidden_edge, data_hidden=is_hidden_edge)
+                G.add_edge(emp, s_id, color='#9c27b0', width=4, dashes=True, title='🎯 Objetivo de Sucesión', is_jump=False, is_succession=True, hidden=is_hidden_edge, data_hidden=is_hidden_edge)
 
     kpis = {
         'total': len(nodos_visibles),
