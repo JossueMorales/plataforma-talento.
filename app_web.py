@@ -241,10 +241,9 @@ setTimeout(function() {
 def obtener_usuarios_autorizados():
     """
     Intenta obtener credenciales desde st.secrets. 
-    Si no existen (entorno local inicial), usa el diccionario hardcodeado (solo desarrollo).
+    Si no existen (entorno local inicial), usa el diccionario (solo desarrollo).
     """
     try:
-        # Idealmente configura tus secretos en .streamlit/secrets.toml
         return st.secrets["usuarios"]
     except KeyError:
         return {
@@ -313,16 +312,11 @@ def clean_id(val):
 
 def obtener_color_9box(valor):
     v = str(valor).strip().upper()
-    if v in ['9', '7A', '7B', '7']: 
-        return '#dc2626' 
-    if v == '4': 
-        return '#2563eb' 
-    if v == '6': 
-        return '#ca8a04' 
-    if v in ['5', '2']: 
-        return '#16a34a' 
-    if v in ['1', '3']: 
-        return '#14532d' 
+    if v in ['9', '7A', '7B', '7']: return '#dc2626' 
+    if v == '4': return '#2563eb' 
+    if v == '6': return '#ca8a04' 
+    if v in ['5', '2']: return '#16a34a' 
+    if v in ['1', '3']: return '#14532d' 
     return '#94a3b8' 
 
 # ==========================================
@@ -336,40 +330,36 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     empleados_validos = set()
     info_nodos = {}
     
-    # Mejora de rendimiento: Uso de vectorización/generadores rápidos
+    # Pre-cargamos los nombres para mayor rapidez
     nombres_dict = {
-        clean_id(row['id Empleado']): clean_text(row.get('Nombre')) 
-        for _, row in df_seguro.iterrows() if clean_id(row['id Empleado'])
+        clean_id(row.get('id Empleado')): clean_text(row.get('Nombre')) 
+        for row in df_seguro.to_dict('records') if clean_id(row.get('id Empleado'))
     }
             
-    # Mejora de rendimiento: itertuples() en lugar de iterrows()
-    for row in df_seguro.itertuples(index=False):
-        row_dict = row._asdict() # Convertimos a diccionario para usar .get()
+    # Iteramos usando diccionarios para mantener los nombres con espacios intactos
+    for row_dict in df_seguro.to_dict('records'):
         emp = clean_id(row_dict.get('id Empleado'))
-        
-        # Manejar posibles variaciones de nombres de columnas
-        jefe_col = 'ID Del Jefe' if 'ID Del Jefe' in row_dict else 'ID_Del_Jefe'
-        jefe = clean_id(row_dict.get(jefe_col))
+        jefe = clean_id(row_dict.get('ID Del Jefe'))
         
         if emp:
             empleados_validos.add(emp)
             G_jerarquia.add_node(emp)
             
             info_nodos[emp] = {
-                'mla': clean_text(row_dict.get('Nivel MLA', row_dict.get('Nivel_MLA')), 'N/A'),
-                'puesto': clean_text(row_dict.get('Nombre de la Posición', row_dict.get('Nombre_de_la_Posición'))).upper(),
+                'mla': clean_text(row_dict.get('Nivel MLA'), 'N/A'),
+                'puesto': clean_text(row_dict.get('Nombre de la Posición')).upper(),
                 'direccion': clean_text(row_dict.get('Dirección', row_dict.get('Direccion')), 'No asignada'),
-                'box': clean_text(row_dict.get('Resultado 9 box', row_dict.get('Resultado_9_box')), 'Pendiente'),
+                'box': clean_text(row_dict.get('Resultado 9 box'), 'Pendiente'),
                 'lider': nombres_dict.get(jefe, 'Sin Líder') if jefe else 'Sin Líder',
-                'critica': clean_text(row_dict.get('Posición Crítica', row_dict.get('Posicion Critica', row_dict.get('Posicion_Critica'))), 'No'),
+                'critica': clean_text(row_dict.get('Posición Crítica', row_dict.get('Posicion Critica')), 'No'),
                 'nombre': clean_text(row_dict.get('Nombre')),
-                'interes': clean_text(row_dict.get('Interés del Colaborador', row_dict.get('Interés_del_Colaborador')), 'Pendiente'),
-                'suc1_id': clean_id(row_dict.get('Sucesor P.1', row_dict.get('Sucesor_P_1'))),
-                'read1': clean_text(row_dict.get('Tiempo de Readiness 1', row_dict.get('Tiempo_de_Readiness_1')), 'Pendiente'),
-                'suc2_id': clean_id(row_dict.get('Sucesor P.2', row_dict.get('Sucesor_P_2'))),
-                'read2': clean_text(row_dict.get('Tiempo de Readiness 2', row_dict.get('Tiempo_de_Readiness_2')), ''),
-                'suc3_id': clean_id(row_dict.get('Sucesor P.3', row_dict.get('Sucesor_P_3'))),
-                'read3': clean_text(row_dict.get('Tiempo de Readiness 3', row_dict.get('Tiempo_de_Readiness_3')), '')
+                'interes': clean_text(row_dict.get('Interés del Colaborador'), 'Pendiente'),
+                'suc1_id': clean_id(row_dict.get('Sucesor P.1')),
+                'read1': clean_text(row_dict.get('Tiempo de Readiness 1'), 'Pendiente'),
+                'suc2_id': clean_id(row_dict.get('Sucesor P.2')),
+                'read2': clean_text(row_dict.get('Tiempo de Readiness 2'), ''),
+                'suc3_id': clean_id(row_dict.get('Sucesor P.3')),
+                'read3': clean_text(row_dict.get('Tiempo de Readiness 3'), '')
             }
             if jefe:
                 jefes_dict[emp] = jefe
@@ -431,7 +421,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         lider_ids = [emp for emp, inf in info_nodos.items() if inf['nombre'] == f_lid]
         for l_id in lider_ids:
             descendientes_validos.add(l_id)
-            # Manejo de error corregido (evitar bare except)
             try:
                 if l_id in G_jerarquia:
                     descendientes_validos.update(nx.descendants(G_jerarquia, l_id))
@@ -659,7 +648,6 @@ def main():
     st.divider()
 
     with st.spinner("Cargando mapa con conexiones lógicas..."):
-        # Considera mover esta URL a st.secrets o variables de entorno
         link_google_sheets = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit?pli=1&gid=0#gid=0"
         df_completo = cargar_datos_csv(link_google_sheets)
         
@@ -682,7 +670,7 @@ def main():
         boxes = sorted([clean_text(x).upper() for x in df_seguro['Resultado 9 box'].unique() if clean_text(x)])
         criticas = sorted([clean_text(x) for x in df_seguro['Posición Crítica'].unique() if clean_text(x)])
         
-        dict_nom = {clean_id(row['id Empleado']): clean_text(row['Nombre']) for _, row in df_seguro.iterrows()}
+        dict_nom = {clean_id(row.get('id Empleado')): clean_text(row.get('Nombre')) for row in df_seguro.to_dict('records')}
         lideres_ids = df_seguro['ID Del Jefe'].dropna().unique()
         lideres = sorted(list(set([dict_nom.get(clean_id(x), "Sin Líder") for x in lideres_ids if clean_id(x)])))
 
