@@ -441,7 +441,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     for emp, info in info_nodos.items():
         r_list = []
         
-        # EXCEPCIÓN: Si el empleado es Nivel MLA 5 (Director General), no se calculan riesgos.
         if info['mla'] != '5':
             es_critica = (info['critica'].lower() == 'si')
             tiene_oficial = (sucesores_oficiales_de.get(emp, 0) > 0)
@@ -736,19 +735,27 @@ def main():
         html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos)
         
         if kpis is not None:
-            col_mapa, col_datos = st.columns([7, 3])
-            with col_mapa:
-                components.html(html_mapa, height=750, scrolling=False)
-                
-            with col_datos:
-                st.markdown("### 📊 KPIs de Talento")
-                st.write("")
-                st.metric("Total de Colaboradores", kpis['total'])
-                st.metric("Posiciones Críticas", kpis['criticas'])
-                st.metric("Colaboradores Perfilados", kpis['sucesores'])
-                st.metric("Personal Operativo (MLA 1)", kpis['operativos'])
-                st.metric("🚨 Alertas Detectadas", kpis['alertas'])
+            # ==========================================
+            # SECCIÓN DE KPIs HORIZONTALES
+            # ==========================================
+            st.markdown("### 📊 KPIs de Talento")
             
+            # Usamos 5 columnas para que se desplieguen horizontalmente
+            kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
+            
+            kpi1.metric("Total de Colaboradores", kpis['total'])
+            kpi2.metric("Posiciones Críticas", kpis['criticas'])
+            kpi3.metric("Colaboradores Perfilados", kpis['sucesores'])
+            kpi4.metric("Personal Operativo (MLA 1)", kpis['operativos'])
+            kpi5.metric("🚨 Alertas Detectadas", kpis['alertas'])
+            
+            st.write("") # Espacio para que respire el diseño
+            
+            # ==========================================
+            # EL MAPA AHORA USA EL 100% DEL ANCHO
+            # ==========================================
+            components.html(html_mapa, height=750, scrolling=False)
+                
             st.divider()
             st.markdown("### 🚨 Resumen de Tareas y Alertas (Filtrable)")
             
