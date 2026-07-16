@@ -102,7 +102,8 @@ BOTON_HTML = """
         <div id="sliderContainer" style="transition: 0.3s;">
             <label style="font-size: 13px; font-weight: bold; color: #555;">Amplitud Radial:</label>
             <div style="display: flex; align-items: center; gap: 10px;">
-                <input type="range" id="sliderSeparacion" min="800" max="3500" value="1800" oninput="updateSpacing()" style="width: 100%; cursor: pointer;">
+                <!-- Cambiado min a 100 -->
+                <input type="range" id="sliderSeparacion" min="100" max="3500" value="1800" oninput="updateSpacing()" style="width: 100%; cursor: pointer;">
                 <span id="valorSeparacion" style="font-size: 12px; font-weight:bold; color:#1976d2; min-width: 45px;">1800px</span>
             </div>
         </div>
@@ -587,7 +588,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         
         G.add_node(
             emp, 
-            # SIMPLIFICACIÓN: Quitamos el puesto de la etiqueta visible para reducir el amontonamiento.
             label=f"{prefijo}{info['nombre']}", 
             title=f"<div style='padding: 5px; text-align: center;'><b>{prefijo}{info['nombre']}</b><br><small>{info['puesto']}</small></div>", 
             size=28 if emp == raiz_principal else 18, 
@@ -606,7 +606,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     # =========================================================
     for jefe, emp in G_jerarquia.edges():
         is_hidden_edge = jefe not in nodos_visibles or emp not in nodos_visibles
-        # LÍNEAS RECTAS: smooth=False soluciona el error de los bucles gigantes al mover el slider.
         G.add_edge(jefe, emp, color='#94a3b8', width=2, dashes=False, title='Estructura', hidden=is_hidden_edge, is_struct=True, is_9box=False, is_succ=False, smooth=False)
 
     for emp, info in info_nodos.items():
