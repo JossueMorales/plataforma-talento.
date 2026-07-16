@@ -21,10 +21,7 @@ def login():
         st.session_state["usuario_logueado"] = False
 
     if not st.session_state["usuario_logueado"]:
-        # =========================================================
-        # CAMBIO DE TÍTULO PARA VERIFICAR QUE SE SUBIÓ BIEN A GITHUB
-        # =========================================================
-        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v3.0</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v4.0</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #666;'>Inicia sesión para acceder al mapa organizacional</p>", unsafe_allow_html=True)
         
         col1, col2, col3 = st.columns([1, 1, 1])
@@ -81,15 +78,14 @@ def generar_mapa_html(url_sheets, direccion_permitida):
             return default
         return str(val).strip()
 
-    # COLORES MÁS VIBRANTES (Alto Contraste)
     def obtener_color_9box(valor):
         v = str(valor).strip().upper()
-        if v in ['9', '7A', '7B', '7']: return '#dc2626' # Rojo Intenso
-        elif v == '4': return '#2563eb' # Azul Intenso
-        elif v == '6': return '#ca8a04' # Mostaza Intenso
-        elif v in ['5', '2']: return '#16a34a' # Verde Intenso
-        elif v in ['1', '3']: return '#14532d' # Verde Oscuro
-        else: return '#94a3b8' # Gris Frío
+        if v in ['9', '7A', '7B', '7']: return '#dc2626' 
+        elif v == '4': return '#2563eb' 
+        elif v == '6': return '#ca8a04' 
+        elif v in ['5', '2']: return '#16a34a' 
+        elif v in ['1', '3']: return '#14532d' 
+        else: return '#94a3b8' 
 
     jefes_dict = {}
     empleados_validos = set()
@@ -296,6 +292,7 @@ def generar_mapa_html(url_sheets, direccion_permitida):
                 shape='dot', group=nivel_mla, Nivel_MLA=nivel_mla, Resultado_9Box=resultado_9box, 
                 Direccion=direccion, Lider=lider, Critica=critica, Nombre=nombre, Puesto=puesto, Riesgos=riesgos_str,
                 Interes=interes, Suc1=suc1, Read1=read1, Suc2=suc2, Read2=read2, Suc3=suc3, Read3=read3,
+                font={'color': '#0f172a', 'strokeWidth': 4, 'strokeColor': '#ffffff', 'size': 12, 'face': 'Arial', 'weight': 'bold'},
                 x=coord_data['x'], y=coord_data['y'], 
                 Angle=coord_data['angle'], AnilloReal=coord_data['anillo_real'], Profundidad=coord_data['profundidad']
             )
@@ -326,9 +323,6 @@ def generar_mapa_html(url_sheets, direccion_permitida):
     net = Network(height='750px', width='100%', bgcolor='#ffffff', font_color='#333333', directed=True, cdn_resources='remote')
     net.from_nx(G)
     
-    # ====================================================================
-    # AQUI ESTÁ LA INSTRUCCIÓN FORZADA PARA LAS SOMBRAS Y TEXTOS VISIBLES
-    # ====================================================================
     net.set_options("""
     var options = {
       "nodes": {
@@ -348,7 +342,6 @@ def generar_mapa_html(url_sheets, direccion_permitida):
       "interaction": {"hover": true, "tooltipDelay": 200}
     }
     """)
-    # ====================================================================
     
     html = net.generate_html()
     
@@ -607,17 +600,18 @@ def generar_mapa_html(url_sheets, direccion_permitida):
     function enfocarPantalla() {{ network.fit({{ animation: {{ duration: 800, easingFunction: 'easeInOutQuad' }} }}); }}
     
     // =========================================================
-    // ENFOQUE SEGURO (ZOOM OUT EXTRA PARA NO CORTAR TEXTO)
+    // LA SOLUCIÓN AL RECORTE: MOVER LA CÁMARA HACIA ARRIBA Y ALEJARLA
     // =========================================================
     setTimeout(function() {{
-        network.fit({{ animation: {{ duration: 800, easingFunction: 'easeInOutQuad' }} }});
+        network.fit();
         setTimeout(function() {{
             var currentScale = network.getScale();
             network.moveTo({{
-                scale: currentScale * 0.85, 
-                animation: {{ duration: 500, easingFunction: 'easeInOutQuad' }}
+                position: {{x: 0, y: -150}}, // Mueve la cámara 150px hacia arriba
+                scale: currentScale * 0.65, // Aleja la vista un 35% extra
+                animation: {{ duration: 800, easingFunction: 'easeInOutQuad' }}
             }});
-        }}, 900); 
+        }}, 800); 
     }}, 1000); 
     // =========================================================
     
@@ -691,9 +685,6 @@ def main():
             st.divider()
             st.markdown("### 🚨 Resumen de Alertas y Riesgos Detectados")
             
-            # =================================================================
-            # NUEVO: FILTROS INTERACTIVOS PARA LA TABLA DE ALERTAS
-            # =================================================================
             if not df_alertas.empty:
                 st.markdown("Filtra rápidamente la información para encontrar áreas de mejora:")
                 col_f1, col_f2 = st.columns(2)
@@ -706,7 +697,6 @@ def main():
                     lista_riesgos = df_alertas['Alerta Detectada por IA'].unique().tolist()
                     filtro_riesgo = st.multiselect("⚠️ Filtrar por Tipo de Alerta:", options=lista_riesgos)
                 
-                # Aplicamos los filtros
                 df_filtrado = df_alertas.copy()
                 if filtro_area:
                     df_filtrado = df_filtrado[df_filtrado['Dirección'].isin(filtro_area)]
@@ -716,7 +706,6 @@ def main():
                 st.dataframe(df_filtrado, use_container_width=True, hide_index=True)
             else:
                 st.success("✅ ¡Excelente! No se detectaron alertas de sucesión ni sobrecarga de reportes en esta área.")
-            # =================================================================
         else:
             components.html(html_mapa, height=400)
 
