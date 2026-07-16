@@ -21,7 +21,7 @@ def login():
         st.session_state["usuario_logueado"] = False
 
     if not st.session_state["usuario_logueado"]:
-        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v5.0</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v5.1</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #666;'>Inicia sesión para acceder al mapa organizacional</p>", unsafe_allow_html=True)
         
         col1, col2, col3 = st.columns([1, 1, 1])
@@ -160,16 +160,25 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         info_nodos[emp]['riesgos'] = " | ".join(r_list) if r_list else "Ninguno"
 
     # =========================================================================
-    # APLICAR FILTROS MAESTROS DE STREAMLIT
+    # APLICAR FILTROS MAESTROS DE STREAMLIT (CORREGIDOS)
     # =========================================================================
     nodos_visibles = set()
     for emp, info in info_nodos.items():
-        if f_dir != "Todas" and info['direccion'] != f_dir and info['mla'] != '5': continue
-        if f_lid != "Todos" and info['lider'] != f_lid: continue
+        # REGLA 1 DE INMUNIDAD: Andrés (Nivel 5) jamás desaparece
+        if info['mla'] == '5':
+            nodos_visibles.add(emp)
+            continue
+            
+        if f_dir != "Todas" and info['direccion'] != f_dir: continue
+        
+        # REGLA 2 DE INMUNIDAD: Mostrar a subordinados Y al propio líder seleccionado
+        if f_lid != "Todos" and info['lider'] != f_lid and info['nombre'] != f_lid: continue
+        
         if f_crit != "Todas" and info['critica'] != f_crit: continue
         if f_mla != "Todos" and info['mla'] != f_mla: continue
         if f_box != "Todos" and info['box'] != f_box: continue
         if f_riesgos and not info['riesgos_lista']: continue
+        
         nodos_visibles.add(emp)
 
     # PASO 4: Construir Jerarquía Estructural (Sin romper anillos)
@@ -470,7 +479,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         var edgesToUpdate = [];
         for (var i = 0; i < allEdges.length; i++) {{
             var edge = allEdges[i];
-            // Respetar lo que ocultó Python
             if (edge.data_hidden === true) {{
                 edgesToUpdate.push({{id: edge.id, hidden: true}});
             }} else {{
@@ -480,10 +488,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         }}
         network.body.data.edges.update(edgesToUpdate);
     }}
-    
-    // =========================================================
-    // ENFOQUE INTELIGENTE: Mueve la cámara arriba y aleja el zoom
-    // =========================================================
     function enfocarPantalla() {{ 
         network.fit();
         setTimeout(function() {{
@@ -496,8 +500,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         }}, 800);
     }}
     setTimeout(enfocarPantalla, 1000); 
-    // =========================================================
-    
     </script>
     """
     
@@ -558,9 +560,6 @@ def main():
         else:
             df_seguro = df_completo.copy()
 
-        # =========================================================================
-        # NUEVO PANEL DE FILTROS MAESTROS (Streamlit)
-        # =========================================================================
         st.markdown("### 🎛️ Filtros Globales (Controlan Mapa, KPIs y Tabla)")
         
         dirs = sorted([clean_text(x) for x in df_seguro['Dirección'].unique() if clean_text(x)])
@@ -580,9 +579,8 @@ def main():
         f_box = col_f5.selectbox("9-Box", ["Todos"] + boxes)
         
         f_riesgos = st.checkbox("🚨 Mostrar Solo Colaboradores con Riesgos Detectados")
-        st.write("") # Espaciador
+        st.write("") 
 
-        # Generar el mapa pasándole los filtros maestros
         html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos)
         
         if kpis is not None:
@@ -597,7 +595,7 @@ def main():
                 st.metric("Posiciones Críticas", kpis['criticas'])
                 st.metric("Sucesores Oficializados", kpis['sucesores'])
                 st.metric("Personal Operativo (MLA 1)", kpis['operativos'])
-                st.metric("🚨 Alertas Detectadas", kpis['alertas']) # NUEVO KPI
+                st.metric("🚨 Alertas Detectadas", kpis['alertas'])
             
             st.divider()
             st.markdown("### 🚨 Resumen de Tareas y Alertas (Filtrable)")
@@ -605,7 +603,6 @@ def main():
             if not df_alertas.empty:
                 col_t1, col_t2, col_t3 = st.columns(3)
                 
-                # NUEVO: Filtros internos de la tabla (incluyendo Líder)
                 lista_areas = df_alertas['Dirección'].unique().tolist()
                 filtro_area = col_t1.multiselect("📌 Filtrar Tabla por Área:", options=lista_areas)
                 
