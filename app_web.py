@@ -16,20 +16,17 @@ USUARIOS_AUTORIZADOS = {
 
 def login():
     st.set_page_config(page_title="Plataforma de Talento", layout="wide")
-    
     if "usuario_logueado" not in st.session_state:
         st.session_state["usuario_logueado"] = False
 
     if not st.session_state["usuario_logueado"]:
-        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v5.2</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v6.0</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #666;'>Inicia sesión para acceder al mapa organizacional</p>", unsafe_allow_html=True)
-        
         col1, col2, col3 = st.columns([1, 1, 1])
         with col2:
             st.write("")
             usuario = st.text_input("Usuario")
             password = st.text_input("Contraseña", type="password")
-            
             if st.button("Iniciar Sesión", use_container_width=True):
                 if usuario in USUARIOS_AUTORIZADOS and USUARIOS_AUTORIZADOS[usuario]["password"] == password:
                     st.session_state["usuario_logueado"] = True
@@ -58,17 +55,16 @@ def cargar_datos_csv(url_sheets):
         return pd.DataFrame()
 
 def clean_text(val, default=''):
-    if pd.isna(val) or str(val).strip().lower() in ['nan', 'none', '']:
+    if pd.isna(val) or str(val).strip().lower() in ['nan', 'none', 'pendiente', '']:
         return default
     return str(val).strip()
 
 def clean_id(val):
-    if pd.isna(val): return ''
+    if pd.isna(val) or str(val).strip().lower() in ['nan', 'none', 'pendiente', '']: return ''
     v = str(val).strip()
     if v.endswith('.0'): return v[:-2]
     return v
 
-# COLORES MÁS VIBRANTES (Alto Contraste)
 def obtener_color_9box(valor):
     v = str(valor).strip().upper()
     if v in ['9', '7A', '7B', '7']: return '#dc2626' 
@@ -79,7 +75,7 @@ def obtener_color_9box(valor):
     else: return '#94a3b8' 
 
 # ==========================================
-# MOTOR PRINCIPAL (AHORA RECIBE FILTROS MAESTROS)
+# MOTOR PRINCIPAL
 # ==========================================
 def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     G = nx.MultiDiGraph()
@@ -91,7 +87,7 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     
     nombres_dict = {clean_id(row['id Empleado']): clean_text(row.get('Nombre')) for _, row in df_seguro.iterrows() if clean_id(row['id Empleado'])}
             
-    # PASO 1: Armar diccionarios básicos
+    # PASO 1: Armar diccionarios
     for index, row in df_seguro.iterrows():
         emp = clean_id(row['id Empleado'])
         jefe = clean_id(row['ID Del Jefe'])
@@ -100,6 +96,7 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             empleados_validos.add(emp)
             G_jerarquia.add_node(emp)
             
+            # Ahora los sucesores son IDs
             info_nodos[emp] = {
                 'mla': clean_text(row.get('Nivel MLA'), 'N/A'),
                 'puesto': clean_text(row.get('Nombre de la Posición')).upper(),
@@ -109,12 +106,12 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                 'critica': clean_text(row.get('Posición Crítica', row.get('Posicion Critica')), 'No'),
                 'nombre': clean_text(row.get('Nombre')),
                 'interes': clean_text(row.get('Interés del Colaborador'), 'Pendiente'),
-                'suc1': clean_text(row.get('Sucesor P.1'), 'Pendiente'),
+                'suc1_id': clean_id(row.get('Sucesor P.1')),
                 'read1': clean_text(row.get('Tiempo de Readiness 1'), 'Pendiente'),
-                'suc2': clean_text(row.get('Sucesor P.2')),
-                'read2': clean_text(row.get('Tiempo de Readiness 2')),
-                'suc3': clean_text(row.get('Sucesor P.3')),
-                'read3': clean_text(row.get('Tiempo de Readiness 3'))
+                'suc2_id': clean_id(row.get('Sucesor P.2')),
+                'read2': clean_text(row.get('Tiempo de Readiness 2'), ''),
+                'suc3_id': clean_id(row.get('Sucesor P.3')),
+                'read3': clean_text(row.get('Tiempo de Readiness 3'), '')
             }
             if jefe:
                 jefes_dict[emp] = jefe
@@ -127,25 +124,33 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             actual = jefes_dict[actual]
         return actual
 
-    # PASO 2: Calcular métricas para IA (Reportes y Sucesores)
+    # PASO 2: Calcular métricas (IA de Sucesión Bottom-Up)
     reportes_directos = {n: 0 for n in G_jerarquia.nodes()}
     for jefe, emp in G_jerarquia.edges(): reportes_directos[jefe] += 1
 
-    sucesores_de = {n: 0 for n in G_jerarquia.nodes()}
+    sucesores_de_9box = {n: 0 for n in G_jerarquia.nodes()}
+    sucesores_oficiales_de = {n: 0 for n in G_jerarquia.nodes()} # NUEVO: Mapeo de quienes apuntan a ti
+
     for emp, info in info_nodos.items():
+        # IA 9-Box
         box = info['box'].upper()
         if box in ['5', '2']: 
             j1 = obtener_jefe_nivel_arriba(emp, 1)
-            if j1: sucesores_de[j1] += 1
+            if j1: sucesores_de_9box[j1] += 1
         if box in ['1', '3']:
             j2 = obtener_jefe_nivel_arriba(emp, 2)
-            if j2: sucesores_de[j2] += 1
+            if j2: sucesores_de_9box[j2] += 1
+            
+        # IA Oficial (Quien sea que apunte su ID al tuyo)
+        for s_id in [info['suc1_id'], info['suc2_id'], info['suc3_id']]:
+            if s_id in sucesores_oficiales_de:
+                sucesores_oficiales_de[s_id] += 1
 
-    # PASO 3: Inyectar riesgos en la información de cada nodo
+    # PASO 3: Riesgos Inteligentes
     for emp, info in info_nodos.items():
         es_critica = (info['critica'].lower() == 'si')
-        tiene_oficial = (info['suc1'].lower() not in ['pendiente', ''])
-        tiene_hipos_9box = (sucesores_de.get(emp, 0) > 0)
+        tiene_oficial = (sucesores_oficiales_de.get(emp, 0) > 0)
+        tiene_hipos_9box = (sucesores_de_9box.get(emp, 0) > 0)
         
         r_list = []
         if es_critica:
@@ -159,29 +164,21 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         info_nodos[emp]['riesgos_lista'] = r_list
         info_nodos[emp]['riesgos'] = " | ".join(r_list) if r_list else "Ninguno"
 
-    # =========================================================================
-    # APLICAR FILTROS MAESTROS DE STREAMLIT
-    # =========================================================================
+    # PASO 4: Filtros Maestros
     nodos_visibles = set()
     for emp, info in info_nodos.items():
-        # REGLA 1 DE INMUNIDAD: Andrés (Nivel 5) jamás desaparece
         if info['mla'] == '5':
             nodos_visibles.add(emp)
             continue
-            
         if f_dir != "Todas" and info['direccion'] != f_dir: continue
-        
-        # REGLA 2 DE INMUNIDAD: Mostrar a subordinados Y al propio líder seleccionado
         if f_lid != "Todos" and info['lider'] != f_lid and info['nombre'] != f_lid: continue
-        
         if f_crit != "Todas" and info['critica'] != f_crit: continue
         if f_mla != "Todos" and info['mla'] != f_mla: continue
         if f_box != "Todos" and info['box'] != f_box: continue
         if f_riesgos and not info['riesgos_lista']: continue
-        
         nodos_visibles.add(emp)
 
-    # PASO 4: Construir Jerarquía Estructural
+    # PASO 5: Geometría
     raiz_principal = None
     for emp, info in info_nodos.items():
         if info['mla'] == '5':
@@ -189,8 +186,7 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             break 
     if not raiz_principal:
         posibles_raices = [n for n in G_jerarquia.nodes() if G_jerarquia.in_degree(n) == 0]
-        if posibles_raices:
-            raiz_principal = max(posibles_raices, key=lambda x: len(nx.descendants(G_jerarquia, x)))
+        if posibles_raices: raiz_principal = max(posibles_raices, key=lambda x: len(nx.descendants(G_jerarquia, x)))
 
     Arbol = nx.bfs_tree(G_jerarquia, raiz_principal) if raiz_principal else G_jerarquia
 
@@ -216,7 +212,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     if raiz_principal: calcular_hojas(raiz_principal)
 
     coords = {}
-    SEPARACION_ANILLOS = 1000 
     def asignar_coordenada_radial(nodo, angulo_inicio, angulo_fin):
         hijos = list(Arbol.successors(nodo))
         if not hijos: return
@@ -227,11 +222,8 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             angulo_hijo = angulo_actual + (rebanada / 2)
             profundidad = nx.shortest_path_length(Arbol, raiz_principal, c) if raiz_principal and c in Arbol else 5
             anillo_real = obtener_anillo_estricto(c, profundidad)
-            radio_final = (anillo_real * SEPARACION_ANILLOS) + (profundidad * 120) if anillo_real != 0 else 0
-            coords[c] = {
-                'x': radio_final * math.cos(angulo_hijo), 'y': radio_final * math.sin(angulo_hijo),
-                'angle': angulo_hijo, 'anillo_real': anillo_real, 'profundidad': profundidad
-            }
+            radio_final = (anillo_real * 1000) + (profundidad * 120) if anillo_real != 0 else 0
+            coords[c] = {'x': radio_final * math.cos(angulo_hijo), 'y': radio_final * math.sin(angulo_hijo), 'angle': angulo_hijo, 'anillo_real': anillo_real, 'profundidad': profundidad}
             asignar_coordenada_radial(c, angulo_actual, angulo_actual + rebanada)
             angulo_actual += rebanada
 
@@ -239,12 +231,11 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         coords[raiz_principal] = {'x': 0, 'y': 0, 'angle': 0, 'anillo_real': 0, 'profundidad': 0}
         asignar_coordenada_radial(raiz_principal, 0, 2 * math.pi)
 
-    # PASO 5: Crear Datos de Tabla y Pyvis
+    # PASO 6: Construcción de Grafos y Traducción de Nombres
     alertas_tabla = []
-
+    
     for emp, info in info_nodos.items():
         is_hidden = emp not in nodos_visibles
-        
         if not is_hidden:
             for r in info['riesgos_lista']:
                 alertas_tabla.append({
@@ -257,15 +248,17 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
 
         prefijo = "🚨 " if info['riesgos_lista'] else ""
         coord_data = coords.get(emp, {'x':5000, 'y':5000, 'angle':0, 'anillo_real':5, 'profundidad':5})
-        etiqueta_visible = f"{prefijo}{info['nombre']}\n({info['puesto']})"
-        tooltip_html = f"<div style='padding: 5px; text-align: center;'><b>{prefijo}{info['nombre']}</b></div>"
+        
+        # Traducir IDs a Nombres para mostrarlos bonitos en la interfaz
+        nom_suc1 = nombres_dict.get(info['suc1_id'], info['suc1_id']) if info['suc1_id'] else ""
+        nom_suc2 = nombres_dict.get(info['suc2_id'], info['suc2_id']) if info['suc2_id'] else ""
+        nom_suc3 = nombres_dict.get(info['suc3_id'], info['suc3_id']) if info['suc3_id'] else ""
         
         G.add_node(
-            emp, label=etiqueta_visible, title=tooltip_html, size=35 if emp == raiz_principal else 22, 
-            color=obtener_color_9box(info['box']), shape='dot', group=info['mla'], 
-            Nivel_MLA=info['mla'], Resultado_9Box=info['box'], Direccion=info['direccion'], Lider=info['lider'], 
-            Critica=info['critica'], Nombre=info['nombre'], Puesto=info['puesto'], Riesgos=info['riesgos'],
-            Interes=info['interes'], Suc1=info['suc1'], Read1=info['read1'], Suc2=info['suc2'], Read2=info['read2'], Suc3=info['suc3'], Read3=info['read3'],
+            emp, label=f"{prefijo}{info['nombre']}\n({info['puesto']})", title=f"<div style='padding: 5px; text-align: center;'><b>{prefijo}{info['nombre']}</b></div>", 
+            size=35 if emp == raiz_principal else 22, color=obtener_color_9box(info['box']), shape='dot', group=info['mla'], 
+            Nivel_MLA=info['mla'], Resultado_9Box=info['box'], Direccion=info['direccion'], Lider=info['lider'], Critica=info['critica'], Nombre=info['nombre'], Puesto=info['puesto'], Riesgos=info['riesgos'], Interes=info['interes'], 
+            NomSuc1=nom_suc1, Read1=info['read1'], NomSuc2=nom_suc2, Read2=info['read2'], NomSuc3=nom_suc3, Read3=info['read3'],
             font={'color': '#0f172a', 'strokeWidth': 4, 'strokeColor': '#ffffff', 'size': 12, 'face': 'Arial', 'weight': 'bold'},
             x=coord_data['x'], y=coord_data['y'], Angle=coord_data['angle'], AnilloReal=coord_data['anillo_real'], Profundidad=coord_data['profundidad'],
             hidden=is_hidden, data_hidden=is_hidden 
@@ -273,28 +266,32 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
 
     for jefe, emp in G_jerarquia.edges():
         is_hidden = jefe not in nodos_visibles or emp not in nodos_visibles
-        G.add_edge(jefe, emp, color='#94a3b8', width=2, dashes=False, is_jump=False, hidden=is_hidden, data_hidden=is_hidden)
+        G.add_edge(jefe, emp, color='#94a3b8', width=2, dashes=False, is_jump=False, is_succession=False, hidden=is_hidden, data_hidden=is_hidden)
 
     for emp, info in info_nodos.items():
+        # Líneas IA de 9-Box
         box = info['box'].upper()
         if box in ['5', '2']:
             j1 = obtener_jefe_nivel_arriba(emp, 1)
-            if j1: G.add_edge(emp, j1, color='#22c55e', width=3, dashes=True, title='Proyección N+1', is_jump=True, hidden=(emp not in nodos_visibles or j1 not in nodos_visibles), data_hidden=(emp not in nodos_visibles or j1 not in nodos_visibles))
+            if j1: G.add_edge(emp, j1, color='#22c55e', width=3, dashes=True, title='Proyección N+1', is_jump=True, is_succession=False, hidden=(emp not in nodos_visibles or j1 not in nodos_visibles), data_hidden=(emp not in nodos_visibles or j1 not in nodos_visibles))
         if box in ['1', '3']:
             j2 = obtener_jefe_nivel_arriba(emp, 2)
-            if j2: G.add_edge(emp, j2, color='#166534', width=3.5, dashes=True, title='Proyección N+2', is_jump=True, hidden=(emp not in nodos_visibles or j2 not in nodos_visibles), data_hidden=(emp not in nodos_visibles or j2 not in nodos_visibles))
+            if j2: G.add_edge(emp, j2, color='#166534', width=3.5, dashes=True, title='Proyección N+2', is_jump=True, is_succession=False, hidden=(emp not in nodos_visibles or j2 not in nodos_visibles), data_hidden=(emp not in nodos_visibles or j2 not in nodos_visibles))
+            
+        # NUEVO: LÍNEAS OFICIALES DE SUCESIÓN (MORADAS PUNTEADAS)
+        for s_id in [info['suc1_id'], info['suc2_id'], info['suc3_id']]:
+            if s_id in empleados_validos:
+                G.add_edge(emp, s_id, color='#9c27b0', width=3, dashes=[5, 5], title='Objetivo de Sucesión', is_jump=False, is_succession=True, hidden=(emp not in nodos_visibles or s_id not in nodos_visibles), data_hidden=(emp not in nodos_visibles or s_id not in nodos_visibles))
 
-    # PASO 6: KPIs Calculados SÓLO con lo Visible
     kpis = {
         'total': len(nodos_visibles),
         'criticas': sum(1 for emp in nodos_visibles if info_nodos[emp]['critica'].lower() == 'si'),
-        'sucesores': sum(1 for emp in nodos_visibles if info_nodos[emp]['suc1'].lower() not in ['pendiente', '', 'nan']),
+        'sucesores': sum(1 for emp in nodos_visibles if info_nodos[emp]['suc1_id']),
         'operativos': sum(1 for emp in nodos_visibles if info_nodos[emp]['mla'] == '1'),
         'alertas': len(alertas_tabla)
     }
     df_alertas = pd.DataFrame(alertas_tabla)
     
-    # RENDERIZADO DEL MAPA
     net = Network(height='750px', width='100%', bgcolor='#ffffff', font_color='#333333', directed=True, cdn_resources='remote')
     net.from_nx(G)
     
@@ -359,20 +356,20 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                 <div><span style="font-size: 12px; color: #777; font-weight: bold;">9-BOX</span><br><span id="f9Box" style="display: inline-block; padding: 2px 10px; border-radius: 12px; background: #eee; font-size: 14px; font-weight: bold; color: #333; margin-top: 2px;">-</span></div>
             </div>
             <hr style="border: 0; border-top: 2px dashed #ddd; margin: 10px 0;">
-            <div style="font-size: 14px; color: #1565c0; font-weight: bold; text-transform: uppercase; margin-bottom: -5px;">📈 Plan de Sucesión</div>
+            <div style="font-size: 14px; color: #1565c0; font-weight: bold; text-transform: uppercase; margin-bottom: -5px;">📈 Se perfila para:</div>
             <div><span style="font-size: 11px; color: #777; font-weight: bold;">INTERÉS DEL COLABORADOR</span><br><span id="fInteres" style="font-size: 14px; color: #333; font-weight:bold;">-</span></div>
-            <div id="divSucesor1" style="background: #f8f9fa; padding: 8px; border-radius: 6px; border-left: 3px solid #1976d2;">
-                <span style="font-size: 11px; color: #555; font-weight: bold;">OPCIÓN DE SUCESIÓN 1</span><br>
+            <div id="divSucesor1" style="background: #f8f9fa; padding: 8px; border-radius: 6px; border-left: 3px solid #9c27b0;">
+                <span style="font-size: 11px; color: #555; font-weight: bold;">OBJETIVO 1</span><br>
                 <span id="fSuc1" style="font-size: 14px; color: #333; font-weight:bold;">-</span><br>
                 <span id="fRead1" style="font-size: 13px; color: #555; margin-top:3px; display:inline-block;">-</span>
             </div>
-            <div id="divSucesor2" style="background: #f8f9fa; padding: 8px; border-radius: 6px; border-left: 3px solid #81c784; display:none;">
-                <span style="font-size: 11px; color: #555; font-weight: bold;">OPCIÓN DE SUCESIÓN 2</span><br>
+            <div id="divSucesor2" style="background: #f8f9fa; padding: 8px; border-radius: 6px; border-left: 3px solid #9c27b0; display:none;">
+                <span style="font-size: 11px; color: #555; font-weight: bold;">OBJETIVO 2</span><br>
                 <span id="fSuc2" style="font-size: 14px; color: #333; font-weight:bold;">-</span><br>
                 <span id="fRead2" style="font-size: 13px; color: #555; margin-top:3px; display:inline-block;">-</span>
             </div>
-            <div id="divSucesor3" style="background: #f8f9fa; padding: 8px; border-radius: 6px; border-left: 3px solid #fbc02d; display:none;">
-                <span style="font-size: 11px; color: #555; font-weight: bold;">OPCIÓN DE SUCESIÓN 3</span><br>
+            <div id="divSucesor3" style="background: #f8f9fa; padding: 8px; border-radius: 6px; border-left: 3px solid #9c27b0; display:none;">
+                <span style="font-size: 11px; color: #555; font-weight: bold;">OBJETIVO 3</span><br>
                 <span id="fSuc3" style="font-size: 14px; color: #333; font-weight:bold;">-</span><br>
                 <span id="fRead3" style="font-size: 13px; color: #555; margin-top:3px; display:inline-block;">-</span>
             </div>
@@ -396,10 +393,13 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             </div>
             <hr style="margin: 10px 0; border: 0; border-top: 1px solid #ddd;">
             <label style="font-size: 14px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px;">
-                <input type="checkbox" id="toggleNormal" checked onchange="applyVisualFilters()" style="width: 16px; height: 16px;"> 🏢 Mostrar Estructura
+                <input type="checkbox" id="toggleNormal" checked onchange="applyVisualFilters()" style="width: 16px; height: 16px;"> 🏢 Reporte Estructural
             </label>
-            <label style="font-size: 14px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px;">
-                <input type="checkbox" id="toggleJumps" checked onchange="applyVisualFilters()" style="width: 16px; height: 16px;"> 🔀 Mostrar Proyecciones
+            <label style="font-size: 14px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; color: #9c27b0;">
+                <input type="checkbox" id="toggleSucc" checked onchange="applyVisualFilters()" style="width: 16px; height: 16px;"> 🔀 Rutas de Sucesión
+            </label>
+            <label style="font-size: 14px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; color: #16a34a;">
+                <input type="checkbox" id="toggleJumps" checked onchange="applyVisualFilters()" style="width: 16px; height: 16px;"> 📈 Proyecciones 9-Box
             </label>
             <button onclick="enfocarPantalla()" style="margin-top: 10px; background: #1976d2; color: white; border: none; padding: 10px; border-radius: 5px; font-size: 14px; font-weight: bold; cursor: pointer; width: 100%;">
                 🔍 Centrar Mapa
@@ -443,18 +443,19 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             document.getElementById('fMLA').innerText = node.Nivel_MLA || "N/A";
             document.getElementById('fRiesgos').innerText = node.Riesgos || "Ninguno";
             document.getElementById('fInteres').innerText = node.Interes || "Pendiente";
-            document.getElementById('fSuc1').innerText = node.Suc1 || "Pendiente";
+            
+            document.getElementById('fSuc1').innerText = node.NomSuc1 || "Pendiente";
             document.getElementById('fRead1').innerText = node.Read1 && node.Read1 !== 'Pendiente' ? node.Read1 : "Sin tiempo definido";
             
-            if(node.Suc2 && node.Suc2 !== "") {{
+            if(node.NomSuc2 && node.NomSuc2 !== "") {{
                 document.getElementById('divSucesor2').style.display = "block";
-                document.getElementById('fSuc2').innerText = node.Suc2;
+                document.getElementById('fSuc2').innerText = node.NomSuc2;
                 document.getElementById('fRead2').innerText = node.Read2 || "Sin tiempo definido";
             }} else {{ document.getElementById('divSucesor2').style.display = "none"; }}
             
-            if(node.Suc3 && node.Suc3 !== "") {{
+            if(node.NomSuc3 && node.NomSuc3 !== "") {{
                 document.getElementById('divSucesor3').style.display = "block";
-                document.getElementById('fSuc3').innerText = node.Suc3;
+                document.getElementById('fSuc3').innerText = node.NomSuc3;
                 document.getElementById('fRead3').innerText = node.Read3 || "Sin tiempo definido";
             }} else {{ document.getElementById('divSucesor3').style.display = "none"; }}
 
@@ -474,6 +475,8 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     function applyVisualFilters() {{
         var showNormal = document.getElementById('toggleNormal').checked;
         var showJumps = document.getElementById('toggleJumps').checked;
+        var showSucc = document.getElementById('toggleSucc').checked;
+        
         var allEdges = network.body.data.edges.get();
         var edgesToUpdate = [];
         for (var i = 0; i < allEdges.length; i++) {{
@@ -481,30 +484,26 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             if (edge.data_hidden === true) {{
                 edgesToUpdate.push({{id: edge.id, hidden: true}});
             }} else {{
-                if (edge.is_jump === true) {{ edgesToUpdate.push({{id: edge.id, hidden: !showJumps}});
+                if (edge.is_succession === true) {{ edgesToUpdate.push({{id: edge.id, hidden: !showSucc}});
+                }} else if (edge.is_jump === true) {{ edgesToUpdate.push({{id: edge.id, hidden: !showJumps}});
                 }} else {{ edgesToUpdate.push({{id: edge.id, hidden: !showNormal}}); }}
             }}
         }}
         network.body.data.edges.update(edgesToUpdate);
     }}
     
-    // =========================================================
-    // ZOOM CORREGIDO: Menos agresivo para no alejar tanto
-    // =========================================================
     function enfocarPantalla() {{ 
         network.fit();
         setTimeout(function() {{
             var currentScale = network.getScale();
             network.moveTo({{
-                position: {{x: 0, y: -80}}, // Solo sube un poquito
-                scale: currentScale * 0.85, // Aleja solo 15% (antes era 35%)
+                position: {{x: 0, y: -80}}, 
+                scale: currentScale * 0.85, 
                 animation: {{ duration: 800, easingFunction: 'easeInOutQuad' }}
             }});
         }}, 800);
     }}
     setTimeout(enfocarPantalla, 1000); 
-    // =========================================================
-    
     </script>
     """
     
@@ -551,7 +550,7 @@ def main():
             
     st.divider()
 
-    with st.spinner("Descargando base de datos y preparando filtros analíticos..."):
+    with st.spinner("Descargando base de datos y preparando IA Bottom-Up..."):
         link_google_sheets = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit?pli=1&gid=0#gid=0"
         df_completo = cargar_datos_csv(link_google_sheets)
         
@@ -598,7 +597,7 @@ def main():
                 st.write("")
                 st.metric("Total de Colaboradores", kpis['total'])
                 st.metric("Posiciones Críticas", kpis['criticas'])
-                st.metric("Sucesores Oficializados", kpis['sucesores'])
+                st.metric("Colaboradores Perfilados", kpis['sucesores'])
                 st.metric("Personal Operativo (MLA 1)", kpis['operativos'])
                 st.metric("🚨 Alertas Detectadas", kpis['alertas'])
             
