@@ -609,11 +609,19 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                 data_criticas.append(nodo_data)
                 
             if info['suc1_id']:
-                # Muestra al dueño del puesto, qué puesto tiene y quién es su sucesor
+                # BÚSQUEDA INVERSA: Mostramos la perspectiva desde el sucesor
+                suc_id = info['suc1_id']
+                nom_suc = nombres_dict.get(suc_id, suc_id)
+                puesto_suc = "Pendiente / Externo"
+                
+                # Buscamos el puesto actual del sucesor
+                if suc_id in info_nodos:
+                    puesto_suc = info_nodos[suc_id]['puesto']
+                
                 data_sucesores.append({
-                    "Colaborador": info['nombre'],
-                    "Posición Actual": info['puesto'],
-                    "Sucesor Designado": nom_suc1
+                    "Colaborador": nom_suc, 
+                    "Posición Actual": puesto_suc,
+                    "Posición a Suceder": info['puesto'] 
                 })
                 
             if info['mla'] == '1':
