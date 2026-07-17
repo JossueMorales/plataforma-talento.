@@ -258,7 +258,6 @@ setTimeout(function() {
 # FUNCIONES AUXILIARES DE DISEÑO
 # ==========================================
 def crear_tarjeta_kpi(titulo, valor, color_borde, color_texto, color_fondo):
-    """Genera el HTML para las minitarjetas de KPI"""
     color_valor = color_texto if color_texto != "#64748b" else "#0f172a"
     return f"""
     <div style="background-color: {color_fondo}; border: 1px solid #e2e8f0; border-top: 3px solid {color_borde}; padding: 10px 5px 5px 5px; border-radius: 6px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); margin-bottom: 2px;">
@@ -590,7 +589,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
 
     alertas_tabla = []
     
-    # Listas para los Dataframes de los KPIs
     data_total = []
     data_criticas = []
     data_sucesores = []
@@ -598,15 +596,27 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     
     for emp, info in info_nodos.items():
         is_hidden = emp not in nodos_visibles
+        
+        # Resolvemos los nombres de los sucesores
+        nom_suc1 = nombres_dict.get(info['suc1_id'], info['suc1_id']) if info['suc1_id'] else ""
+        nom_suc2 = nombres_dict.get(info['suc2_id'], info['suc2_id']) if info['suc2_id'] else ""
+        nom_suc3 = nombres_dict.get(info['suc3_id'], info['suc3_id']) if info['suc3_id'] else ""
+        
         if not is_hidden:
-            # Agregamos a las listas de KPIs con solo Nombre, Dirección y Puesto
             nodo_data = {"Nombre": info['nombre'], "Dirección": info['direccion'], "Puesto": info['puesto']}
             data_total.append(nodo_data)
             
             if info['critica'].lower() == 'si':
                 data_criticas.append(nodo_data)
+                
             if info['suc1_id']:
-                data_sucesores.append(nodo_data)
+                # Se ajusta la tabla específica para la vista de "Colaboradores en Sucesión"
+                data_sucesores.append({
+                    "Nombre": info['nombre'],
+                    "Posición Actual": info['puesto'],
+                    "Posición a Suceder": nom_suc1
+                })
+                
             if info['mla'] == '1':
                 data_operativos.append(nodo_data)
                 
@@ -621,10 +631,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
 
         prefijo = "🚨 " if info['riesgos_lista'] else ""
         coord_data = coords.get(emp, {'x':5000, 'y':5000, 'angle':0, 'anillo_real':5, 'profundidad':5})
-        
-        nom_suc1 = nombres_dict.get(info['suc1_id'], info['suc1_id']) if info['suc1_id'] else ""
-        nom_suc2 = nombres_dict.get(info['suc2_id'], info['suc2_id']) if info['suc2_id'] else ""
-        nom_suc3 = nombres_dict.get(info['suc3_id'], info['suc3_id']) if info['suc3_id'] else ""
         
         nombre_corto = acortar_nombre(info['nombre'])
         
@@ -664,7 +670,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                 is_hidden_edge = (emp not in nodos_visibles or s_id not in nodos_visibles)
                 G.add_edge(emp, s_id, color='#9c27b0', width=5, dashes=False, title='🎯 Objetivo de Sucesión', hidden=is_hidden_edge, is_struct=False, is_9box=False, is_succ=True, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.6})
 
-    # Guardamos los conteos y las listas de datos en el diccionario kpis
     data_alertas = [{"Nombre": a['Colaborador'], "Dirección": a['Dirección'], "Puesto": a['Puesto']} for a in alertas_tabla]
     
     kpis = {
@@ -698,14 +703,12 @@ def main():
     if not login():
         st.stop()
         
-    # Inicializar el estado de la vista de listas de KPIs
     if "vista_kpi" not in st.session_state:
         st.session_state["vista_kpi"] = None
         
     st.markdown("""
         <style>
         .block-container { padding-top: 1rem; padding-bottom: 0rem; }
-        /* Hacemos los botones debajo de los KPIs más pequeños y sutiles */
         div[data-testid="stButton"] > button {
             padding: 2px 10px;
             font-size: 12px;
@@ -773,7 +776,6 @@ def main():
             with col_datos:
                 st.markdown("### 📊 KPIs de Talento")
                 
-                # Renderizamos los KPIs en 5 columnas, con un botón debajo de cada uno
                 k1, k2, k3, k4, k5 = st.columns(5)
                 
                 with k1:
@@ -785,7 +787,7 @@ def main():
                     if st.button("🔍 Ver", key="b_cri", use_container_width=True):
                         st.session_state["vista_kpi"] = "criticas"
                 with k3:
-                    st.markdown(crear_tarjeta_kpi("Colab.<br>Perfil.", kpis['sucesores'], "#8b5cf6", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
+                    st.markdown(crear_tarjeta_kpi("Colab.<br>Sucesión", kpis['sucesores'], "#8b5cf6", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
                     if st.button("🔍 Ver", key="b_suc", use_container_width=True):
                         st.session_state["vista_kpi"] = "sucesores"
                 with k4:
@@ -797,13 +799,12 @@ def main():
                     if st.button("🔍 Ver", key="b_ale", use_container_width=True):
                         st.session_state["vista_kpi"] = "alertas"
                 
-                # Desplegar la lista seleccionada si se hizo clic en un botón
                 if st.session_state["vista_kpi"]:
                     vista = st.session_state["vista_kpi"]
                     titulos_kpi = {
                         "total": "Total de Colaboradores",
                         "criticas": "Posiciones Críticas",
-                        "sucesores": "Colaboradores Perfilados (Con Sucesor)",
+                        "sucesores": "Colaboradores en Sucesión",
                         "operativos": "Personal Operativo (MLA 1)",
                         "alertas": "Colaboradores con Riesgos / Alertas"
                     }
@@ -812,7 +813,6 @@ def main():
                     df_lista = pd.DataFrame(kpis[f"data_{vista}"])
                     
                     if not df_lista.empty:
-                        # Para evitar duplicados en la vista de Alertas (una persona puede tener varias alertas)
                         if vista == "alertas":
                             df_lista = df_lista.drop_duplicates(subset=["Nombre"]).reset_index(drop=True)
                         st.dataframe(df_lista, use_container_width=True, hide_index=True)
