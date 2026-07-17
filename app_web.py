@@ -247,7 +247,6 @@ function applyVisualFilters() {
     network.body.data.edges.update(edgesToUpdate);
 }
 
-// CÁMARA INTELIGENTE QUE BUSCA AL TARGET_NODE_ID
 function enfocarPantalla() { 
     if (window.targetNodeId && network.body.data.nodes.get(window.targetNodeId) && window.targetNodeId !== "None") {
         network.focus(window.targetNodeId, {
@@ -542,7 +541,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         if posibles_raices: 
             raiz_principal = max(posibles_raices, key=lambda x: len(nx.descendants(G_jerarquia, x)))
             
-    # LÓGICA DE CENTRADO INTELIGENTE
     nodo_central_id = raiz_principal
     if f_lid != "Todos":
         for emp, inf in info_nodos.items():
@@ -805,12 +803,22 @@ def main():
         boxes = sorted([clean_text(x).upper() for x in df_seguro['Resultado 9 box'].unique() if clean_text(x)])
         criticas = sorted([clean_text(x) for x in df_seguro['Posición Crítica'].unique() if clean_text(x)])
         
-        dict_nom = {clean_id(row.get('id Empleado')): clean_text(row.get('Nombre')) for row in df_seguro.to_dict('records')}
-        lideres_ids = df_seguro['ID Del Jefe'].dropna().unique()
-        lideres = sorted(list(set([dict_nom.get(clean_id(x), "Sin Líder") for x in lideres_ids if clean_id(x)])))
-
         col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns(5)
+        
+        # 1. Filtro de Dirección
         f_dir = col_f1.selectbox("Dirección", ["Todas"] + dirs)
+        
+        # 2. Filtramos los líderes dinámicamente según la Dirección
+        dict_nom = {clean_id(row.get('id Empleado')): clean_text(row.get('Nombre')) for row in df_seguro.to_dict('records')}
+        if f_dir != "Todas":
+            df_filtrado_dir = df_seguro[df_seguro['Dirección'].apply(clean_text) == f_dir]
+            lideres_ids = df_filtrado_dir['ID Del Jefe'].dropna().unique()
+        else:
+            lideres_ids = df_seguro['ID Del Jefe'].dropna().unique()
+            
+        lideres = sorted(list(set([dict_nom.get(clean_id(x), "Sin Líder") for x in lideres_ids if clean_id(x)])))
+        
+        # 3. Resto de filtros
         f_lid = col_f2.selectbox("Líder", ["Todos"] + lideres)
         f_crit = col_f3.selectbox("Pos. Crítica", ["Todas"] + criticas)
         f_mla = col_f4.selectbox("Nivel MLA", ["Todos"] + mlas)
