@@ -71,7 +71,6 @@ BOTON_HTML = """
             <div><span style="font-size: 12px; color: #777; font-weight: bold;">9-BOX</span><br><span id="f9Box" style="display: inline-block; padding: 2px 10px; border-radius: 12px; background: #eee; font-size: 14px; font-weight: bold; color: #333; margin-top: 2px;">-</span></div>
         </div>
         
-        <!-- NUEVA SECCIÓN DE ENGANCHE -->
         <hr style="border: 0; border-top: 2px dashed #ddd; margin: 5px 0;">
         <div style="font-size: 14px; color: #1565c0; font-weight: bold; text-transform: uppercase; margin-bottom: -5px;">🔥 Nivel de Enganche:</div>
         <div style="display: flex; gap: 10px;">
@@ -176,13 +175,12 @@ network.on("zoom", function() {
     }
 });
 
-// Función auxiliar para colorear las tarjetas de enganche
 function getColorEnganche(val) {
-    if (val >= 4) return {bg: "#dcfce7", text: "#166534"}; // Verde
-    if (val >= 3) return {bg: "#fef08a", text: "#854d0e"}; // Amarillo
-    if (val >= 2) return {bg: "#ffedd5", text: "#9f1239"}; // Naranja
-    if (val >= 1) return {bg: "#fee2e2", text: "#991b1b"}; // Rojo
-    return {bg: "#f8f9fa", text: "#64748b"}; // Gris
+    if (val >= 4) return {bg: "#dcfce7", text: "#166534"}; 
+    if (val >= 3) return {bg: "#fef08a", text: "#854d0e"}; 
+    if (val >= 2) return {bg: "#ffedd5", text: "#9f1239"}; 
+    if (val >= 1) return {bg: "#fee2e2", text: "#991b1b"}; 
+    return {bg: "#f8f9fa", text: "#64748b"}; 
 }
 
 network.on("click", function (params) {
@@ -198,7 +196,6 @@ network.on("click", function (params) {
         document.getElementById('fRiesgos').innerText = node.Riesgos || "Ninguno";
         document.getElementById('fInteres').innerText = node.Interes || "Pendiente";
         
-        // Asignar colores y valores de Enganche
         var engInd = node.Eng_Ind !== undefined ? parseFloat(node.Eng_Ind) : 0;
         var fEngInd = document.getElementById('fEngInd');
         if (engInd > 0) {
@@ -455,8 +452,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         emp = clean_id(row_dict.get('id Empleado'))
         jefe = clean_id(row_dict.get('ID Del Jefe'))
         
-        # BÚSQUEDA INTELIGENTE DE LA COLUMNA DE ENGANCHE
-        # Busca cualquier columna que contenga la palabra "enganche" sin importar mayúsculas
         enganche_key = next((k for k in row_dict.keys() if k and 'enganche' in str(k).lower()), None)
         if enganche_key:
             try:
@@ -490,7 +485,7 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                 'suc3_id': suc3_limpio,
                 'read3': clean_text(row_dict.get('Tiempo de Readiness 3'), ''),
                 'enganche_ind': eng_val,
-                'enganche_area': 0.0, # Se calculará después
+                'enganche_area': 0.0,
                 'es_lider': False
             }
             if jefe:
@@ -511,7 +506,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         if jefe in info_nodos:
             info_nodos[jefe]['es_lider'] = True
 
-    # CÁLCULO DE ENGANCHE DEL ÁREA (Promedio en cascada)
     enganche_area_dict = {}
     for nodo in G_jerarquia.nodes():
         descendientes = nx.descendants(G_jerarquia, nodo)
@@ -551,12 +545,10 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             if s_id in sucesores_oficiales_de:
                 sucesores_oficiales_de[s_id] += 1
 
-    # MOTOR DE INTELIGENCIA DE ALERTAS (INCLUYENDO ENGANCHE)
     for emp, info in info_nodos.items():
         r_list = []
         
         if info['mla'] != '5':
-            # 1. Alertas de Sucesión
             es_critica = (info['critica'].lower() == 'si')
             tiene_oficial = (sucesores_oficiales_de.get(emp, 0) > 0)
             tiene_hipos_9box = (sucesores_de_9box.get(emp, 0) > 0)
@@ -566,22 +558,19 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                     r_list.append("🔥 Riesgo Crítico: Sin Sucesor ni HiPos")
                 elif not tiene_oficial and tiene_hipos_9box: 
                     r_list.append("⚠️ Sugerencia: HiPo disponible, falta oficializar")
-            
-            # 2. Alertas Estructurales        
+                    
             reps = reportes_directos.get(emp, 0)
             if reps >= 12: 
                 r_list.append(f"⚠️ Sobrecarga ({reps} reportes)")
             elif reps == 1: 
                 r_list.append("⚠️ Ineficiencia (1 reporte)")
                 
-            # 3. Alertas de Enganche Individual
             eng_ind = info['enganche_ind']
             if 1.0 <= eng_ind < 2.0:
                 r_list.append("🚨 Riesgo de Fuga: Colaborador Desconectado")
             elif 2.0 <= eng_ind < 3.0:
                 r_list.append("⚠️ Alerta: Bajo Enganche (Desinterés)")
                 
-            # 4. Alertas de Enganche del Área (Solo para Líderes)
             if info['es_lider']:
                 eng_area = info['enganche_area']
                 if 1.0 <= eng_area < 2.0:
@@ -721,11 +710,11 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             angulo_actual += angulo_extra
 
     alertas_tabla = []
-    
     data_total = []
     data_criticas = []
     data_sucesores = []
     data_operativos = []
+    data_enganche = []
     
     for emp, info in info_nodos.items():
         is_hidden = emp not in nodos_visibles
@@ -744,7 +733,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             if info['suc1_id']:
                 target_id = info['suc1_id']
                 puesto_target = "Posición no encontrada"
-                
                 if target_id in info_nodos:
                     puesto_target = info_nodos[target_id]['puesto']
                 
@@ -756,6 +744,15 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                 
             if info['mla'] == '1':
                 data_operativos.append(nodo_data)
+                
+            if info['es_lider']:
+                data_enganche.append({
+                    "Líder": info['nombre'],
+                    "Puesto": info['puesto'],
+                    "Dirección": info['direccion'],
+                    "Enganche Individual": info['enganche_ind'],
+                    "Enganche del Área": info['enganche_area']
+                })
                 
             for r in info['riesgos_lista']:
                 alertas_tabla.append({
@@ -818,17 +815,23 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         for a in alertas_tabla
     ]
     
+    eng_total_sum = sum(info_nodos[n]['enganche_ind'] for n in nodos_visibles if info_nodos[n]['enganche_ind'] > 0)
+    eng_total_count = sum(1 for n in nodos_visibles if info_nodos[n]['enganche_ind'] > 0)
+    avg_enganche = round(eng_total_sum / eng_total_count, 1) if eng_total_count > 0 else 0.0
+    
     kpis = {
         'total': len(data_total),
         'criticas': len(data_criticas),
         'sucesores': len(data_sucesores),
         'operativos': len(data_operativos),
         'alertas': len(alertas_tabla),
+        'enganche_promedio': avg_enganche,
         'data_total': data_total,
         'data_criticas': data_criticas,
         'data_sucesores': data_sucesores,
         'data_operativos': data_operativos,
-        'data_alertas': data_alertas
+        'data_alertas': data_alertas,
+        'data_enganche': data_enganche
     }
     
     df_alertas = pd.DataFrame(alertas_tabla)
@@ -936,7 +939,8 @@ def main():
             with col_datos:
                 st.markdown("### 📊 KPIs de Talento")
                 
-                k1, k2, k3, k4, k5 = st.columns(5)
+                # AHORA SON 6 COLUMNAS PARA INCLUIR EL ENGANCHE
+                k1, k2, k3, k4, k5, k6 = st.columns(6)
                 
                 with k1:
                     st.markdown(crear_tarjeta_kpi("Total<br>Colab.", kpis['total'], "#3b82f6", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
@@ -958,6 +962,10 @@ def main():
                     st.markdown(crear_tarjeta_kpi("Alertas<br>Detect.", kpis['alertas'], "#e11d48", "#9f1239", "#fff1f2"), unsafe_allow_html=True)
                     if st.button("🔍 Ver", key="b_ale", use_container_width=True):
                         st.session_state["vista_kpi"] = "alertas"
+                with k6:
+                    st.markdown(crear_tarjeta_kpi("Promedio<br>Enganche", kpis['enganche_promedio'], "#14b8a6", "#0f766e", "#f0fdfa"), unsafe_allow_html=True)
+                    if st.button("🔍 Ver", key="b_eng", use_container_width=True):
+                        st.session_state["vista_kpi"] = "enganche"
                 
                 if st.session_state["vista_kpi"]:
                     vista = st.session_state["vista_kpi"]
@@ -966,7 +974,8 @@ def main():
                         "criticas": "Posiciones Críticas",
                         "sucesores": "Colaboradores en Sucesión",
                         "operativos": "Personal Operativo (MLA 1)",
-                        "alertas": "Colaboradores con Riesgos / Alertas"
+                        "alertas": "Colaboradores con Riesgos / Alertas",
+                        "enganche": "Nivel de Enganche de Líderes"
                     }
                     
                     st.markdown(f"#### 📋 {titulos_kpi[vista]}")
