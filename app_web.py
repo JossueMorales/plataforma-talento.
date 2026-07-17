@@ -597,7 +597,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     for emp, info in info_nodos.items():
         is_hidden = emp not in nodos_visibles
         
-        # Resolvemos los nombres de los sucesores
         nom_suc1 = nombres_dict.get(info['suc1_id'], info['suc1_id']) if info['suc1_id'] else ""
         nom_suc2 = nombres_dict.get(info['suc2_id'], info['suc2_id']) if info['suc2_id'] else ""
         nom_suc3 = nombres_dict.get(info['suc3_id'], info['suc3_id']) if info['suc3_id'] else ""
@@ -610,11 +609,20 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                 data_criticas.append(nodo_data)
                 
             if info['suc1_id']:
-                # Se ajusta la tabla específica para la vista de "Colaboradores en Sucesión"
+                # Encontramos la ID de quien va a subir (el sucesor)
+                suc_id = info['suc1_id']
+                nom_suc = nombres_dict.get(suc_id, suc_id)
+                puesto_suc = "Sin puesto definido"
+                
+                # Buscamos el puesto actual que tiene el sucesor
+                if suc_id in info_nodos:
+                    puesto_suc = info_nodos[suc_id]['puesto']
+                
+                # La tabla se construye desde el punto de vista del Sucesor
                 data_sucesores.append({
-                    "Nombre": info['nombre'],
-                    "Posición Actual": info['puesto'],
-                    "Posición a Suceder": nom_suc1
+                    "Nombre": nom_suc,
+                    "Posición Actual": puesto_suc,
+                    "Posición a Suceder": info['puesto']
                 })
                 
             if info['mla'] == '1':
