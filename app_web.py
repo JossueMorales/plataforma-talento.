@@ -26,7 +26,7 @@ var options = {
 SCRIPT_ANILLOS = """
 <script>
 window.onionMode = true; 
-window.ringSpacing = 1800; 
+window.ringSpacing = 150; 
 network.on("beforeDrawing", function(ctx) {
     if (!window.onionMode) return; 
     ctx.save(); 
@@ -102,8 +102,8 @@ BOTON_HTML = """
         <div id="sliderContainer" style="transition: 0.3s;">
             <label style="font-size: 13px; font-weight: bold; color: #555;">Amplitud Radial:</label>
             <div style="display: flex; align-items: center; gap: 10px;">
-                <input type="range" id="sliderSeparacion" min="100" max="3500" value="1800" oninput="updateSpacing()" style="width: 100%; cursor: pointer;">
-                <span id="valorSeparacion" style="font-size: 12px; font-weight:bold; color:#1976d2; min-width: 45px;">1800px</span>
+                <input type="range" id="sliderSeparacion" min="100" max="3500" value="150" oninput="updateSpacing()" style="width: 100%; cursor: pointer;">
+                <span id="valorSeparacion" style="font-size: 12px; font-weight:bold; color:#1976d2; min-width: 45px;">150px</span>
             </div>
         </div>
         <hr style="margin: 10px 0; border: 0; border-top: 1px solid #ddd;">
@@ -566,7 +566,7 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         if mla == '1': return 4 
         return min(depth_arbol, 5)
 
-    SEPARACION_ANILLOS = 1800 
+    SEPARACION_ANILLOS = 150 
     conteo_hojas = {}
     
     def calcular_hojas(n):
@@ -805,10 +805,8 @@ def main():
         
         col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns(5)
         
-        # 1. Filtro de Dirección
         f_dir = col_f1.selectbox("Dirección", ["Todas"] + dirs)
         
-        # 2. Filtramos los líderes dinámicamente según la Dirección
         dict_nom = {clean_id(row.get('id Empleado')): clean_text(row.get('Nombre')) for row in df_seguro.to_dict('records')}
         if f_dir != "Todas":
             df_filtrado_dir = df_seguro[df_seguro['Dirección'].apply(clean_text) == f_dir]
@@ -818,7 +816,6 @@ def main():
             
         lideres = sorted(list(set([dict_nom.get(clean_id(x), "Sin Líder") for x in lideres_ids if clean_id(x)])))
         
-        # 3. Resto de filtros
         f_lid = col_f2.selectbox("Líder", ["Todos"] + lideres)
         f_crit = col_f3.selectbox("Pos. Crítica", ["Todas"] + criticas)
         f_mla = col_f4.selectbox("Nivel MLA", ["Todos"] + mlas)
