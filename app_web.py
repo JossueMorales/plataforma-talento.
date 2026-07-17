@@ -155,6 +155,19 @@ function updateSpacing() {
     network.body.data.nodes.update(nodesToUpdate);
 }
 
+// NUEVO: Limitador de Zoom para evitar perder el mapa
+network.on("zoom", function() {
+    var currentScale = network.getScale();
+    var minScale = 0.3; // Limite para no alejarse demasiado
+    var maxScale = 2.5; // Limite para no acercarse demasiado
+    
+    if (currentScale < minScale) {
+        network.moveTo({ scale: minScale });
+    } else if (currentScale > maxScale) {
+        network.moveTo({ scale: maxScale });
+    }
+});
+
 network.on("click", function (params) {
     if (params.nodes.length > 0) {
         var nodeId = params.nodes[0]; var node = network.body.data.nodes.get(nodeId);
@@ -674,7 +687,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                 is_hidden_edge = (emp not in nodos_visibles or s_id not in nodos_visibles)
                 G.add_edge(emp, s_id, color='#9c27b0', width=5, dashes=False, title='🎯 Objetivo de Sucesión', hidden=is_hidden_edge, is_struct=False, is_9box=False, is_succ=True, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.6})
 
-    # MODIFICACIÓN: Agregamos "Alerta" a la lista para que se muestre en el botón
     data_alertas = [
         {
             "Nombre": a['Colaborador'], 
@@ -826,9 +838,6 @@ def main():
                     df_lista = pd.DataFrame(kpis[f"data_{vista}"])
                     
                     if not df_lista.empty:
-                        # MODIFICACIÓN: Ya no quitamos duplicados solo por nombre.
-                        # Ahora aseguramos que si tiene alertas distintas (ej. Sobrecarga y Riesgo Crítico)
-                        # salgan ambas líneas.
                         if vista == "alertas":
                             df_lista = df_lista.drop_duplicates(subset=["Nombre", "Alerta"]).reset_index(drop=True)
                         st.dataframe(df_lista, use_container_width=True, hide_index=True)
