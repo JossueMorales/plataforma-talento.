@@ -66,10 +66,19 @@ BOTON_HTML = """
         <div><span style="font-size: 12px; color: #777; font-weight: bold;">LÍDER DIRECTO</span><br><span id="fLider" style="font-size: 14px; color: #333;">-</span></div>
         <div><span style="font-size: 12px; color: #777; font-weight: bold;">DIRECCIÓN</span><br><span id="fDireccion" style="font-size: 14px; color: #333;">-</span></div>
         <div><span style="font-size: 12px; color: #777; font-weight: bold;">POSICIÓN CRÍTICA</span><br><span id="fCritica" style="font-size: 14px; color: #333;">-</span></div>
-        <div style="display: flex; gap: 20px;">
+        <div style="display: flex; gap: 15px;">
             <div><span style="font-size: 12px; color: #777; font-weight: bold;">NIVEL MLA</span><br><span id="fMLA" style="font-size: 16px; font-weight: bold; color: #1976d2;">-</span></div>
             <div><span style="font-size: 12px; color: #777; font-weight: bold;">9-BOX</span><br><span id="f9Box" style="display: inline-block; padding: 2px 10px; border-radius: 12px; background: #eee; font-size: 14px; font-weight: bold; color: #333; margin-top: 2px;">-</span></div>
         </div>
+        
+        <!-- NUEVA SECCIÓN DE ENGANCHE -->
+        <hr style="border: 0; border-top: 2px dashed #ddd; margin: 5px 0;">
+        <div style="font-size: 14px; color: #1565c0; font-weight: bold; text-transform: uppercase; margin-bottom: -5px;">🔥 Nivel de Enganche:</div>
+        <div style="display: flex; gap: 10px;">
+            <div style="flex: 1;"><span style="font-size: 11px; color: #777; font-weight: bold;">INDIVIDUAL</span><br><span id="fEngInd" style="display: inline-block; padding: 4px 10px; border-radius: 6px; background: #eee; font-size: 16px; font-weight: bold; color: #333; margin-top: 2px; width: 100%; text-align: center;">-</span></div>
+            <div style="flex: 1;"><span style="font-size: 11px; color: #777; font-weight: bold;">DEL ÁREA (EQUIPO)</span><br><span id="fEngArea" style="display: inline-block; padding: 4px 10px; border-radius: 6px; background: #eee; font-size: 16px; font-weight: bold; color: #333; margin-top: 2px; width: 100%; text-align: center;">-</span></div>
+        </div>
+        
         <hr style="border: 0; border-top: 2px dashed #ddd; margin: 10px 0;">
         <div style="font-size: 14px; color: #1565c0; font-weight: bold; text-transform: uppercase; margin-bottom: -5px;">📈 Se perfila para:</div>
         <div><span style="font-size: 11px; color: #777; font-weight: bold;">INTERÉS DEL COLABORADOR</span><br><span id="fInteres" style="font-size: 14px; color: #333; font-weight:bold;">-</span></div>
@@ -167,6 +176,15 @@ network.on("zoom", function() {
     }
 });
 
+// Función auxiliar para colorear las tarjetas de enganche
+function getColorEnganche(val) {
+    if (val >= 4) return {bg: "#dcfce7", text: "#166534"}; // Verde
+    if (val >= 3) return {bg: "#fef08a", text: "#854d0e"}; // Amarillo
+    if (val >= 2) return {bg: "#ffedd5", text: "#9f1239"}; // Naranja
+    if (val >= 1) return {bg: "#fee2e2", text: "#991b1b"}; // Rojo
+    return {bg: "#f8f9fa", text: "#64748b"}; // Gris
+}
+
 network.on("click", function (params) {
     if (params.nodes.length > 0) {
         var nodeId = params.nodes[0]; var node = network.body.data.nodes.get(nodeId);
@@ -179,6 +197,32 @@ network.on("click", function (params) {
         document.getElementById('fMLA').innerText = node.Nivel_MLA || "N/A";
         document.getElementById('fRiesgos').innerText = node.Riesgos || "Ninguno";
         document.getElementById('fInteres').innerText = node.Interes || "Pendiente";
+        
+        // Asignar colores y valores de Enganche
+        var engInd = node.Eng_Ind !== undefined ? parseFloat(node.Eng_Ind) : 0;
+        var fEngInd = document.getElementById('fEngInd');
+        if (engInd > 0) {
+            fEngInd.innerText = engInd.toFixed(1);
+            var colorInd = getColorEnganche(engInd);
+            fEngInd.style.backgroundColor = colorInd.bg;
+            fEngInd.style.color = colorInd.text;
+        } else {
+            fEngInd.innerText = "N/A";
+            fEngInd.style.backgroundColor = "#eee"; fEngInd.style.color = "#333";
+        }
+        
+        var isLeader = node.Es_Lider === true || node.Es_Lider === "True";
+        var engArea = node.Eng_Area !== undefined ? parseFloat(node.Eng_Area) : 0;
+        var fEngArea = document.getElementById('fEngArea');
+        if (isLeader && engArea > 0) {
+            fEngArea.innerText = engArea.toFixed(1);
+            var colorArea = getColorEnganche(engArea);
+            fEngArea.style.backgroundColor = colorArea.bg;
+            fEngArea.style.color = colorArea.text;
+        } else {
+            fEngArea.innerText = "N/A";
+            fEngArea.style.backgroundColor = "#eee"; fEngArea.style.color = "#333";
+        }
         
         document.getElementById('fSuc1').innerText = node.NomSuc1 || "Pendiente";
         document.getElementById('fRead1').innerText = node.Read1 && node.Read1 !== 'Pendiente' ? node.Read1 : "Sin tiempo definido";
@@ -411,6 +455,17 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         emp = clean_id(row_dict.get('id Empleado'))
         jefe = clean_id(row_dict.get('ID Del Jefe'))
         
+        # BÚSQUEDA INTELIGENTE DE LA COLUMNA DE ENGANCHE
+        # Busca cualquier columna que contenga la palabra "enganche" sin importar mayúsculas
+        enganche_key = next((k for k in row_dict.keys() if k and 'enganche' in str(k).lower()), None)
+        if enganche_key:
+            try:
+                eng_val = float(row_dict[enganche_key])
+            except:
+                eng_val = 0.0
+        else:
+            eng_val = 0.0
+        
         if emp:
             empleados_validos.add(emp)
             G_jerarquia.add_node(emp)
@@ -433,7 +488,10 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                 'suc2_id': suc2_limpio,
                 'read2': clean_text(row_dict.get('Tiempo de Readiness 2'), ''),
                 'suc3_id': suc3_limpio,
-                'read3': clean_text(row_dict.get('Tiempo de Readiness 3'), '')
+                'read3': clean_text(row_dict.get('Tiempo de Readiness 3'), ''),
+                'enganche_ind': eng_val,
+                'enganche_area': 0.0, # Se calculará después
+                'es_lider': False
             }
             if jefe:
                 jefes_dict[emp] = jefe
@@ -450,6 +508,30 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     reportes_directos = {n: 0 for n in G_jerarquia.nodes()}
     for jefe, emp in G_jerarquia.edges(): 
         reportes_directos[jefe] += 1
+        if jefe in info_nodos:
+            info_nodos[jefe]['es_lider'] = True
+
+    # CÁLCULO DE ENGANCHE DEL ÁREA (Promedio en cascada)
+    enganche_area_dict = {}
+    for nodo in G_jerarquia.nodes():
+        descendientes = nx.descendants(G_jerarquia, nodo)
+        if not descendientes:
+            enganche_area_dict[nodo] = 0.0
+            continue
+            
+        suma = 0.0
+        count = 0
+        for d in descendientes:
+            if d in info_nodos:
+                val = info_nodos[d]['enganche_ind']
+                if val > 0:
+                    suma += val
+                    count += 1
+        
+        enganche_area_dict[nodo] = round(suma / count, 1) if count > 0 else 0.0
+    
+    for emp in info_nodos:
+        info_nodos[emp]['enganche_area'] = enganche_area_dict.get(emp, 0.0)
 
     sucesores_de_9box = {n: 0 for n in G_jerarquia.nodes()}
     sucesores_oficiales_de = {n: 0 for n in G_jerarquia.nodes()} 
@@ -469,10 +551,12 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             if s_id in sucesores_oficiales_de:
                 sucesores_oficiales_de[s_id] += 1
 
+    # MOTOR DE INTELIGENCIA DE ALERTAS (INCLUYENDO ENGANCHE)
     for emp, info in info_nodos.items():
         r_list = []
         
         if info['mla'] != '5':
+            # 1. Alertas de Sucesión
             es_critica = (info['critica'].lower() == 'si')
             tiene_oficial = (sucesores_oficiales_de.get(emp, 0) > 0)
             tiene_hipos_9box = (sucesores_de_9box.get(emp, 0) > 0)
@@ -482,12 +566,28 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                     r_list.append("🔥 Riesgo Crítico: Sin Sucesor ni HiPos")
                 elif not tiene_oficial and tiene_hipos_9box: 
                     r_list.append("⚠️ Sugerencia: HiPo disponible, falta oficializar")
-                    
+            
+            # 2. Alertas Estructurales        
             reps = reportes_directos.get(emp, 0)
             if reps >= 12: 
                 r_list.append(f"⚠️ Sobrecarga ({reps} reportes)")
             elif reps == 1: 
                 r_list.append("⚠️ Ineficiencia (1 reporte)")
+                
+            # 3. Alertas de Enganche Individual
+            eng_ind = info['enganche_ind']
+            if 1.0 <= eng_ind < 2.0:
+                r_list.append("🚨 Riesgo de Fuga: Colaborador Desconectado")
+            elif 2.0 <= eng_ind < 3.0:
+                r_list.append("⚠️ Alerta: Bajo Enganche (Desinterés)")
+                
+            # 4. Alertas de Enganche del Área (Solo para Líderes)
+            if info['es_lider']:
+                eng_area = info['enganche_area']
+                if 1.0 <= eng_area < 2.0:
+                    r_list.append("🚨 Riesgo de Área: Equipo Desconectado")
+                elif 2.0 <= eng_area < 3.0:
+                    r_list.append("⚠️ Alerta de Área: Bajo Enganche del Equipo")
                 
         info_nodos[emp]['riesgos_lista'] = r_list
         info_nodos[emp]['riesgos'] = " | ".join(r_list) if r_list else "Ninguno"
@@ -681,6 +781,7 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             Nivel_MLA=info['mla'], Resultado_9Box=info['box'], Direccion=info['direccion'], Lider=info['lider'], 
             Critica=info['critica'], Nombre=info['nombre'], Puesto=info['puesto'], Riesgos=info['riesgos'], Interes=info['interes'], 
             NomSuc1=nom_suc1, Read1=info['read1'], NomSuc2=nom_suc2, Read2=info['read2'], NomSuc3=nom_suc3, Read3=info['read3'],
+            Eng_Ind=info['enganche_ind'], Eng_Area=info['enganche_area'], Es_Lider=info['es_lider'],
             font={'color': '#0f172a', 'strokeWidth': 2, 'strokeColor': '#ffffff', 'size': 11, 'face': 'Arial', 'weight': 'bold'},
             x=coord_data['x'], y=coord_data['y'], Angle=coord_data['angle'], AnilloReal=coord_data['anillo_real'], Profundidad=coord_data['profundidad'],
             hidden=is_hidden
