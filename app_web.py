@@ -609,9 +609,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                 data_criticas.append(nodo_data)
                 
             if info['suc1_id']:
-                # LÓGICA CORRECTA PARA EXCEL "INVERTIDO":
-                # La fila actual (info) es la del Sucesor.
-                # La columna "Sucesor P.1" contiene a la persona que este sucesor va a reemplazar.
                 target_id = info['suc1_id']
                 puesto_target = "Posición no encontrada"
                 
@@ -619,9 +616,9 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                     puesto_target = info_nodos[target_id]['puesto']
                 
                 data_sucesores.append({
-                    "Colaborador": info['nombre'],        # Ej. Jossue
-                    "Posición Actual": info['puesto'],    # Ej. Coordinador
-                    "Posición a Suceder": puesto_target   # Ej. Gerente
+                    "Colaborador": info['nombre'],        
+                    "Posición Actual": info['puesto'],    
+                    "Posición a Suceder": puesto_target   
                 })
                 
             if info['mla'] == '1':
@@ -677,7 +674,16 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                 is_hidden_edge = (emp not in nodos_visibles or s_id not in nodos_visibles)
                 G.add_edge(emp, s_id, color='#9c27b0', width=5, dashes=False, title='🎯 Objetivo de Sucesión', hidden=is_hidden_edge, is_struct=False, is_9box=False, is_succ=True, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.6})
 
-    data_alertas = [{"Nombre": a['Colaborador'], "Dirección": a['Dirección'], "Puesto": a['Puesto']} for a in alertas_tabla]
+    # MODIFICACIÓN: Agregamos "Alerta" a la lista para que se muestre en el botón
+    data_alertas = [
+        {
+            "Nombre": a['Colaborador'], 
+            "Dirección": a['Dirección'], 
+            "Puesto": a['Puesto'],
+            "Alerta": a['Alerta Detectada por IA']
+        } 
+        for a in alertas_tabla
+    ]
     
     kpis = {
         'total': len(data_total),
@@ -820,8 +826,11 @@ def main():
                     df_lista = pd.DataFrame(kpis[f"data_{vista}"])
                     
                     if not df_lista.empty:
+                        # MODIFICACIÓN: Ya no quitamos duplicados solo por nombre.
+                        # Ahora aseguramos que si tiene alertas distintas (ej. Sobrecarga y Riesgo Crítico)
+                        # salgan ambas líneas.
                         if vista == "alertas":
-                            df_lista = df_lista.drop_duplicates(subset=["Nombre"]).reset_index(drop=True)
+                            df_lista = df_lista.drop_duplicates(subset=["Nombre", "Alerta"]).reset_index(drop=True)
                         st.dataframe(df_lista, use_container_width=True, hide_index=True)
                     else:
                         st.info("No hay registros en esta categoría.")
