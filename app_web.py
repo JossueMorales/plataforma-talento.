@@ -609,19 +609,19 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                 data_criticas.append(nodo_data)
                 
             if info['suc1_id']:
-                # BÚSQUEDA INVERSA: Mostramos la perspectiva desde el sucesor
-                suc_id = info['suc1_id']
-                nom_suc = nombres_dict.get(suc_id, suc_id)
-                puesto_suc = "Pendiente / Externo"
+                # LÓGICA CORRECTA PARA EXCEL "INVERTIDO":
+                # La fila actual (info) es la del Sucesor.
+                # La columna "Sucesor P.1" contiene a la persona que este sucesor va a reemplazar.
+                target_id = info['suc1_id']
+                puesto_target = "Posición no encontrada"
                 
-                # Buscamos el puesto actual del sucesor
-                if suc_id in info_nodos:
-                    puesto_suc = info_nodos[suc_id]['puesto']
+                if target_id in info_nodos:
+                    puesto_target = info_nodos[target_id]['puesto']
                 
                 data_sucesores.append({
-                    "Colaborador": nom_suc, 
-                    "Posición Actual": puesto_suc,
-                    "Posición a Suceder": info['puesto'] 
+                    "Colaborador": info['nombre'],        # Ej. Jossue
+                    "Posición Actual": info['puesto'],    # Ej. Coordinador
+                    "Posición a Suceder": puesto_target   # Ej. Gerente
                 })
                 
             if info['mla'] == '1':
