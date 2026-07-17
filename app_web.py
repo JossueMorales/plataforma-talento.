@@ -609,20 +609,11 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                 data_criticas.append(nodo_data)
                 
             if info['suc1_id']:
-                # Encontramos la ID de quien va a subir (el sucesor)
-                suc_id = info['suc1_id']
-                nom_suc = nombres_dict.get(suc_id, suc_id)
-                puesto_suc = "Sin puesto definido"
-                
-                # Buscamos el puesto actual que tiene el sucesor
-                if suc_id in info_nodos:
-                    puesto_suc = info_nodos[suc_id]['puesto']
-                
-                # La tabla se construye desde el punto de vista del Sucesor
+                # Muestra al dueño del puesto, qué puesto tiene y quién es su sucesor
                 data_sucesores.append({
-                    "Nombre": nom_suc,
-                    "Posición Actual": puesto_suc,
-                    "Posición a Suceder": info['puesto']
+                    "Colaborador": info['nombre'],
+                    "Posición Actual": info['puesto'],
+                    "Sucesor Designado": nom_suc1
                 })
                 
             if info['mla'] == '1':
