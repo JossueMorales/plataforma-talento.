@@ -155,11 +155,10 @@ function updateSpacing() {
     network.body.data.nodes.update(nodesToUpdate);
 }
 
-// NUEVO: Limitador de Zoom para evitar perder el mapa
 network.on("zoom", function() {
     var currentScale = network.getScale();
-    var minScale = 0.3; // Limite para no alejarse demasiado
-    var maxScale = 2.5; // Limite para no acercarse demasiado
+    var minScale = 0.3; 
+    var maxScale = 2.5; 
     
     if (currentScale < minScale) {
         network.moveTo({ scale: minScale });
@@ -248,16 +247,24 @@ function applyVisualFilters() {
     network.body.data.edges.update(edgesToUpdate);
 }
 
+// CÁMARA INTELIGENTE QUE BUSCA AL TARGET_NODE_ID
 function enfocarPantalla() { 
-    network.fit();
-    setTimeout(function() {
-        var currentScale = network.getScale();
-        network.moveTo({
-            position: {x: 0, y: -80}, 
-            scale: currentScale * 0.85, 
+    if (window.targetNodeId && network.body.data.nodes.get(window.targetNodeId) && window.targetNodeId !== "None") {
+        network.focus(window.targetNodeId, {
+            scale: 0.85,
             animation: { duration: 800, easingFunction: 'easeInOutQuad' }
         });
-    }, 800);
+    } else {
+        network.fit();
+        setTimeout(function() {
+            var currentScale = network.getScale();
+            network.moveTo({
+                position: {x: 0, y: -80}, 
+                scale: currentScale * 0.85, 
+                animation: { duration: 800, easingFunction: 'easeInOutQuad' }
+            });
+        }, 800);
+    }
 }
 
 setTimeout(function() {
@@ -534,6 +541,21 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         posibles_raices = [n for n in G_jerarquia.nodes() if G_jerarquia.in_degree(n) == 0]
         if posibles_raices: 
             raiz_principal = max(posibles_raices, key=lambda x: len(nx.descendants(G_jerarquia, x)))
+            
+    # LÓGICA DE CENTRADO INTELIGENTE
+    nodo_central_id = raiz_principal
+    if f_lid != "Todos":
+        for emp, inf in info_nodos.items():
+            if inf['nombre'] == f_lid:
+                nodo_central_id = emp
+                break
+    elif f_dir != "Todas":
+        candidatos = [emp for emp in nodos_visibles if info_nodos[emp]['direccion'] == f_dir]
+        if candidatos:
+            def mla_val(x):
+                val = info_nodos[x]['mla']
+                return int(val) if val.isdigit() else 0
+            nodo_central_id = max(candidatos, key=mla_val)
 
     Arbol = nx.bfs_tree(G_jerarquia, raiz_principal) if raiz_principal else G_jerarquia
 
@@ -717,7 +739,14 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     net.set_options(OPCIONES_PYVIS)
     
     html = net.generate_html()
-    html = html.replace('</body>', BOTON_HTML + '\n' + SCRIPT_ANILLOS + '\n</body>')
+    
+    script_foco = f"""
+    <script>
+    window.targetNodeId = "{nodo_central_id}";
+    </script>
+    """
+    
+    html = html.replace('</body>', BOTON_HTML + '\n' + SCRIPT_ANILLOS + '\n' + script_foco + '\n</body>')
     
     return html, df_alertas, kpis
 
