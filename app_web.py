@@ -8,11 +8,11 @@ import streamlit.components.v1 as components
 # ==========================================
 # CONSTANTES DE PLANTILLAS (HTML / JS)
 # ==========================================
+# Quitamos la sombra global por defecto para poder personalizarla por cada nodo/arista
 OPCIONES_PYVIS = """
 var options = {
   "nodes": {
-      "borderWidth": 2,
-      "shadow": {"enabled": true, "color": "rgba(0,0,0,0.4)", "size": 10, "x": 3, "y": 3}
+      "borderWidth": 2
   },
   "physics": {
       "enabled": false,
@@ -750,8 +750,8 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                     "Líder": info['nombre'],
                     "Puesto": info['puesto'],
                     "Dirección": info['direccion'],
-                    "Enganche Individual": info['enganche_ind'],
-                    "Enganche del Área": info['enganche_area']
+                    "Enganche Individual": info['enganche_ind'] if info['enganche_ind'] > 0 else "N/A",
+                    "Enganche del Área": info['enganche_area'] if info['enganche_area'] > 0 else "N/A"
                 })
                 
             for r in info['riesgos_lista']:
@@ -768,12 +768,26 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         
         nombre_corto = acortar_nombre(info['nombre'])
         
+        # LOGICA DE SOMBREADO ADAPTATIVO POR ENGANCHE (NODO)
+        eng = info['enganche_ind']
+        if eng >= 4:
+            color_sombreado = 'rgba(22, 163, 74, 0.8)' # Verde
+        elif eng >= 3:
+            color_sombreado = 'rgba(234, 179, 8, 0.8)' # Amarillo
+        elif eng >= 2:
+            color_sombreado = 'rgba(249, 115, 22, 0.8)' # Naranja
+        elif eng > 0:
+            color_sombreado = 'rgba(220, 38, 38, 0.8)' # Rojo
+        else:
+            color_sombreado = 'rgba(0, 0, 0, 0.2)' # Gris normal (sin evaluación)
+        
         G.add_node(
             emp, 
             label=f"{prefijo}{nombre_corto}\n({info['puesto']})", 
             title=f"<div style='padding: 5px; text-align: center;'><b>{prefijo}{info['nombre']}</b><br><small>{info['puesto']}</small></div>", 
             size=28 if emp == raiz_principal else 18, 
-            color=obtener_color_9box(info['box']), 
+            color=obtener_color_9box(info['box']), # El color de fondo vuelve a ser solo el 9-Box
+            shadow={'enabled': True, 'color': color_sombreado, 'size': 25, 'x': 0, 'y': 0}, # Sombra luminosa
             shape='dot', group=info['mla'], 
             Nivel_MLA=info['mla'], Resultado_9Box=info['box'], Direccion=info['direccion'], Lider=info['lider'], 
             Critica=info['critica'], Nombre=info['nombre'], Puesto=info['puesto'], Riesgos=info['riesgos'], Interes=info['interes'], 
@@ -786,7 +800,22 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
 
     for jefe, emp in G_jerarquia.edges():
         is_hidden_edge = jefe not in nodos_visibles or emp not in nodos_visibles
-        G.add_edge(jefe, emp, color='#94a3b8', width=2, dashes=False, title='Estructura', hidden=is_hidden_edge, is_struct=True, is_9box=False, is_succ=False, smooth=False)
+        
+        # LOGICA DE SOMBREADO ADAPTATIVO POR ENGANCHE (ARISTAS / LÍNEAS)
+        # La línea brilla dependiendo del enganche del colaborador (emp)
+        eng_emp = info_nodos[emp]['enganche_ind']
+        if eng_emp >= 4:
+            color_edge_shadow = 'rgba(22, 163, 74, 0.8)'
+        elif eng_emp >= 3:
+            color_edge_shadow = 'rgba(234, 179, 8, 0.8)'
+        elif eng_emp >= 2:
+            color_edge_shadow = 'rgba(249, 115, 22, 0.8)'
+        elif eng_emp > 0:
+            color_edge_shadow = 'rgba(220, 38, 38, 0.8)'
+        else:
+            color_edge_shadow = 'rgba(0, 0, 0, 0.0)' # Sin brillo si no hay datos
+            
+        G.add_edge(jefe, emp, color='#94a3b8', width=2, dashes=False, title='Estructura', hidden=is_hidden_edge, is_struct=True, is_9box=False, is_succ=False, smooth=False, shadow={'enabled': True, 'color': color_edge_shadow, 'size': 15, 'x': 0, 'y': 0})
 
     for emp, info in info_nodos.items():
         box = info['box'].upper()
@@ -939,7 +968,6 @@ def main():
             with col_datos:
                 st.markdown("### 📊 KPIs de Talento")
                 
-                # AHORA SON 6 COLUMNAS PARA INCLUIR EL ENGANCHE
                 k1, k2, k3, k4, k5, k6 = st.columns(6)
                 
                 with k1:
