@@ -506,7 +506,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             suc2_limpio = buscar_id_real(row_dict.get('Sucesor P.2', row_dict.get('Sucesor 2', '')))
             suc3_limpio = buscar_id_real(row_dict.get('Sucesor P.3', row_dict.get('Sucesor 3', '')))
             
-            # Lectura de la variable EDR (Columna P)
             edr_val = clean_text(row_dict.get('EDR', row_dict.get('EDR ')), 'Pendiente')
             
             info_nodos[emp] = {
@@ -623,7 +622,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                 elif 2.0 <= eng_area < 3.0:
                     r_list.append("⚠️ Alerta de Área: Bajo Enganche del Equipo")
 
-            # Nueva Alerta por desempeño EDR bajo
             edr_txt = info['edr'].lower()
             if '1.resultado inaceptable' in edr_txt or 'inaceptable' in edr_txt:
                 r_list.append("🚨 EDR Crítico: Resultado Inaceptable")
@@ -801,21 +799,29 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             nodo_data = {"Nombre": info['nombre'], "Dirección": info['direccion'], "Puesto": info['puesto']}
             data_total.append(nodo_data)
             
+            # INTEGRACIÓN: KPI POSICIONES CRÍTICAS CON SUCESIÓN
             if info['critica'].lower() == 'si':
                 data_criticas.append(nodo_data)
                 
-            if info['suc1_id']:
+                # Buscamos los datos exactos del sucesor 1
                 target_id = info['suc1_id']
-                puesto_target = "Posición no encontrada (o vacante)"
+                nom_suc = nom_suc1 if nom_suc1 else "Pendiente"
+                puesto_suc = "Pendiente"
+                
                 if target_id in info_nodos:
-                    puesto_target = info_nodos[target_id]['puesto']
-                elif target_id: 
-                    puesto_target = target_id
+                    puesto_suc = info_nodos[target_id]['puesto']
+                elif target_id:
+                    puesto_suc = target_id
+                
+                tiempo_suc = info['read1'] if info['read1'] else "Pendiente"
                 
                 data_sucesores.append({
-                    "Colaborador": info['nombre'],        
-                    "Posición Actual": info['puesto'],    
-                    "Posición a Suceder": puesto_target   
+                    "Ocupante Actual": info['nombre'],
+                    "Posición Crítica": info['puesto'],
+                    "Dirección": info['direccion'],
+                    "Nombre del Sucesor": nom_suc,
+                    "Puesto del Sucesor": puesto_suc,
+                    "Tiempo de Sucesión": tiempo_suc
                 })
                 
             if info['mla'] == '1':
@@ -1012,7 +1018,6 @@ def main():
         boxes = sorted([clean_text(x).upper() for x in df_seguro['Resultado 9 box'].unique() if clean_text(x)])
         criticas = sorted([clean_text(x) for x in df_seguro['Posición Crítica'].unique() if clean_text(x)])
         
-        # Filtro único de EDR
         edrs_col = 'EDR' if 'EDR' in df_seguro.columns else ('EDR ' if 'EDR ' in df_seguro.columns else None)
         edrs = sorted([clean_text(x) for x in df_seguro[edrs_col].unique() if clean_text(x)]) if edrs_col else []
         
@@ -1060,7 +1065,7 @@ def main():
                     if st.button("🔍 Ver", key="b_cri", use_container_width=True):
                         st.session_state["vista_kpi"] = "criticas"
                 with k3:
-                    st.markdown(crear_tarjeta_kpi("Colab.<br>Sucesión", kpis['sucesores'], "#8b5cf6", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
+                    st.markdown(crear_tarjeta_kpi("Sucesión<br>(Pos. Críticas)", kpis['sucesores'], "#8b5cf6", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
                     if st.button("🔍 Ver", key="b_suc", use_container_width=True):
                         st.session_state["vista_kpi"] = "sucesores"
                 with k4:
@@ -1081,7 +1086,7 @@ def main():
                     titulos_kpi = {
                         "total": "Total de Colaboradores",
                         "criticas": "Posiciones Críticas",
-                        "sucesores": "Colaboradores en Sucesión",
+                        "sucesores": "Sucesión de Posiciones Críticas",
                         "operativos": "Personal Operativo (MLA 1)",
                         "alertas": "Colaboradores con Riesgos / Alertas",
                         "enganche": "Nivel de Enganche de Líderes"
