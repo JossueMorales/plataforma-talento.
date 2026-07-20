@@ -8,7 +8,6 @@ import streamlit.components.v1 as components
 # ==========================================
 # CONSTANTES DE PLANTILLAS (HTML / JS)
 # ==========================================
-# Quitamos la sombra global por defecto para poder personalizarla por cada nodo/arista
 OPCIONES_PYVIS = """
 var options = {
   "nodes": {
@@ -236,9 +235,10 @@ network.on("click", function (params) {
             document.getElementById('fRead3').innerText = node.Read3 || "Sin tiempo definido";
         } else { document.getElementById('divSucesor3').style.display = "none"; }
 
+        var colorBg = typeof node.color === 'object' ? node.color.background : node.color;
         var boxResult = node.Resultado_9Box || "N/A";
         var f9Box = document.getElementById('f9Box'); f9Box.innerText = boxResult;
-        f9Box.style.backgroundColor = node.color || "#eee";
+        f9Box.style.backgroundColor = colorBg || "#eee";
         f9Box.style.color = (boxResult === "4" || boxResult === "9" || boxResult === "7A" || boxResult === "7B") ? "white" : "#333";
         document.getElementById('fichaLateral').style.left = "0px";
     } else { cerrarFicha(); }
@@ -340,7 +340,7 @@ def obtener_usuarios_autorizados():
         }
 
 def login():
-    st.set_page_config(page_title="Plataforma de Talento", layout="wide")
+    st.set_page_config(page_title="Portal de Talento Ayvi", layout="wide")
     
     if "usuario_logueado" not in st.session_state:
         st.session_state["usuario_logueado"] = False
@@ -348,7 +348,7 @@ def login():
     if not st.session_state["usuario_logueado"]:
         usuarios_autorizados = obtener_usuarios_autorizados()
         
-        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento SaaS v8.1</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento Ayvi</h1>", unsafe_allow_html=True)
         st.markdown("<p style='text-align: center; color: #666;'>Inicia sesión para acceder al mapa organizacional</p>", unsafe_allow_html=True)
         
         col1, col2, col3 = st.columns([1, 1, 1])
@@ -768,26 +768,25 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         
         nombre_corto = acortar_nombre(info['nombre'])
         
-        # LOGICA DE SOMBREADO ADAPTATIVO POR ENGANCHE (NODO)
         eng = info['enganche_ind']
         if eng >= 4:
-            color_sombreado = 'rgba(22, 163, 74, 0.8)' # Verde
+            color_sombreado = 'rgba(22, 163, 74, 0.8)' 
         elif eng >= 3:
-            color_sombreado = 'rgba(234, 179, 8, 0.8)' # Amarillo
+            color_sombreado = 'rgba(234, 179, 8, 0.8)' 
         elif eng >= 2:
-            color_sombreado = 'rgba(249, 115, 22, 0.8)' # Naranja
+            color_sombreado = 'rgba(249, 115, 22, 0.8)' 
         elif eng > 0:
-            color_sombreado = 'rgba(220, 38, 38, 0.8)' # Rojo
+            color_sombreado = 'rgba(220, 38, 38, 0.8)' 
         else:
-            color_sombreado = 'rgba(0, 0, 0, 0.2)' # Gris normal (sin evaluación)
+            color_sombreado = 'rgba(0, 0, 0, 0.2)' 
         
         G.add_node(
             emp, 
             label=f"{prefijo}{nombre_corto}\n({info['puesto']})", 
             title=f"<div style='padding: 5px; text-align: center;'><b>{prefijo}{info['nombre']}</b><br><small>{info['puesto']}</small></div>", 
             size=28 if emp == raiz_principal else 18, 
-            color=obtener_color_9box(info['box']), # El color de fondo vuelve a ser solo el 9-Box
-            shadow={'enabled': True, 'color': color_sombreado, 'size': 25, 'x': 0, 'y': 0}, # Sombra luminosa
+            color=obtener_color_9box(info['box']), 
+            shadow={'enabled': True, 'color': color_sombreado, 'size': 25, 'x': 0, 'y': 0}, 
             shape='dot', group=info['mla'], 
             Nivel_MLA=info['mla'], Resultado_9Box=info['box'], Direccion=info['direccion'], Lider=info['lider'], 
             Critica=info['critica'], Nombre=info['nombre'], Puesto=info['puesto'], Riesgos=info['riesgos'], Interes=info['interes'], 
@@ -801,8 +800,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     for jefe, emp in G_jerarquia.edges():
         is_hidden_edge = jefe not in nodos_visibles or emp not in nodos_visibles
         
-        # LOGICA DE SOMBREADO ADAPTATIVO POR ENGANCHE (ARISTAS / LÍNEAS)
-        # La línea brilla dependiendo del enganche del colaborador (emp)
         eng_emp = info_nodos[emp]['enganche_ind']
         if eng_emp >= 4:
             color_edge_shadow = 'rgba(22, 163, 74, 0.8)'
@@ -813,7 +810,7 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         elif eng_emp > 0:
             color_edge_shadow = 'rgba(220, 38, 38, 0.8)'
         else:
-            color_edge_shadow = 'rgba(0, 0, 0, 0.0)' # Sin brillo si no hay datos
+            color_edge_shadow = 'rgba(0, 0, 0, 0.0)' 
             
         G.add_edge(jefe, emp, color='#94a3b8', width=2, dashes=False, title='Estructura', hidden=is_hidden_edge, is_struct=True, is_9box=False, is_succ=False, smooth=False, shadow={'enabled': True, 'color': color_edge_shadow, 'size': 15, 'x': 0, 'y': 0})
 
