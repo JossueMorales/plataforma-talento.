@@ -461,7 +461,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
     
     nombre_a_id = {nombre.strip().lower(): emp_id for emp_id, nombre in nombres_dict.items()}
     
-    # Nuevo mapeo para buscar por posición
     puesto_a_id = {}
     for row in df_seguro.to_dict('records'):
         emp_id = clean_id(row.get('id Empleado'))
@@ -476,14 +475,10 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
         if v.endswith('.0'): 
             v = v[:-2]
         
-        # 1. Por ID de empleado
         if v in nombres_dict: return v  
         
         v_lower = v.lower()
-        # 2. Por Nombre exacto
         if v_lower in nombre_a_id: return nombre_a_id[v_lower] 
-        
-        # 3. Por Nombre de Posición
         if v_lower in puesto_a_id: return puesto_a_id[v_lower]
         
         return v 
@@ -959,31 +954,11 @@ def main():
         
     st.markdown("""
         <style>
-        /* OCULTAR EL HEADER (BARRA SUPERIOR) DE STREAMLIT */
-        [data-testid="stHeader"] {
-            display: none !important;
-        }
-        /* OCULTAR MENÚ DE HAMBURGUESA */
-        #MainMenu {
-            visibility: hidden !important;
-        }
-        /* OCULTAR EL FOOTER */
-        footer {
-            visibility: hidden !important;
-        }
-        
-        /* AJUSTAR MÁRGENES PARA QUE NO QUEDE PEGADO ARRIBA AL QUITAR EL HEADER */
-        .block-container { 
-            padding-top: 2rem !important; 
-            padding-bottom: 0rem !important; 
-        }
-        
-        div[data-testid="stButton"] > button {
-            padding: 2px 10px;
-            font-size: 12px;
-            height: auto;
-            min-height: 28px;
-        }
+        [data-testid="stHeader"] { display: none !important; }
+        #MainMenu { visibility: hidden !important; }
+        footer { visibility: hidden !important; }
+        .block-container { padding-top: 2rem !important; padding-bottom: 0rem !important; }
+        div[data-testid="stButton"] > button { padding: 2px 10px; font-size: 12px; height: auto; min-height: 28px; }
         </style>
     """, unsafe_allow_html=True)
     
@@ -999,7 +974,6 @@ def main():
 
     with st.spinner("Cargando mapa con conexiones lógicas y datos de PDI..."):
         
-        # Link del archivo
         link_archivo = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit"
         
         df_completo = cargar_datos_csv(link_archivo, "Base de datos")
@@ -1111,35 +1085,50 @@ def main():
             st.divider()
             
             # ==========================================
-            # NUEVO: PLANIFICADOR DE SUCESIONES (EDICIÓN EN VIVO)
+            # PLANIFICADOR DE SUCESIONES (AFECTADO POR FILTROS)
             # ==========================================
             st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
-            st.markdown("Usa este panel para asignar o modificar los sucesores de cualquier posición. **Los cambios se guardarán automáticamente en tu Excel** y el mapa se actualizará al instante.")
+            st.markdown("Usa este panel para asignar o modificar los sucesores. **Los cambios se guardarán automáticamente en tu Excel** y el mapa se actualizará al instante.")
             
-            # Creamos una lista inteligente que te muestra el Puesto y quién está sentado ahí para evitar confusiones
+            # 1. Aplicar la misma lógica de los Filtros Globales de arriba para filtrar las posiciones
+            df_posiciones_filtradas = df_seguro.copy()
+            if f_dir != "Todas":
+                df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Dirección'].apply(clean_text) == f_dir]
+            if f_crit != "Todas":
+                df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Posición Crítica'].apply(clean_text) == f_crit]
+            if f_mla != "Todos":
+                df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Nivel MLA'].apply(clean_text) == f_mla]
+            if f_box != "Todos":
+                df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Resultado 9 box'].apply(clean_text).str.upper() == f_box]
+                
+            # 2. Generar lista limpia SOLO con el Nombre de la Posición
             posiciones_opciones = []
             mapa_indices = {}
-            for idx, row in df_seguro.iterrows():
+            
+            for idx, row in df_posiciones_filtradas.iterrows():
                 puesto = clean_text(row.get('Nombre de la Posición'))
-                nombre = clean_text(row.get('Nombre', 'Vacante'))
                 if puesto:
-                    label = f"{puesto} (Ocupante: {nombre})"
-                    posiciones_opciones.append(label)
-                    mapa_indices[label] = idx  # Guardamos en qué fila de Pandas está
+                    posiciones_opciones.append(puesto)
+                    mapa_indices[puesto] = idx 
                     
-            posiciones_opciones = sorted(posiciones_opciones)
-            pos_seleccionada = st.selectbox("🔍 Busca y selecciona la Posición a planificar:", [""] + posiciones_opciones)
+            posiciones_opciones = sorted(list(set(posiciones_opciones)))
+            pos_seleccionada = st.selectbox("🔍 Selecciona la Posición a planificar:", [""] + posiciones_opciones)
             
             if pos_seleccionada:
-                # Sacamos la información exacta de la fila seleccionada
                 idx_pandas = mapa_indices[pos_seleccionada]
                 info_pos = df_seguro.loc[idx_pandas]
+                
+                # Cargar el ocupante actual y dirección para mostrarlos como dato inferior
+                ocupante_actual = clean_text(info_pos.get('Nombre'), 'Vacante / Sin asignar')
+                direccion_pos = clean_text(info_pos.get('Dirección'), 'No asignada')
+                
+                # Tarjeta informativa del puesto seleccionado
+                st.info(f"📌 **Posición:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual} | 🏢 **Dirección:** {direccion_pos}")
                 
                 nombres_empleados = sorted([clean_text(n) for n in df_completo['Nombre'].dropna().unique() if clean_text(n)])
                 opciones_sucesores = ["Pendiente"] + nombres_empleados
                 opciones_tiempo = ["Pendiente", "Inmediato", "1 a 3 años", "Más de 3 años"]
                 
-                # Leemos qué dice tu Excel actualmente para precargar el formulario
                 c_suc1 = clean_text(info_pos.get('Sucesor P.1', 'Pendiente')) or "Pendiente"
                 c_read1 = clean_text(info_pos.get('Tiempo de Readiness 1', 'Pendiente')) or "Pendiente"
                 c_suc2 = clean_text(info_pos.get('Sucesor P.2', 'Pendiente')) or "Pendiente"
@@ -1147,7 +1136,6 @@ def main():
                 c_suc3 = clean_text(info_pos.get('Sucesor P.3', 'Pendiente')) or "Pendiente"
                 c_read3 = clean_text(info_pos.get('Tiempo de Readiness 3', 'Pendiente')) or "Pendiente"
                 
-                # Por si hay algún error de dedo en el Excel, agregamos esa opción para que no marque error
                 if c_suc1 not in opciones_sucesores: opciones_sucesores.append(c_suc1)
                 if c_suc2 not in opciones_sucesores: opciones_sucesores.append(c_suc2)
                 if c_suc3 not in opciones_sucesores: opciones_sucesores.append(c_suc3)
@@ -1155,7 +1143,6 @@ def main():
                 if c_read2 not in opciones_tiempo: opciones_tiempo.append(c_read2)
                 if c_read3 not in opciones_tiempo: opciones_tiempo.append(c_read3)
                 
-                # Dibujamos el formulario interactivo
                 with st.form("form_sucesion"):
                     col1, col2, col3 = st.columns(3)
                     with col1:
@@ -1175,7 +1162,7 @@ def main():
                     
                     if submitted:
                         with st.spinner("🤖 El robot está escribiendo en tu Excel..."):
-                            idx_excel = idx_pandas + 2 # Sumamos 2 porque la tabla de Pandas empieza en 0 y el Excel tiene la fila 1 de títulos
+                            idx_excel = idx_pandas + 2 
                             match = re.search(r'/d/([a-zA-Z0-9-_]+)', link_archivo)
                             doc_id = match.group(1) if match else link_archivo
                             
@@ -1189,11 +1176,9 @@ def main():
                                 archivo = cliente.open_by_key(doc_id)
                                 pestana = archivo.worksheet("Base de datos")
                                 
-                                # Le decimos al robot que tome exactamente el rango de la I a la N de esa fila
                                 rango = f'I{idx_excel}:N{idx_excel}'
                                 celdas = pestana.range(rango)
                                 
-                                # Actualizamos celda por celda
                                 celdas[0].value = "Pendiente" if n_suc1 == "Pendiente" else n_suc1
                                 celdas[1].value = "Pendiente" if n_read1 == "Pendiente" else n_read1
                                 celdas[2].value = "Pendiente" if n_suc2 == "Pendiente" else n_suc2
@@ -1204,8 +1189,8 @@ def main():
                                 pestana.update_cells(celdas)
                                 
                                 st.success("✅ ¡Guardado exitosamente! El mapa se está actualizando...")
-                                st.cache_data.clear() # Limpiamos caché para obligar a descargar el nuevo dato
-                                st.rerun() # Refrescamos la página automáticamente
+                                st.cache_data.clear()
+                                st.rerun()
                                 
                             except Exception as e:
                                 st.error(f"❌ Error técnico al intentar escribir en el Excel: {e}")
