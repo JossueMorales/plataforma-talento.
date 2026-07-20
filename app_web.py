@@ -395,10 +395,16 @@ def cargar_datos_csv(url_sheets, nombre_pestana):
         # 3. Abrir el archivo y la pestaña
         archivo = cliente.open_by_key(doc_id)
         pestana = archivo.worksheet(nombre_pestana)
-        datos = pestana.get_all_records()
+        
+        # SOLUCIÓN: Traemos los datos en bruto para ignorar duplicados o vacíos
+        datos = pestana.get_all_values()
         
         # 4. Convertir a datos de lectura rápida (DataFrame)
-        df = pd.DataFrame(datos)
+        if datos:
+            df = pd.DataFrame(datos[1:], columns=datos[0])
+        else:
+            df = pd.DataFrame()
+            
         df.columns = [str(col).strip() for col in df.columns]
         return df
         
