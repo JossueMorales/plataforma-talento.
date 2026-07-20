@@ -1,4 +1,4 @@
-import streamlit as st
+code = """import streamlit as st
 import pandas as pd
 import networkx as nx
 from pyvis.network import Network
@@ -8,7 +8,7 @@ import streamlit.components.v1 as components
 # ==========================================
 # CONSTANTES DE PLANTILLAS (HTML / JS)
 # ==========================================
-OPCIONES_PYVIS = """
+OPCIONES_PYVIS = \"\"\"
 var options = {
   "nodes": {
       "borderWidth": 2
@@ -20,9 +20,9 @@ var options = {
   },
   "interaction": {"hover": true, "tooltipDelay": 200}
 }
-"""
+\"\"\"
 
-SCRIPT_ANILLOS = """
+SCRIPT_ANILLOS = \"\"\"
 <script>
 window.onionMode = true; 
 window.ringSpacing = 150; 
@@ -48,9 +48,9 @@ network.on("beforeDrawing", function(ctx) {
     ctx.setLineDash([]); ctx.restore(); 
 });
 </script>
-"""
+\"\"\"
 
-BOTON_HTML = """
+BOTON_HTML = \"\"\"
 <div id="fichaLateral" style="position: absolute; top: 0; left: -400px; width: 340px; height: 100vh; background: white; box-shadow: 2px 0 15px rgba(0,0,0,0.15); transition: left 0.3s ease; z-index: 10000; font-family: Arial, sans-serif; display: flex; flex-direction: column;">
     <div style="background: #1976d2; padding: 20px; color: white; position: relative; flex-shrink: 0;">
         <button onclick="cerrarFicha()" style="position: absolute; top: 15px; right: 15px; background: transparent; border: none; color: white; font-size: 20px; cursor: pointer;">&times;</button>
@@ -312,19 +312,19 @@ setTimeout(function() {
     enfocarPantalla();
 }, 1000); 
 </script>
-"""
+\"\"\"
 
 # ==========================================
 # FUNCIONES AUXILIARES DE DISEÑO
 # ==========================================
 def crear_tarjeta_kpi(titulo, valor, color_borde, color_texto, color_fondo):
     color_valor = color_texto if color_texto != "#64748b" else "#0f172a"
-    return f"""
+    return f\"\"\"
     <div style="background-color: {color_fondo}; border: 1px solid #e2e8f0; border-top: 3px solid {color_borde}; padding: 10px 5px 5px 5px; border-radius: 6px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); margin-bottom: 2px;">
         <div style="font-size: 10px; color: {color_texto}; font-weight: 600; line-height: 1.1; margin-bottom: 4px;">{titulo}</div>
         <div style="font-size: 16px; color: {color_valor}; font-weight: bold;">{valor}</div>
     </div>
-    """
+    \"\"\"
 
 # ==========================================
 # SISTEMA DE SEGURIDAD Y LOGIN
@@ -868,13 +868,13 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     
     html = net.generate_html()
     
-    script_foco = f"""
+    script_foco = f\"\"\"
     <script>
     window.targetNodeId = "{nodo_central_id}";
     </script>
-    """
+    \"\"\"
     
-    html = html.replace('</body>', BOTON_HTML + '\n' + SCRIPT_ANILLOS + '\n' + script_foco + '\n</body>')
+    html = html.replace('</body>', BOTON_HTML + '\\n' + SCRIPT_ANILLOS + '\\n' + script_foco + '\\n</body>')
     
     return html, df_alertas, kpis
 
@@ -888,9 +888,27 @@ def main():
     if "vista_kpi" not in st.session_state:
         st.session_state["vista_kpi"] = None
         
-    st.markdown("""
+    st.markdown(\"\"\"
         <style>
-        .block-container { padding-top: 1rem; padding-bottom: 0rem; }
+        /* OCULTAR EL HEADER (BARRA SUPERIOR) DE STREAMLIT */
+        [data-testid="stHeader"] {
+            display: none !important;
+        }
+        /* OCULTAR MENÚ DE HAMBURGUESA */
+        #MainMenu {
+            visibility: hidden !important;
+        }
+        /* OCULTAR EL FOOTER */
+        footer {
+            visibility: hidden !important;
+        }
+        
+        /* AJUSTAR MÁRGENES PARA QUE NO QUEDE PEGADO ARRIBA AL QUITAR EL HEADER */
+        .block-container { 
+            padding-top: 2rem !important; 
+            padding-bottom: 0rem !important; 
+        }
+        
         div[data-testid="stButton"] > button {
             padding: 2px 10px;
             font-size: 12px;
@@ -898,7 +916,7 @@ def main():
             min-height: 28px;
         }
         </style>
-    """, unsafe_allow_html=True)
+    \"\"\", unsafe_allow_html=True)
     
     c1, c2 = st.columns([3, 1])
     with c1:
@@ -1048,3 +1066,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+"""
+with open("app_web.py", "w", encoding="utf-8") as f:
+    f.write(code)
+print("app_web.py created successfully")
