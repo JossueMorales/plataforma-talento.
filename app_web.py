@@ -964,12 +964,12 @@ def main():
 
     with st.spinner("Cargando mapa con conexiones lógicas y datos de PDI..."):
         
-        # EL ROBOT SOLO NECESITA EL LINK PRINCIPAL DEL ARCHIVO
-        link_archivo = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k"
+        # Le damos el ID directo para que el Robot sea infalible y no se rompa con URLs
+        id_archivo = "125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k"
         
-        # LE DECIMOS AL ROBOT EXACTAMENTE QUÉ PESTAÑAS LEER
-        df_completo = cargar_datos_csv(link_archivo, "Base de datos")
-        df_pdi = cargar_datos_csv(link_archivo, "PDI")
+        # Le decimos al robot exactamente qué pestañas leer usando el ID
+        df_completo = cargar_datos_csv(id_archivo, "Base de datos")
+        df_pdi = cargar_datos_csv(id_archivo, "PDI")
         
         if df_completo.empty:
             st.error("Error al conectar con la base de datos de Google Sheets principal. Revisa el mensaje técnico arriba.")
