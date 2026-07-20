@@ -5,6 +5,7 @@ from pyvis.network import Network
 import math
 import streamlit.components.v1 as components
 import re
+from streamlit_gsheets import GSheetsConnection
 
 # ==========================================
 # CONSTANTES DE PLANTILLAS (HTML / JS)
@@ -370,24 +371,22 @@ def login():
     return True
 
 # ==========================================
-# DESCARGA DE DATOS OPTIMIZADA CON CACHÉ
+# DESCARGA DE DATOS SEGURA CON CONECTOR GSHEETS
 # ==========================================
 @st.cache_data(ttl=600, show_spinner=False)
-def cargar_datos_csv(url_sheets):
-    import re
-    if "/edit" in url_sheets:
-        base = url_sheets.split("/edit")[0]
-        match = re.search(r'[#&?]gid=(\d+)', url_sheets)
-        gid = match.group(1) if match else "0"
-        csv_url = f"{base}/export?format=csv&gid={gid}"
-    else:
-        csv_url = url_sheets
-        
+def cargar_datos_csv(url_sheets, nombre_pestana):
     try:
-        df = pd.read_csv(csv_url)
+        # Usamos la conexión oficial segura configurada en secrets.toml
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        
+        # Lee directamente el enlace usando las credenciales privadas y la pestaña correcta
+        df = conn.read(spreadsheet=url_sheets, worksheet=nombre_pestana)
+        
+        # Limpiamos los nombres de las columnas
         df.columns = [str(col).strip() for col in df.columns]
         return df
-    except Exception:
+    except Exception as e:
+        st.error(f"🤖 Error técnico del Robot: {e}")
         return pd.DataFrame()
 
 def clean_text(val, default=''):
@@ -964,16 +963,16 @@ def main():
     st.divider()
 
     with st.spinner("Cargando mapa con conexiones lógicas y datos de PDI..."):
-        # URL BASE
-        link_base = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit?gid=0#gid=0"
-        # URL PDI
-        link_pdi = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit?gid=1343487892#gid=1343487892"
         
-        df_completo = cargar_datos_csv(link_base)
-        df_pdi = cargar_datos_csv(link_pdi)
+        # EL ROBOT SOLO NECESITA EL LINK PRINCIPAL DEL ARCHIVO
+        link_archivo = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k"
+        
+        # LE DECIMOS AL ROBOT EXACTAMENTE QUÉ PESTAÑAS LEER
+        df_completo = cargar_datos_csv(link_archivo, "Base de datos")
+        df_pdi = cargar_datos_csv(link_archivo, "PDI")
         
         if df_completo.empty:
-            st.error("Error al conectar con la base de datos de Google Sheets principal.")
+            st.error("Error al conectar con la base de datos de Google Sheets principal. Revisa el mensaje técnico arriba.")
             st.stop()
 
         usuarios_autorizados = obtener_usuarios_autorizados()
