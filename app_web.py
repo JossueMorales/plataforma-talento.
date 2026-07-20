@@ -5,7 +5,8 @@ from pyvis.network import Network
 import math
 import streamlit.components.v1 as components
 import re
-from streamlit_gsheets import GSheetsConnection
+import gspread
+from google.oauth2.service_account import Credentials
 
 # ==========================================
 # CONSTANTES DE PLANTILLAS (HTML / JS)
@@ -371,20 +372,39 @@ def login():
     return True
 
 # ==========================================
-# DESCARGA DE DATOS SEGURA CON CONECTOR GSHEETS
+# DESCARGA DIRECTA Y SEGURA CON GSPREAD
 # ==========================================
 @st.cache_data(ttl=600, show_spinner=False)
 def cargar_datos_csv(url_sheets, nombre_pestana):
     try:
-        # Usamos la conexión oficial segura configurada en secrets.toml
-        conn = st.connection("gsheets", type=GSheetsConnection)
+        # 1. Autenticar usando directamente los secretos de la nube
+        secretos = st.secrets["connections"]["gsheets"]
+        credenciales = Credentials.from_service_account_info(
+            secretos,
+            scopes=[
+                "https://www.googleapis.com/auth/spreadsheets",
+                "https://www.googleapis.com/auth/drive"
+            ]
+        )
+        cliente = gspread.authorize(credenciales)
         
-        # Lee directamente el enlace usando las credenciales privadas y la pestaña correcta
-        df = conn.read(spreadsheet=url_sheets, worksheet=nombre_pestana)
+        # 2. Extraer el ID exacto del enlace
+        match = re.search(r'/d/([a-zA-Z0-9-_]+)', url_sheets)
+        doc_id = match.group(1) if match else url_sheets
         
-        # Limpiamos los nombres de las columnas
+        # 3. Abrir el archivo y la pestaña
+        archivo = cliente.open_by_key(doc_id)
+        pestana = archivo.worksheet(nombre_pestana)
+        datos = pestana.get_all_records()
+        
+        # 4. Convertir a datos de lectura rápida (DataFrame)
+        df = pd.DataFrame(datos)
         df.columns = [str(col).strip() for col in df.columns]
         return df
+        
+    except KeyError:
+        st.error("🤖 Error: No se encontraron los secretos en la nube. Revisa que el cuadro negro de 'Secrets' empiece exactamente con [connections.gsheets]")
+        return pd.DataFrame()
     except Exception as e:
         st.error(f"🤖 Error técnico del Robot: {e}")
         return pd.DataFrame()
@@ -964,12 +984,11 @@ def main():
 
     with st.spinner("Cargando mapa con conexiones lógicas y datos de PDI..."):
         
-        # Le damos el ID directo para que el Robot sea infalible y no se rompa con URLs
-        id_archivo = "125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k"
+        # Link del archivo
+        link_archivo = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit"
         
-        # Le decimos al robot exactamente qué pestañas leer usando el ID
-        df_completo = cargar_datos_csv(id_archivo, "Base de datos")
-        df_pdi = cargar_datos_csv(id_archivo, "PDI")
+        df_completo = cargar_datos_csv(link_archivo, "Base de datos")
+        df_pdi = cargar_datos_csv(link_archivo, "PDI")
         
         if df_completo.empty:
             st.error("Error al conectar con la base de datos de Google Sheets principal. Revisa el mensaje técnico arriba.")
