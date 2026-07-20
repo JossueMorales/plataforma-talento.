@@ -327,9 +327,20 @@ def crear_tarjeta_kpi(titulo, valor, color_borde, color_texto, color_fondo):
     """
 
 def get_col(row, possible_names):
+    """Busca dinámicamente el valor de una columna en un diccionario según posibles nombres."""
+    # Búsqueda exacta (ignorando mayúsculas/minúsculas)
     for k in row.keys():
         if str(k).strip().lower() in [n.lower() for n in possible_names]:
-            return row[k]
+            val = row[k]
+            return "" if pd.isna(val) or str(val).lower() == 'nan' else str(val).strip()
+    
+    # Búsqueda parcial (si el nombre de la columna contiene la palabra clave)
+    for k in row.keys():
+        k_lower = str(k).strip().lower()
+        for n in possible_names:
+            if n.lower() in k_lower:
+                val = row[k]
+                return "" if pd.isna(val) or str(val).lower() == 'nan' else str(val).strip()
     return ""
 
 # ==========================================
@@ -379,7 +390,7 @@ def login():
 # ==========================================
 @st.cache_data(ttl=600, show_spinner=False)
 def cargar_datos_csv(url_sheets):
-    # CORRECCIÓN VITAL: Respetar el gid de las pestañas en Google Sheets
+    # Respetar el ID exacto de la pestaña (gid) de Google Sheets
     if "docs.google.com" in url_sheets and "/edit" in url_sheets:
         base = url_sheets.split("/edit")[0]
         gid = "0"
@@ -440,12 +451,20 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
     empleados_validos = set()
     info_nodos = {}
     
-    # 1. Preparar Diccionario de PDI (Corregido para ser más flexible)
+    # 1. Preparar Diccionario de PDI usando el No. Nómina como llave maestra
     pdi_records = df_pdi.to_dict('records')
+    pdi_by_id = {}
     pdi_by_name = {}
+    
     for row in pdi_records:
-        nom_raw = get_col(row, ["Nombre", "Colaborador", "Empleado", "Nombre Completo"])
-        nom = clean_text(nom_raw).upper()
+        emp_id = clean_id(get_col(row, ["Nomina", "Nómina", "Id Empleado", "ID"]))
+        nom = clean_text(get_col(row, ["Nombre", "Colaborador"])).upper()
+        
+        if emp_id:
+            if emp_id not in pdi_by_id:
+                pdi_by_id[emp_id] = []
+            pdi_by_id[emp_id].append(row)
+            
         if nom:
             if nom not in pdi_by_name:
                 pdi_by_name[nom] = []
@@ -602,10 +621,11 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
                 elif 2.0 <= eng_area < 3.0:
                     r_list.append("⚠️ Alerta de Área: Bajo Enganche del Equipo")
             
-            if nom_upper not in pdi_by_name:
+            # CRUCE INTELIGENTE CON PDI
+            pdis_colab = pdi_by_id.get(emp) or pdi_by_name.get(nom_upper)
+            if not pdis_colab:
                 r_list.append("⚠️ Alerta de Desarrollo: Sin PDI registrado")
             else:
-                pdis_colab = pdi_by_name[nom_upper]
                 for p in pdis_colab:
                     estatus = get_col(p, ["Estatus", "Status", "Estado"]).lower()
                     if 'atrasad' in estatus or 'vencid' in estatus:
@@ -781,17 +801,19 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
             data_total.append(nodo_data)
             
             nom_upper = info['nombre'].upper()
-            if nom_upper in pdi_by_name:
-                for p in pdi_by_name[nom_upper]:
+            pdis_colab = pdi_by_id.get(emp) or pdi_by_name.get(nom_upper)
+            
+            if pdis_colab:
+                for p in pdis_colab:
                     data_pdi_tabla.append({
                         "Nombre": info['nombre'],
                         "Posición": info['puesto'],
                         "Dirección": info['direccion'],
-                        "Objetivo": get_col(p, ["Objetivo", "Objetivos"]),
+                        "Objetivo": get_col(p, ["Objetivo a Desar", "Objetivo", "Objetivos"]),
                         "PDI": get_col(p, ["PDI", "Plan de Desarrollo"]),
-                        "Clasificación": get_col(p, ["Clasificacion", "Clasificación"]),
-                        "Qué? / Acciones de Desarrollo": get_col(p, ["Qué? / Acciones de Desarrollo", "Que?", "Acciones de Desarrollo", "Acciones"]),
-                        "% de Avance": get_col(p, ["% de Avance", "Avance", "Porcentaje de Avance"]),
+                        "Clasificación": get_col(p, ["Clasificacion de", "Clasificacion", "Clasificación"]),
+                        "Qué? / Acciones de Desarrollo": get_col(p, ["Qué? / Acciones", "Qué?", "Que?", "Acciones de Desarrollo", "Acciones"]),
+                        "% de Avance": get_col(p, ["% de Avance", "Avance", "Porcentaje"]),
                         "Estatus": get_col(p, ["Estatus", "Status", "Estado"])
                     })
             
@@ -901,16 +923,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
                 is_hidden_edge = (emp not in nodos_visibles or s_id not in nodos_visibles)
                 G.add_edge(emp, s_id, color='#9c27b0', width=5, dashes=False, title='🎯 Objetivo de Sucesión', hidden=is_hidden_edge, is_struct=False, is_9box=False, is_succ=True, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.6})
 
-    data_alertas = [
-        {
-            "Nombre": a['Colaborador'], 
-            "Dirección": a['Dirección'], 
-            "Puesto": a['Puesto'],
-            "Alerta": a['Alerta Detectada por IA']
-        } 
-        for a in alertas_tabla
-    ]
-    
     eng_total_sum = sum(info_nodos[n]['enganche_ind'] for n in nodos_visibles if info_nodos[n]['enganche_ind'] > 0)
     eng_total_count = sum(1 for n in nodos_visibles if info_nodos[n]['enganche_ind'] > 0)
     avg_enganche = round(eng_total_sum / eng_total_count, 1) if eng_total_count > 0 else 0.0
@@ -1003,7 +1015,7 @@ def main():
         # 1. ENLACE DE LA HOJA PRINCIPAL
         link_google_sheets = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit?pli=1&gid=0#gid=0"
         
-        # 2. ENLACE DE LA PESTAÑA PDI (Reemplaza este texto por tu URL real)
+        # 2. ENLACE DE LA PESTAÑA PDI (Pega el link de Google Sheets de la pestaña PDI aquí abajo)
         link_google_sheets_pdi = "PON_AQUI_EL_LINK_DE_TU_HOJA_DE_PDI"
         
         df_completo = cargar_datos_csv(link_google_sheets)
@@ -1012,6 +1024,9 @@ def main():
         if df_completo.empty:
             st.error("Error al conectar con la base de datos principal de Google Sheets.")
             st.stop()
+            
+        if df_pdi.empty:
+            st.warning("⚠️ No se pudo cargar la pestaña de PDI. Revisa que el enlace de 'link_google_sheets_pdi' sea correcto.")
 
         usuarios_autorizados = obtener_usuarios_autorizados()
         direccion_permitida = usuarios_autorizados[st.session_state["id_usuario"]]["direccion"]
