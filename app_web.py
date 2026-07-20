@@ -4,6 +4,7 @@ import networkx as nx
 from pyvis.network import Network
 import math
 import streamlit.components.v1 as components
+import re
 
 # ==========================================
 # CONSTANTES DE PLANTILLAS (HTML / JS)
@@ -373,10 +374,16 @@ def login():
 # ==========================================
 @st.cache_data(ttl=600, show_spinner=False)
 def cargar_datos_csv(url_sheets):
+    import re
     if "/edit" in url_sheets:
-        csv_url = url_sheets.split("/edit")[0] + "/export?format=csv"
+        base = url_sheets.split("/edit")[0]
+        # Extraemos el GID para mantener la pestaña correcta
+        match = re.search(r'[#&?]gid=(\d+)', url_sheets)
+        gid = match.group(1) if match else "0"
+        csv_url = f"{base}/export?format=csv&gid={gid}"
     else:
         csv_url = url_sheets
+        
     try:
         df = pd.read_csv(csv_url)
         df.columns = [str(col).strip() for col in df.columns]
@@ -420,7 +427,7 @@ def acortar_nombre(nombre_completo):
 # ==========================================
 # MOTOR PRINCIPAL
 # ==========================================
-def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
+def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     G = nx.MultiDiGraph()
     G_jerarquia = nx.DiGraph() 
 
@@ -545,6 +552,11 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             if s_id in sucesores_oficiales_de:
                 sucesores_oficiales_de[s_id] += 1
 
+    # Nombres de las personas que SI tienen PDI
+    nombres_con_pdi = set()
+    if not df_pdi.empty and 'Nombre' in df_pdi.columns:
+        nombres_con_pdi = set(df_pdi['Nombre'].dropna().astype(str).str.strip().str.lower())
+
     for emp, info in info_nodos.items():
         r_list = []
         
@@ -577,6 +589,10 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                     r_list.append("🚨 Riesgo de Área: Equipo Desconectado")
                 elif 2.0 <= eng_area < 3.0:
                     r_list.append("⚠️ Alerta de Área: Bajo Enganche del Equipo")
+
+            # INTEGRACIÓN: Riesgo de PDI
+            if info['nombre'].strip().lower() not in nombres_con_pdi:
+                r_list.append("⚠️ Sin PDI: No tiene Plan de Desarrollo Individual")
                 
         info_nodos[emp]['riesgos_lista'] = r_list
         info_nodos[emp]['riesgos'] = " | ".join(r_list) if r_list else "Ninguno"
@@ -644,7 +660,6 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                 return int(val) if val.isdigit() else 0
             nodo_central_id = max(candidatos, key=mla_val)
 
-    # NUEVO: Lógica de redimensionamiento dinámico
     nodos_activos = set(nodos_visibles)
     if raiz_principal and raiz_principal in G_jerarquia:
         for v in nodos_visibles:
@@ -949,12 +964,17 @@ def main():
             
     st.divider()
 
-    with st.spinner("Cargando mapa con conexiones lógicas..."):
-        link_google_sheets = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit?pli=1&gid=0#gid=0"
-        df_completo = cargar_datos_csv(link_google_sheets)
+    with st.spinner("Cargando mapa con conexiones lógicas y datos de PDI..."):
+        # URL BASE
+        link_base = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit?gid=0#gid=0"
+        # URL PDI
+        link_pdi = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit?gid=1343487892#gid=1343487892"
+        
+        df_completo = cargar_datos_csv(link_base)
+        df_pdi = cargar_datos_csv(link_pdi)
         
         if df_completo.empty:
-            st.error("Error al conectar con la base de datos de Google Sheets.")
+            st.error("Error al conectar con la base de datos de Google Sheets principal.")
             st.stop()
 
         usuarios_autorizados = obtener_usuarios_autorizados()
@@ -965,7 +985,7 @@ def main():
         else:
             df_seguro = df_completo.copy()
 
-        st.markdown("### 🎛️ Filtros Globales (Controlan Mapa, KPIs y Tabla)")
+        st.markdown("### 🎛️ Filtros Globales (Controlan Mapa, KPIs y Tablas)")
         
         dirs = sorted([clean_text(x) for x in df_seguro['Dirección'].unique() if clean_text(x)])
         mlas = sorted([clean_text(x) for x in df_seguro['Nivel MLA'].unique() if clean_text(x)])
@@ -990,10 +1010,11 @@ def main():
         f_mla = col_f4.selectbox("Nivel MLA", ["Todos"] + mlas)
         f_box = col_f5.selectbox("9-Box", ["Todos"] + boxes)
         
-        f_riesgos = st.checkbox("🚨 Mostrar Solo Colaboradores con Riesgos Detectados")
+        f_riesgos = st.checkbox("🚨 Mostrar Solo Colaboradores con Riesgos Detectados (Incluye riesgo PDI)")
         st.write("") 
 
-        html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos)
+        # SE PASA df_pdi A LA FUNCIÓN PARA CALCULAR LA ALERTA DE PDI
+        html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos)
         
         if kpis is not None:
             col_mapa, col_datos = st.columns([7, 3])
@@ -1057,31 +1078,64 @@ def main():
                         st.rerun()
             
             st.divider()
-            st.markdown("### 🚨 Resumen de Tareas y Alertas (Filtrable)")
             
-            if not df_alertas.empty:
-                col_t1, col_t2, col_t3 = st.columns(3)
+            # ==========================================
+            # INTEGRACIÓN: NUEVA TABLA AVANCE PDI
+            # ==========================================
+            st.markdown("### 📈 Avance de PDI (Integrado)")
+            
+            if not df_pdi.empty:
+                # Filtrar la tabla de PDI para mostrar SÓLO a las personas que actualmente están filtradas y visibles
+                nombres_visibles = [d['Nombre'] for d in kpis['data_total']]
+                df_pdi_filtrado = df_pdi[df_pdi['Nombre'].isin(nombres_visibles)].copy()
                 
-                lista_areas = df_alertas['Dirección'].unique().tolist()
-                filtro_area = col_t1.multiselect("📌 Filtrar Tabla por Área:", options=lista_areas)
+                # Definir las columnas a extraer basadas en lo que solicitaste
+                columnas_deseadas = {
+                    "Nombre": "Nombre",
+                    "Posicion": "Posicion", 
+                    "Dirección actual": "Dirección", 
+                    "Objetivo a Desar": "Objetivo", 
+                    "PDI": "PDI", 
+                    "Clasificacion de": "Clasificacion",
+                    "Qué? / Acciones de Desarrollo": "Qué? / Acciones de Desarrollo", 
+                    "% de Avance": "% de Avance", 
+                    "Estatus": "Estatus"
+                }
                 
-                lista_lideres_tabla = df_alertas['Líder Directo'].unique().tolist()
-                filtro_lider_tabla = col_t2.multiselect("👥 Filtrar Tabla por Líder:", options=lista_lideres_tabla)
+                cols_reales = []
+                nombres_finales = []
+                for col_orig, nombre_nuevo in columnas_deseadas.items():
+                    # Buscar la columna que contenga la palabra (por si hay variaciones en el nombre)
+                    col_match = next((c for c in df_pdi_filtrado.columns if col_orig.lower() in str(c).lower()), None)
+                    if col_match:
+                        cols_reales.append(col_match)
+                        nombres_finales.append(nombre_nuevo)
                 
-                lista_riesgos = df_alertas['Alerta Detectada por IA'].unique().tolist()
-                filtro_riesgo_tabla = col_t3.multiselect("⚠️ Filtrar por Tipo de Alerta:", options=lista_riesgos)
-                
-                df_filtrado = df_alertas.copy()
-                if filtro_area: 
-                    df_filtrado = df_filtrado[df_filtrado['Dirección'].isin(filtro_area)]
-                if filtro_lider_tabla: 
-                    df_filtrado = df_filtrado[df_filtrado['Líder Directo'].isin(filtro_lider_tabla)]
-                if filtro_riesgo_tabla: 
-                    df_filtrado = df_filtrado[df_filtrado['Alerta Detectada por IA'].isin(filtro_riesgo_tabla)]
-                
-                st.dataframe(df_filtrado, use_container_width=True, hide_index=True)
+                if cols_reales:
+                    df_pdi_mostrar = df_pdi_filtrado[cols_reales].copy()
+                    df_pdi_mostrar.columns = nombres_finales
+                    
+                    # Añadir filtros rápidos específicos para esta tabla
+                    col_p1, col_p2 = st.columns(2)
+                    
+                    if "Dirección" in df_pdi_mostrar.columns:
+                        lista_areas_pdi = df_pdi_mostrar['Dirección'].dropna().unique().tolist()
+                        filtro_area_pdi = col_p1.multiselect("📌 Filtrar Tabla por Dirección:", options=lista_areas_pdi)
+                        if filtro_area_pdi:
+                            df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Dirección'].isin(filtro_area_pdi)]
+                            
+                    if "Estatus" in df_pdi_mostrar.columns:
+                        lista_estatus_pdi = df_pdi_mostrar['Estatus'].dropna().unique().tolist()
+                        filtro_estatus = col_p2.multiselect("🚦 Filtrar por Estatus:", options=lista_estatus_pdi)
+                        if filtro_estatus:
+                            df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Estatus'].isin(filtro_estatus)]
+                    
+                    st.dataframe(df_pdi_mostrar, use_container_width=True, hide_index=True)
+                else:
+                    st.warning("⚠️ No se encontraron las columnas especificadas en la hoja PDI. Revisa los nombres de las columnas en tu Excel.")
             else:
-                st.success("✅ ¡Excelente! No se detectaron alertas de sucesión ni sobrecarga de reportes con estos filtros.")
+                st.warning("⚠️ No se pudo cargar la información de la pestaña PDI (O está vacía).")
+
         else:
             components.html(html_mapa, height=400)
 
