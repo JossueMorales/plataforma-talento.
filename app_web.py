@@ -644,6 +644,16 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
                 return int(val) if val.isdigit() else 0
             nodo_central_id = max(candidatos, key=mla_val)
 
+    # NUEVO: Lógica de redimensionamiento dinámico
+    nodos_activos = set(nodos_visibles)
+    if raiz_principal and raiz_principal in G_jerarquia:
+        for v in nodos_visibles:
+            if v in G_jerarquia:
+                try:
+                    nodos_activos.update(nx.ancestors(G_jerarquia, v))
+                except nx.NetworkXError:
+                    pass
+
     Arbol = nx.bfs_tree(G_jerarquia, raiz_principal) if raiz_principal else G_jerarquia
 
     def obtener_anillo_estricto(emp_id, depth_arbol):
@@ -659,11 +669,14 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     conteo_hojas = {}
     
     def calcular_hojas(n):
-        hijos = list(Arbol.successors(n))
+        hijos = [c for c in Arbol.successors(n) if c in nodos_activos]
         if not hijos:
-            conteo_hojas[n] = 1
-            return 1
+            val = 1 if n in nodos_visibles else 0
+            conteo_hojas[n] = val
+            return val
         total = sum(calcular_hojas(c) for c in hijos)
+        if total == 0 and n in nodos_visibles:
+            total = 1
         conteo_hojas[n] = total
         return total
 
@@ -672,13 +685,19 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
 
     coords = {}
     def asignar_coordenada_radial(nodo, angulo_inicio, angulo_fin):
-        hijos = list(Arbol.successors(nodo))
+        hijos = [c for c in Arbol.successors(nodo) if c in nodos_activos]
         if not hijos: 
             return
-        hojas_totales = sum(conteo_hojas.get(c, 1) for c in hijos)
+        hojas_totales = sum(conteo_hojas.get(c, 0) for c in hijos)
+        if hojas_totales == 0: 
+            return
+            
         angulo_actual = angulo_inicio
         for i, c in enumerate(hijos):
-            rebanada = (conteo_hojas.get(c, 1) / hojas_totales) * (angulo_fin - angulo_inicio)
+            peso = conteo_hojas.get(c, 0)
+            if peso == 0:
+                continue
+            rebanada = (peso / hojas_totales) * (angulo_fin - angulo_inicio)
             angulo_hijo = angulo_actual + (rebanada / 2)
             profundidad = nx.shortest_path_length(Arbol, raiz_principal, c) if raiz_principal and c in Arbol else 5
             anillo_real = obtener_anillo_estricto(c, profundidad)
@@ -699,7 +718,7 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         coords[raiz_principal] = {'x': 0, 'y': 0, 'angle': 0, 'anillo_real': 0, 'profundidad': 0}
         asignar_coordenada_radial(raiz_principal, 0, 2 * math.pi)
 
-    nodos_sin_coords = [n for n in G_jerarquia.nodes() if n not in coords]
+    nodos_sin_coords = [n for n in G_jerarquia.nodes() if n not in coords and n in nodos_visibles]
     if nodos_sin_coords:
         angulo_extra = (2 * math.pi) / len(nodos_sin_coords)
         angulo_actual = 0
@@ -779,10 +798,12 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
             color_sombreado = 'rgba(220, 38, 38, 0.8)' 
         else:
             color_sombreado = 'rgba(0, 0, 0, 0.2)' 
+            
+        label_texto = f"{prefijo}{nombre_corto}\n({info['puesto']})"
         
         G.add_node(
             emp, 
-            label=f"{prefijo}{nombre_corto}\n({info['puesto']})", 
+            label=label_texto, 
             title=f"<div style='padding: 5px; text-align: center;'><b>{prefijo}{info['nombre']}</b><br><small>{info['puesto']}</small></div>", 
             size=28 if emp == raiz_principal else 18, 
             color=obtener_color_9box(info['box']), 
