@@ -68,9 +68,10 @@ BOTON_HTML = """
         <div><span style="font-size: 12px; color: #777; font-weight: bold;">LÍDER DIRECTO</span><br><span id="fLider" style="font-size: 14px; color: #333;">-</span></div>
         <div><span style="font-size: 12px; color: #777; font-weight: bold;">DIRECCIÓN</span><br><span id="fDireccion" style="font-size: 14px; color: #333;">-</span></div>
         <div><span style="font-size: 12px; color: #777; font-weight: bold;">POSICIÓN CRÍTICA</span><br><span id="fCritica" style="font-size: 14px; color: #333;">-</span></div>
-        <div style="display: flex; gap: 15px;">
-            <div><span style="font-size: 12px; color: #777; font-weight: bold;">NIVEL MLA</span><br><span id="fMLA" style="font-size: 16px; font-weight: bold; color: #1976d2;">-</span></div>
-            <div><span style="font-size: 12px; color: #777; font-weight: bold;">9-BOX</span><br><span id="f9Box" style="display: inline-block; padding: 2px 10px; border-radius: 12px; background: #eee; font-size: 14px; font-weight: bold; color: #333; margin-top: 2px;">-</span></div>
+        <div style="display: flex; gap: 10px;">
+            <div><span style="font-size: 11px; color: #777; font-weight: bold;">NIVEL MLA</span><br><span id="fMLA" style="font-size: 15px; font-weight: bold; color: #1976d2;">-</span></div>
+            <div><span style="font-size: 11px; color: #777; font-weight: bold;">9-BOX</span><br><span id="f9Box" style="display: inline-block; padding: 2px 8px; border-radius: 12px; background: #eee; font-size: 13px; font-weight: bold; color: #333;">-</span></div>
+            <div><span style="font-size: 11px; color: #777; font-weight: bold;">EDR</span><br><span id="fEDR" style="display: inline-block; padding: 2px 8px; border-radius: 12px; background: #e0f2fe; font-size: 12px; font-weight: bold; color: #0369a1;">-</span></div>
         </div>
         
         <hr style="border: 0; border-top: 2px dashed #ddd; margin: 5px 0;">
@@ -195,6 +196,7 @@ network.on("click", function (params) {
         document.getElementById('fDireccion').innerText = node.Direccion || "N/A";
         document.getElementById('fCritica').innerText = node.Critica || "N/A";
         document.getElementById('fMLA').innerText = node.Nivel_MLA || "N/A";
+        document.getElementById('fEDR').innerText = node.EDR || "Pendiente";
         document.getElementById('fRiesgos').innerText = node.Riesgos || "Ninguno";
         document.getElementById('fInteres').innerText = node.Interes || "Pendiente";
         
@@ -446,7 +448,7 @@ def acortar_nombre(nombre_completo):
 # ==========================================
 # MOTOR PRINCIPAL
 # ==========================================
-def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
+def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_edr, f_riesgos):
     G = nx.MultiDiGraph()
     G_jerarquia = nx.DiGraph() 
 
@@ -504,11 +506,15 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
             suc2_limpio = buscar_id_real(row_dict.get('Sucesor P.2', row_dict.get('Sucesor 2', '')))
             suc3_limpio = buscar_id_real(row_dict.get('Sucesor P.3', row_dict.get('Sucesor 3', '')))
             
+            # Lectura de la variable EDR (Columna P)
+            edr_val = clean_text(row_dict.get('EDR', row_dict.get('EDR ')), 'Pendiente')
+            
             info_nodos[emp] = {
                 'mla': clean_text(row_dict.get('Nivel MLA'), 'N/A'),
                 'puesto': clean_text(row_dict.get('Nombre de la Posición')).upper(),
                 'direccion': clean_text(row_dict.get('Dirección', row_dict.get('Direccion')), 'No asignada'),
                 'box': clean_text(row_dict.get('Resultado 9 box'), 'Pendiente'),
+                'edr': edr_val,
                 'lider': nombres_dict.get(jefe, 'Sin Líder') if jefe else 'Sin Líder',
                 'critica': clean_text(row_dict.get('Posición Crítica', row_dict.get('Posicion Critica')), 'No'),
                 'nombre': clean_text(row_dict.get('Nombre')),
@@ -617,6 +623,13 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
                 elif 2.0 <= eng_area < 3.0:
                     r_list.append("⚠️ Alerta de Área: Bajo Enganche del Equipo")
 
+            # Nueva Alerta por desempeño EDR bajo
+            edr_txt = info['edr'].lower()
+            if '1.resultado inaceptable' in edr_txt or 'inaceptable' in edr_txt:
+                r_list.append("🚨 EDR Crítico: Resultado Inaceptable")
+            elif '2.resultado necesita mejorar' in edr_txt or 'necesita mejorar' in edr_txt:
+                r_list.append("⚠️ EDR Bajo: Necesita Mejorar")
+
             if info['nombre'].strip().lower() not in nombres_con_pdi:
                 r_list.append("⚠️ Sin PDI: No tiene Plan de Desarrollo Individual")
                 
@@ -649,6 +662,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
         if f_crit != "Todas" and info['critica'] != f_crit: continue
         if f_mla != "Todos" and info['mla'] != f_mla: continue
         if f_box != "Todos" and info['box'] != f_box: continue
+        if f_edr != "Todos" and info['edr'] != f_edr: continue
         if f_riesgos and not info['riesgos_lista']: continue
         
         nodos_visibles.add(emp)
@@ -852,7 +866,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
             color=obtener_color_9box(info['box']), 
             shadow={'enabled': True, 'color': color_sombreado, 'size': 25, 'x': 0, 'y': 0}, 
             shape='dot', group=info['mla'], 
-            Nivel_MLA=info['mla'], Resultado_9Box=info['box'], Direccion=info['direccion'], Lider=info['lider'], 
+            Nivel_MLA=info['mla'], Resultado_9Box=info['box'], EDR=info['edr'], Direccion=info['direccion'], Lider=info['lider'], 
             Critica=info['critica'], Nombre=info['nombre'], Puesto=info['puesto'], Riesgos=info['riesgos'], Interes=info['interes'], 
             NomSuc1=nom_suc1, Read1=info['read1'], NomSuc2=nom_suc2, Read2=info['read2'], NomSuc3=nom_suc3, Read3=info['read3'],
             Eng_Ind=info['enganche_ind'], Eng_Area=info['enganche_area'], Es_Lider=info['es_lider'],
@@ -998,7 +1012,11 @@ def main():
         boxes = sorted([clean_text(x).upper() for x in df_seguro['Resultado 9 box'].unique() if clean_text(x)])
         criticas = sorted([clean_text(x) for x in df_seguro['Posición Crítica'].unique() if clean_text(x)])
         
-        col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns(5)
+        # Filtro único de EDR
+        edrs_col = 'EDR' if 'EDR' in df_seguro.columns else ('EDR ' if 'EDR ' in df_seguro.columns else None)
+        edrs = sorted([clean_text(x) for x in df_seguro[edrs_col].unique() if clean_text(x)]) if edrs_col else []
+        
+        col_f1, col_f2, col_f3, col_f4, col_f5, col_f6 = st.columns(6)
         
         f_dir = col_f1.selectbox("Dirección", ["Todas"] + dirs)
         
@@ -1015,11 +1033,12 @@ def main():
         f_crit = col_f3.selectbox("Pos. Crítica", ["Todas"] + criticas)
         f_mla = col_f4.selectbox("Nivel MLA", ["Todos"] + mlas)
         f_box = col_f5.selectbox("9-Box", ["Todos"] + boxes)
+        f_edr = col_f6.selectbox("EDR (Resultados)", ["Todos"] + edrs)
         
-        f_riesgos = st.checkbox("🚨 Mostrar Solo Colaboradores con Riesgos Detectados (Incluye riesgo PDI)")
+        f_riesgos = st.checkbox("🚨 Mostrar Solo Colaboradores con Riesgos Detectados (Incluye riesgo PDI y EDR)")
         st.write("") 
 
-        html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos)
+        html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_edr, f_riesgos)
         
         if kpis is not None:
             col_mapa, col_datos = st.columns([7, 3])
@@ -1090,7 +1109,6 @@ def main():
             st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
             st.markdown("Usa este panel para asignar o modificar los sucesores. **Los cambios se guardarán automáticamente en tu Excel** y el mapa se actualizará al instante.")
             
-            # 1. Aplicar la misma lógica de los Filtros Globales de arriba para filtrar las posiciones
             df_posiciones_filtradas = df_seguro.copy()
             if f_dir != "Todas":
                 df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Dirección'].apply(clean_text) == f_dir]
@@ -1100,8 +1118,9 @@ def main():
                 df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Nivel MLA'].apply(clean_text) == f_mla]
             if f_box != "Todos":
                 df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Resultado 9 box'].apply(clean_text).str.upper() == f_box]
+            if f_edr != "Todos" and edrs_col:
+                df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas[edrs_col].apply(clean_text) == f_edr]
                 
-            # 2. Generar lista limpia SOLO con el Nombre de la Posición
             posiciones_opciones = []
             mapa_indices = {}
             
@@ -1118,12 +1137,11 @@ def main():
                 idx_pandas = mapa_indices[pos_seleccionada]
                 info_pos = df_seguro.loc[idx_pandas]
                 
-                # Cargar el ocupante actual y dirección para mostrarlos como dato inferior
                 ocupante_actual = clean_text(info_pos.get('Nombre'), 'Vacante / Sin asignar')
                 direccion_pos = clean_text(info_pos.get('Dirección'), 'No asignada')
+                edr_pos = clean_text(info_pos.get('EDR', info_pos.get('EDR ')), 'Pendiente')
                 
-                # Tarjeta informativa del puesto seleccionado
-                st.info(f"📌 **Posición:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual} | 🏢 **Dirección:** {direccion_pos}")
+                st.info(f"📌 **Posición:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual} | 🏢 **Dirección:** {direccion_pos} | 📊 **EDR Actual:** {edr_pos}")
                 
                 nombres_empleados = sorted([clean_text(n) for n in df_completo['Nombre'].dropna().unique() if clean_text(n)])
                 opciones_sucesores = ["Pendiente"] + nombres_empleados
@@ -1198,7 +1216,7 @@ def main():
             st.divider()
             
             # ==========================================
-            # INTEGRACIÓN: NUEVA TABLA AVANCE PDI
+            # INTEGRACIÓN: TABLA AVANCE PDI
             # ==========================================
             st.markdown("### 📈 Avance de PDI (Integrado)")
             
