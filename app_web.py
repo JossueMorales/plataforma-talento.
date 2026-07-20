@@ -551,6 +551,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
             if s_id in sucesores_oficiales_de:
                 sucesores_oficiales_de[s_id] += 1
 
+    # Normalización de nombres de PDI para la alerta de IA
     nombres_con_pdi = set()
     if not df_pdi.empty and 'Nombre' in df_pdi.columns:
         nombres_con_pdi = set(df_pdi['Nombre'].dropna().astype(str).str.strip().str.lower())
@@ -588,6 +589,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
                 elif 2.0 <= eng_area < 3.0:
                     r_list.append("⚠️ Alerta de Área: Bajo Enganche del Equipo")
 
+            # Cruce inteligente y normalizado
             if info['nombre'].strip().lower() not in nombres_con_pdi:
                 r_list.append("⚠️ Sin PDI: No tiene Plan de Desarrollo Individual")
                 
@@ -1076,13 +1078,20 @@ def main():
             st.divider()
             
             # ==========================================
-            # INTEGRACIÓN: NUEVA TABLA AVANCE PDI CON 4 FILTROS
+            # INTEGRACIÓN: NUEVA TABLA AVANCE PDI CON 4 FILTROS Y NORMALIZACIÓN DE NOMBRES
             # ==========================================
             st.markdown("### 📈 Avance de PDI (Integrado)")
             
-            if not df_pdi.empty:
-                nombres_visibles = [d['Nombre'] for d in kpis['data_total']]
-                df_pdi_filtrado = df_pdi[df_pdi['Nombre'].isin(nombres_visibles)].copy()
+            if not df_pdi.empty and 'Nombre' in df_pdi.columns:
+                # 1. NORMALIZAMOS LOS NOMBRES PARA EVITAR ERRORES POR ESPACIOS O MAYÚSCULAS
+                nombres_visibles_limpios = [str(d['Nombre']).strip().lower() for d in kpis['data_total']]
+                
+                # 2. Hacemos una copia para cruzar los datos limpios
+                df_pdi_filtrado = df_pdi.copy()
+                df_pdi_filtrado['Nombre_Cruce'] = df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower()
+                
+                # 3. Filtramos la tabla PDI para mostrar a los que están en el mapa
+                df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre_Cruce'].isin(nombres_visibles_limpios)]
                 
                 columnas_deseadas = {
                     "Nombre": "Nombre",
@@ -1137,7 +1146,7 @@ def main():
                     
                     st.dataframe(df_pdi_mostrar, use_container_width=True, hide_index=True)
                 else:
-                    st.warning("⚠️ No se encontraron las columnas especificadas en la hoja PDI. Revisa los nombres de las columnas en tu Excel.")
+                    st.warning("⚠️ No se encontraron las columnas especificadas en la hoja PDI. Revisa los nombres en tu Excel.")
             else:
                 st.warning("⚠️ No se pudo cargar la información de la pestaña PDI (O está vacía).")
 
