@@ -185,7 +185,7 @@ function getColorEnganche(val) {
 network.on("click", function (params) {
     if (params.nodes.length > 0) {
         var nodeId = params.nodes[0]; var node = network.body.data.nodes.get(nodeId);
-        var cleanName = node.Nombre ? node.Nombre.replace("🚨 ", "").replace("⚠️ ", "") : "Desconocido";
+        var cleanName = node.Nombre ? node.Nombre.replace("🚨 ", "") : "Desconocido";
         document.getElementById('fNombre').innerText = cleanName;
         document.getElementById('fPuesto').innerText = node.Puesto || "Sin puesto asignado";
         document.getElementById('fLider').innerText = node.Lider || "N/A";
@@ -326,23 +326,6 @@ def crear_tarjeta_kpi(titulo, valor, color_borde, color_texto, color_fondo):
     </div>
     """
 
-def get_col(row, possible_names):
-    """Busca dinámicamente el valor de una columna en un diccionario según posibles nombres."""
-    # Búsqueda exacta (ignorando mayúsculas/minúsculas)
-    for k in row.keys():
-        if str(k).strip().lower() in [n.lower() for n in possible_names]:
-            val = row[k]
-            return "" if pd.isna(val) or str(val).lower() == 'nan' else str(val).strip()
-    
-    # Búsqueda parcial (si el nombre de la columna contiene la palabra clave)
-    for k in row.keys():
-        k_lower = str(k).strip().lower()
-        for n in possible_names:
-            if n.lower() in k_lower:
-                val = row[k]
-                return "" if pd.isna(val) or str(val).lower() == 'nan' else str(val).strip()
-    return ""
-
 # ==========================================
 # SISTEMA DE SEGURIDAD Y LOGIN
 # ==========================================
@@ -390,16 +373,10 @@ def login():
 # ==========================================
 @st.cache_data(ttl=600, show_spinner=False)
 def cargar_datos_csv(url_sheets):
-    # Respetar el ID exacto de la pestaña (gid) de Google Sheets
-    if "docs.google.com" in url_sheets and "/edit" in url_sheets:
-        base = url_sheets.split("/edit")[0]
-        gid = "0"
-        if "gid=" in url_sheets:
-            gid = url_sheets.split("gid=")[1].split("&")[0]
-        csv_url = f"{base}/export?format=csv&gid={gid}"
+    if "/edit" in url_sheets:
+        csv_url = url_sheets.split("/edit")[0] + "/export?format=csv"
     else:
         csv_url = url_sheets
-        
     try:
         df = pd.read_csv(csv_url)
         df.columns = [str(col).strip() for col in df.columns]
@@ -443,32 +420,13 @@ def acortar_nombre(nombre_completo):
 # ==========================================
 # MOTOR PRINCIPAL
 # ==========================================
-def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
+def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
     G = nx.MultiDiGraph()
     G_jerarquia = nx.DiGraph() 
 
     jefes_dict = {}
     empleados_validos = set()
     info_nodos = {}
-    
-    # 1. Preparar Diccionario de PDI usando el No. Nómina como llave maestra
-    pdi_records = df_pdi.to_dict('records')
-    pdi_by_id = {}
-    pdi_by_name = {}
-    
-    for row in pdi_records:
-        emp_id = clean_id(get_col(row, ["Nomina", "Nómina", "Id Empleado", "ID"]))
-        nom = clean_text(get_col(row, ["Nombre", "Colaborador"])).upper()
-        
-        if emp_id:
-            if emp_id not in pdi_by_id:
-                pdi_by_id[emp_id] = []
-            pdi_by_id[emp_id].append(row)
-            
-        if nom:
-            if nom not in pdi_by_name:
-                pdi_by_name[nom] = []
-            pdi_by_name[nom].append(row)
     
     nombres_dict = {
         clean_id(row.get('id Empleado')): clean_text(row.get('Nombre')) 
@@ -589,7 +547,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
 
     for emp, info in info_nodos.items():
         r_list = []
-        nom_upper = info['nombre'].upper()
         
         if info['mla'] != '5':
             es_critica = (info['critica'].lower() == 'si')
@@ -620,17 +577,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
                     r_list.append("🚨 Riesgo de Área: Equipo Desconectado")
                 elif 2.0 <= eng_area < 3.0:
                     r_list.append("⚠️ Alerta de Área: Bajo Enganche del Equipo")
-            
-            # CRUCE INTELIGENTE CON PDI
-            pdis_colab = pdi_by_id.get(emp) or pdi_by_name.get(nom_upper)
-            if not pdis_colab:
-                r_list.append("⚠️ Alerta de Desarrollo: Sin PDI registrado")
-            else:
-                for p in pdis_colab:
-                    estatus = get_col(p, ["Estatus", "Status", "Estado"]).lower()
-                    if 'atrasad' in estatus or 'vencid' in estatus:
-                        r_list.append("🚨 Riesgo PDI: Acciones de desarrollo atrasadas")
-                        break 
                 
         info_nodos[emp]['riesgos_lista'] = r_list
         info_nodos[emp]['riesgos'] = " | ".join(r_list) if r_list else "Ninguno"
@@ -698,6 +644,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
                 return int(val) if val.isdigit() else 0
             nodo_central_id = max(candidatos, key=mla_val)
 
+    # NUEVO: Lógica de redimensionamiento dinámico
     nodos_activos = set(nodos_visibles)
     if raiz_principal and raiz_principal in G_jerarquia:
         for v in nodos_visibles:
@@ -787,7 +734,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
     data_sucesores = []
     data_operativos = []
     data_enganche = []
-    data_pdi_tabla = []
     
     for emp, info in info_nodos.items():
         is_hidden = emp not in nodos_visibles
@@ -799,23 +745,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
         if not is_hidden:
             nodo_data = {"Nombre": info['nombre'], "Dirección": info['direccion'], "Puesto": info['puesto']}
             data_total.append(nodo_data)
-            
-            nom_upper = info['nombre'].upper()
-            pdis_colab = pdi_by_id.get(emp) or pdi_by_name.get(nom_upper)
-            
-            if pdis_colab:
-                for p in pdis_colab:
-                    data_pdi_tabla.append({
-                        "Nombre": info['nombre'],
-                        "Posición": info['puesto'],
-                        "Dirección": info['direccion'],
-                        "Objetivo": get_col(p, ["Objetivo a Desar", "Objetivo", "Objetivos"]),
-                        "PDI": get_col(p, ["PDI", "Plan de Desarrollo"]),
-                        "Clasificación": get_col(p, ["Clasificacion de", "Clasificacion", "Clasificación"]),
-                        "Qué? / Acciones de Desarrollo": get_col(p, ["Qué? / Acciones", "Qué?", "Que?", "Acciones de Desarrollo", "Acciones"]),
-                        "% de Avance": get_col(p, ["% de Avance", "Avance", "Porcentaje"]),
-                        "Estatus": get_col(p, ["Estatus", "Status", "Estado"])
-                    })
             
             if info['critica'].lower() == 'si':
                 data_criticas.append(nodo_data)
@@ -923,6 +852,16 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
                 is_hidden_edge = (emp not in nodos_visibles or s_id not in nodos_visibles)
                 G.add_edge(emp, s_id, color='#9c27b0', width=5, dashes=False, title='🎯 Objetivo de Sucesión', hidden=is_hidden_edge, is_struct=False, is_9box=False, is_succ=True, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.6})
 
+    data_alertas = [
+        {
+            "Nombre": a['Colaborador'], 
+            "Dirección": a['Dirección'], 
+            "Puesto": a['Puesto'],
+            "Alerta": a['Alerta Detectada por IA']
+        } 
+        for a in alertas_tabla
+    ]
+    
     eng_total_sum = sum(info_nodos[n]['enganche_ind'] for n in nodos_visibles if info_nodos[n]['enganche_ind'] > 0)
     eng_total_count = sum(1 for n in nodos_visibles if info_nodos[n]['enganche_ind'] > 0)
     avg_enganche = round(eng_total_sum / eng_total_count, 1) if eng_total_count > 0 else 0.0
@@ -943,7 +882,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
     }
     
     df_alertas = pd.DataFrame(alertas_tabla)
-    df_pdi_tabla = pd.DataFrame(data_pdi_tabla) 
     
     net = Network(height='750px', width='100%', bgcolor='#ffffff', font_color='#333333', directed=True, cdn_resources='remote')
     net.from_nx(G)
@@ -959,7 +897,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
     
     html = html.replace('</body>', BOTON_HTML + '\n' + SCRIPT_ANILLOS + '\n' + script_foco + '\n</body>')
     
-    return html, df_alertas, df_pdi_tabla, kpis
+    return html, df_alertas, kpis
 
 # ==========================================
 # INTERFAZ PRINCIPAL DE LA PLATAFORMA WEB
@@ -1011,22 +949,13 @@ def main():
             
     st.divider()
 
-    with st.spinner("Cargando mapa con conexiones lógicas y planes de desarrollo..."):
-        # 1. ENLACE DE LA HOJA PRINCIPAL
+    with st.spinner("Cargando mapa con conexiones lógicas..."):
         link_google_sheets = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit?pli=1&gid=0#gid=0"
-        
-        # 2. ENLACE DE LA PESTAÑA PDI (Pega el link de Google Sheets de la pestaña PDI aquí abajo)
-        link_google_sheets_pdi = "PON_AQUI_EL_LINK_DE_TU_HOJA_DE_PDI"
-        
         df_completo = cargar_datos_csv(link_google_sheets)
-        df_pdi = cargar_datos_csv(link_google_sheets_pdi)
         
         if df_completo.empty:
-            st.error("Error al conectar con la base de datos principal de Google Sheets.")
+            st.error("Error al conectar con la base de datos de Google Sheets.")
             st.stop()
-            
-        if df_pdi.empty:
-            st.warning("⚠️ No se pudo cargar la pestaña de PDI. Revisa que el enlace de 'link_google_sheets_pdi' sea correcto.")
 
         usuarios_autorizados = obtener_usuarios_autorizados()
         direccion_permitida = usuarios_autorizados[st.session_state["id_usuario"]]["direccion"]
@@ -1064,7 +993,7 @@ def main():
         f_riesgos = st.checkbox("🚨 Mostrar Solo Colaboradores con Riesgos Detectados")
         st.write("") 
 
-        html_mapa, df_alertas, df_pdi_tabla, kpis = generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos)
+        html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos)
         
         if kpis is not None:
             col_mapa, col_datos = st.columns([7, 3])
@@ -1128,12 +1057,31 @@ def main():
                         st.rerun()
             
             st.divider()
-            st.markdown("### 📈 Avance de PDI (Plan de Desarrollo Individual)")
+            st.markdown("### 🚨 Resumen de Tareas y Alertas (Filtrable)")
             
-            if not df_pdi_tabla.empty:
-                st.dataframe(df_pdi_tabla, use_container_width=True, hide_index=True)
+            if not df_alertas.empty:
+                col_t1, col_t2, col_t3 = st.columns(3)
+                
+                lista_areas = df_alertas['Dirección'].unique().tolist()
+                filtro_area = col_t1.multiselect("📌 Filtrar Tabla por Área:", options=lista_areas)
+                
+                lista_lideres_tabla = df_alertas['Líder Directo'].unique().tolist()
+                filtro_lider_tabla = col_t2.multiselect("👥 Filtrar Tabla por Líder:", options=lista_lideres_tabla)
+                
+                lista_riesgos = df_alertas['Alerta Detectada por IA'].unique().tolist()
+                filtro_riesgo_tabla = col_t3.multiselect("⚠️ Filtrar por Tipo de Alerta:", options=lista_riesgos)
+                
+                df_filtrado = df_alertas.copy()
+                if filtro_area: 
+                    df_filtrado = df_filtrado[df_filtrado['Dirección'].isin(filtro_area)]
+                if filtro_lider_tabla: 
+                    df_filtrado = df_filtrado[df_filtrado['Líder Directo'].isin(filtro_lider_tabla)]
+                if filtro_riesgo_tabla: 
+                    df_filtrado = df_filtrado[df_filtrado['Alerta Detectada por IA'].isin(filtro_riesgo_tabla)]
+                
+                st.dataframe(df_filtrado, use_container_width=True, hide_index=True)
             else:
-                st.info("ℹ️ No hay registros de PDI reportados para las personas mostradas actualmente en el mapa.")
+                st.success("✅ ¡Excelente! No se detectaron alertas de sucesión ni sobrecarga de reportes con estos filtros.")
         else:
             components.html(html_mapa, height=400)
 
