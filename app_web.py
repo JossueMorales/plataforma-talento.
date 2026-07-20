@@ -377,7 +377,6 @@ def login():
 @st.cache_data(ttl=600, show_spinner=False)
 def cargar_datos_csv(url_sheets, nombre_pestana):
     try:
-        # 1. Autenticar usando directamente los secretos de la nube
         secretos = st.secrets["connections"]["gsheets"]
         credenciales = Credentials.from_service_account_info(
             secretos,
@@ -388,18 +387,14 @@ def cargar_datos_csv(url_sheets, nombre_pestana):
         )
         cliente = gspread.authorize(credenciales)
         
-        # 2. Extraer el ID exacto del enlace
         match = re.search(r'/d/([a-zA-Z0-9-_]+)', url_sheets)
         doc_id = match.group(1) if match else url_sheets
         
-        # 3. Abrir el archivo y la pestaña
         archivo = cliente.open_by_key(doc_id)
         pestana = archivo.worksheet(nombre_pestana)
         
-        # SOLUCIÓN: Traemos los datos en bruto para ignorar duplicados o vacíos
         datos = pestana.get_all_values()
         
-        # 4. Convertir a datos de lectura rápida (DataFrame)
         if datos:
             df = pd.DataFrame(datos[1:], columns=datos[0])
         else:
@@ -465,8 +460,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
     }
     
     nombre_a_id = {nombre.strip().lower(): emp_id for emp_id, nombre in nombres_dict.items()}
-
-    # NUEVO MAPEO: Permite buscar por Nombre de Posición
+    
+    # Nuevo mapeo para buscar por posición
     puesto_a_id = {}
     for row in df_seguro.to_dict('records'):
         emp_id = clean_id(row.get('id Empleado'))
@@ -480,16 +475,17 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
         v = str(valor).strip()
         if v.endswith('.0'): 
             v = v[:-2]
-        # 1. Intenta por ID de empleado
-        if v in nombres_dict: 
-            return v  
+        
+        # 1. Por ID de empleado
+        if v in nombres_dict: return v  
+        
         v_lower = v.lower()
-        # 2. Intenta por Nombre de persona
-        if v_lower in nombre_a_id: 
-            return nombre_a_id[v_lower] 
-        # 3. Intenta por Nombre de Posición (NUEVO)
-        if v_lower in puesto_a_id:
-            return puesto_a_id[v_lower]
+        # 2. Por Nombre exacto
+        if v_lower in nombre_a_id: return nombre_a_id[v_lower] 
+        
+        # 3. Por Nombre de Posición
+        if v_lower in puesto_a_id: return puesto_a_id[v_lower]
+        
         return v 
             
     for row_dict in df_seguro.to_dict('records'):
@@ -589,7 +585,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
             if s_id in sucesores_oficiales_de:
                 sucesores_oficiales_de[s_id] += 1
 
-    # Normalización de nombres de PDI para la alerta de IA
     nombres_con_pdi = set()
     if not df_pdi.empty and 'Nombre' in df_pdi.columns:
         nombres_con_pdi = set(df_pdi['Nombre'].dropna().astype(str).str.strip().str.lower())
@@ -627,7 +622,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
                 elif 2.0 <= eng_area < 3.0:
                     r_list.append("⚠️ Alerta de Área: Bajo Enganche del Equipo")
 
-            # Cruce inteligente y normalizado
             if info['nombre'].strip().lower() not in nombres_con_pdi:
                 r_list.append("⚠️ Sin PDI: No tiene Plan de Desarrollo Individual")
                 
@@ -790,7 +784,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
     for emp, info in info_nodos.items():
         is_hidden = emp not in nodos_visibles
         
-        # Mapea IDs o nombres de regreso para la tarjeta visual
         nom_suc1 = nombres_dict.get(info['suc1_id'], info['suc1_id']) if info['suc1_id'] else ""
         nom_suc2 = nombres_dict.get(info['suc2_id'], info['suc2_id']) if info['suc2_id'] else ""
         nom_suc3 = nombres_dict.get(info['suc3_id'], info['suc3_id']) if info['suc3_id'] else ""
@@ -1118,19 +1111,116 @@ def main():
             st.divider()
             
             # ==========================================
-            # INTEGRACIÓN: NUEVA TABLA AVANCE PDI CON 4 FILTROS Y NORMALIZACIÓN DE NOMBRES
+            # NUEVO: PLANIFICADOR DE SUCESIONES (EDICIÓN EN VIVO)
+            # ==========================================
+            st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
+            st.markdown("Usa este panel para asignar o modificar los sucesores de cualquier posición. **Los cambios se guardarán automáticamente en tu Excel** y el mapa se actualizará al instante.")
+            
+            # Creamos una lista inteligente que te muestra el Puesto y quién está sentado ahí para evitar confusiones
+            posiciones_opciones = []
+            mapa_indices = {}
+            for idx, row in df_seguro.iterrows():
+                puesto = clean_text(row.get('Nombre de la Posición'))
+                nombre = clean_text(row.get('Nombre', 'Vacante'))
+                if puesto:
+                    label = f"{puesto} (Ocupante: {nombre})"
+                    posiciones_opciones.append(label)
+                    mapa_indices[label] = idx  # Guardamos en qué fila de Pandas está
+                    
+            posiciones_opciones = sorted(posiciones_opciones)
+            pos_seleccionada = st.selectbox("🔍 Busca y selecciona la Posición a planificar:", [""] + posiciones_opciones)
+            
+            if pos_seleccionada:
+                # Sacamos la información exacta de la fila seleccionada
+                idx_pandas = mapa_indices[pos_seleccionada]
+                info_pos = df_seguro.loc[idx_pandas]
+                
+                nombres_empleados = sorted([clean_text(n) for n in df_completo['Nombre'].dropna().unique() if clean_text(n)])
+                opciones_sucesores = ["Pendiente"] + nombres_empleados
+                opciones_tiempo = ["Pendiente", "Inmediato", "1 a 3 años", "Más de 3 años"]
+                
+                # Leemos qué dice tu Excel actualmente para precargar el formulario
+                c_suc1 = clean_text(info_pos.get('Sucesor P.1', 'Pendiente')) or "Pendiente"
+                c_read1 = clean_text(info_pos.get('Tiempo de Readiness 1', 'Pendiente')) or "Pendiente"
+                c_suc2 = clean_text(info_pos.get('Sucesor P.2', 'Pendiente')) or "Pendiente"
+                c_read2 = clean_text(info_pos.get('Tiempo de Readiness 2', 'Pendiente')) or "Pendiente"
+                c_suc3 = clean_text(info_pos.get('Sucesor P.3', 'Pendiente')) or "Pendiente"
+                c_read3 = clean_text(info_pos.get('Tiempo de Readiness 3', 'Pendiente')) or "Pendiente"
+                
+                # Por si hay algún error de dedo en el Excel, agregamos esa opción para que no marque error
+                if c_suc1 not in opciones_sucesores: opciones_sucesores.append(c_suc1)
+                if c_suc2 not in opciones_sucesores: opciones_sucesores.append(c_suc2)
+                if c_suc3 not in opciones_sucesores: opciones_sucesores.append(c_suc3)
+                if c_read1 not in opciones_tiempo: opciones_tiempo.append(c_read1)
+                if c_read2 not in opciones_tiempo: opciones_tiempo.append(c_read2)
+                if c_read3 not in opciones_tiempo: opciones_tiempo.append(c_read3)
+                
+                # Dibujamos el formulario interactivo
+                with st.form("form_sucesion"):
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.markdown("#### 🥇 Sucesor 1")
+                        n_suc1 = st.selectbox("Candidato 1", opciones_sucesores, index=opciones_sucesores.index(c_suc1))
+                        n_read1 = st.selectbox("Readiness 1", opciones_tiempo, index=opciones_tiempo.index(c_read1))
+                    with col2:
+                        st.markdown("#### 🥈 Sucesor 2")
+                        n_suc2 = st.selectbox("Candidato 2", opciones_sucesores, index=opciones_sucesores.index(c_suc2))
+                        n_read2 = st.selectbox("Readiness 2", opciones_tiempo, index=opciones_tiempo.index(c_read2))
+                    with col3:
+                        st.markdown("#### 🥉 Sucesor 3")
+                        n_suc3 = st.selectbox("Candidato 3", opciones_sucesores, index=opciones_sucesores.index(c_suc3))
+                        n_read3 = st.selectbox("Readiness 3", opciones_tiempo, index=opciones_tiempo.index(c_read3))
+                        
+                    submitted = st.form_submit_button("💾 Guardar Cambios en Base de Datos", type="primary", use_container_width=True)
+                    
+                    if submitted:
+                        with st.spinner("🤖 El robot está escribiendo en tu Excel..."):
+                            idx_excel = idx_pandas + 2 # Sumamos 2 porque la tabla de Pandas empieza en 0 y el Excel tiene la fila 1 de títulos
+                            match = re.search(r'/d/([a-zA-Z0-9-_]+)', link_archivo)
+                            doc_id = match.group(1) if match else link_archivo
+                            
+                            try:
+                                secretos = st.secrets["connections"]["gsheets"]
+                                credenciales = Credentials.from_service_account_info(
+                                    secretos,
+                                    scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+                                )
+                                cliente = gspread.authorize(credenciales)
+                                archivo = cliente.open_by_key(doc_id)
+                                pestana = archivo.worksheet("Base de datos")
+                                
+                                # Le decimos al robot que tome exactamente el rango de la I a la N de esa fila
+                                rango = f'I{idx_excel}:N{idx_excel}'
+                                celdas = pestana.range(rango)
+                                
+                                # Actualizamos celda por celda
+                                celdas[0].value = "Pendiente" if n_suc1 == "Pendiente" else n_suc1
+                                celdas[1].value = "Pendiente" if n_read1 == "Pendiente" else n_read1
+                                celdas[2].value = "Pendiente" if n_suc2 == "Pendiente" else n_suc2
+                                celdas[3].value = "Pendiente" if n_read2 == "Pendiente" else n_read2
+                                celdas[4].value = "Pendiente" if n_suc3 == "Pendiente" else n_suc3
+                                celdas[5].value = "Pendiente" if n_read3 == "Pendiente" else n_read3
+                                
+                                pestana.update_cells(celdas)
+                                
+                                st.success("✅ ¡Guardado exitosamente! El mapa se está actualizando...")
+                                st.cache_data.clear() # Limpiamos caché para obligar a descargar el nuevo dato
+                                st.rerun() # Refrescamos la página automáticamente
+                                
+                            except Exception as e:
+                                st.error(f"❌ Error técnico al intentar escribir en el Excel: {e}")
+
+            st.divider()
+            
+            # ==========================================
+            # INTEGRACIÓN: NUEVA TABLA AVANCE PDI
             # ==========================================
             st.markdown("### 📈 Avance de PDI (Integrado)")
             
             if not df_pdi.empty and 'Nombre' in df_pdi.columns:
-                # 1. NORMALIZAMOS LOS NOMBRES PARA EVITAR ERRORES POR ESPACIOS O MAYÚSCULAS
                 nombres_visibles_limpios = [str(d['Nombre']).strip().lower() for d in kpis['data_total']]
-                
-                # 2. Hacemos una copia para cruzar los datos limpios
                 df_pdi_filtrado = df_pdi.copy()
                 df_pdi_filtrado['Nombre_Cruce'] = df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower()
-                
-                # 3. Filtramos la tabla PDI para mostrar a los que están en el mapa
                 df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre_Cruce'].isin(nombres_visibles_limpios)]
                 
                 columnas_deseadas = {
@@ -1157,7 +1247,6 @@ def main():
                     df_pdi_mostrar = df_pdi_filtrado[cols_reales].copy()
                     df_pdi_mostrar.columns = nombres_finales
                     
-                    # Añadir filtros rápidos específicos para esta tabla (4 columnas)
                     col_p1, col_p2, col_p3, col_p4 = st.columns(4)
                     
                     if "Nombre" in df_pdi_mostrar.columns:
