@@ -327,7 +327,6 @@ def crear_tarjeta_kpi(titulo, valor, color_borde, color_texto, color_fondo):
     """
 
 def get_col(row, possible_names):
-    """Busca dinámicamente el valor de una columna en un diccionario según posibles nombres."""
     for k in row.keys():
         if str(k).strip().lower() in [n.lower() for n in possible_names]:
             return row[k]
@@ -380,10 +379,16 @@ def login():
 # ==========================================
 @st.cache_data(ttl=600, show_spinner=False)
 def cargar_datos_csv(url_sheets):
-    if "/edit" in url_sheets:
-        csv_url = url_sheets.split("/edit")[0] + "/export?format=csv"
+    # CORRECCIÓN VITAL: Respetar el gid de las pestañas en Google Sheets
+    if "docs.google.com" in url_sheets and "/edit" in url_sheets:
+        base = url_sheets.split("/edit")[0]
+        gid = "0"
+        if "gid=" in url_sheets:
+            gid = url_sheets.split("gid=")[1].split("&")[0]
+        csv_url = f"{base}/export?format=csv&gid={gid}"
     else:
         csv_url = url_sheets
+        
     try:
         df = pd.read_csv(csv_url)
         df.columns = [str(col).strip() for col in df.columns]
@@ -435,14 +440,16 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
     empleados_validos = set()
     info_nodos = {}
     
-    # 1. Preparar Diccionario de PDI
+    # 1. Preparar Diccionario de PDI (Corregido para ser más flexible)
     pdi_records = df_pdi.to_dict('records')
     pdi_by_name = {}
     for row in pdi_records:
-        nom = clean_text(row.get('Nombre', '')).upper()
-        if nom not in pdi_by_name:
-            pdi_by_name[nom] = []
-        pdi_by_name[nom].append(row)
+        nom_raw = get_col(row, ["Nombre", "Colaborador", "Empleado", "Nombre Completo"])
+        nom = clean_text(nom_raw).upper()
+        if nom:
+            if nom not in pdi_by_name:
+                pdi_by_name[nom] = []
+            pdi_by_name[nom].append(row)
     
     nombres_dict = {
         clean_id(row.get('id Empleado')): clean_text(row.get('Nombre')) 
@@ -561,13 +568,11 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
             if s_id in sucesores_oficiales_de:
                 sucesores_oficiales_de[s_id] += 1
 
-    # MOTOR DE INTELIGENCIA Y RIESGOS (AHORA INCLUYE PDI)
     for emp, info in info_nodos.items():
         r_list = []
         nom_upper = info['nombre'].upper()
         
         if info['mla'] != '5':
-            # 1. Alertas de Sucesión
             es_critica = (info['critica'].lower() == 'si')
             tiene_oficial = (sucesores_oficiales_de.get(emp, 0) > 0)
             tiene_hipos_9box = (sucesores_de_9box.get(emp, 0) > 0)
@@ -578,21 +583,18 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
                 elif not tiene_oficial and tiene_hipos_9box: 
                     r_list.append("⚠️ Sugerencia: HiPo disponible, falta oficializar")
                     
-            # 2. Alertas Estructurales
             reps = reportes_directos.get(emp, 0)
             if reps >= 12: 
                 r_list.append(f"⚠️ Sobrecarga ({reps} reportes)")
             elif reps == 1: 
                 r_list.append("⚠️ Ineficiencia (1 reporte)")
                 
-            # 3. Alertas de Enganche Individual
             eng_ind = info['enganche_ind']
             if 1.0 <= eng_ind < 2.0:
                 r_list.append("🚨 Riesgo de Fuga: Colaborador Desconectado")
             elif 2.0 <= eng_ind < 3.0:
                 r_list.append("⚠️ Alerta: Bajo Enganche (Desinterés)")
                 
-            # 4. Alertas de Enganche del Área (Líderes)
             if info['es_lider']:
                 eng_area = info['enganche_area']
                 if 1.0 <= eng_area < 2.0:
@@ -600,7 +602,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
                 elif 2.0 <= eng_area < 3.0:
                     r_list.append("⚠️ Alerta de Área: Bajo Enganche del Equipo")
             
-            # 5. NUEVAS ALERTAS INTELIGENTES DE PDI
             if nom_upper not in pdi_by_name:
                 r_list.append("⚠️ Alerta de Desarrollo: Sin PDI registrado")
             else:
@@ -609,7 +610,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
                     estatus = get_col(p, ["Estatus", "Status", "Estado"]).lower()
                     if 'atrasad' in estatus or 'vencid' in estatus:
                         r_list.append("🚨 Riesgo PDI: Acciones de desarrollo atrasadas")
-                        break # Con que un objetivo esté atrasado, se lanza la alerta general
+                        break 
                 
         info_nodos[emp]['riesgos_lista'] = r_list
         info_nodos[emp]['riesgos'] = " | ".join(r_list) if r_list else "Ninguno"
@@ -766,8 +767,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
     data_sucesores = []
     data_operativos = []
     data_enganche = []
-    
-    # 2. CONSTRUCCIÓN DE LA NUEVA TABLA DINÁMICA DE PDI
     data_pdi_tabla = []
     
     for emp, info in info_nodos.items():
@@ -781,7 +780,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
             nodo_data = {"Nombre": info['nombre'], "Dirección": info['direccion'], "Puesto": info['puesto']}
             data_total.append(nodo_data)
             
-            # Llenado de la Tabla PDI para los nodos visibles
             nom_upper = info['nombre'].upper()
             if nom_upper in pdi_by_name:
                 for p in pdi_by_name[nom_upper]:
@@ -933,7 +931,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
     }
     
     df_alertas = pd.DataFrame(alertas_tabla)
-    df_pdi_tabla = pd.DataFrame(data_pdi_tabla) # Devolvemos la nueva tabla de PDI
+    df_pdi_tabla = pd.DataFrame(data_pdi_tabla) 
     
     net = Network(height='750px', width='100%', bgcolor='#ffffff', font_color='#333333', directed=True, cdn_resources='remote')
     net.from_nx(G)
@@ -1051,7 +1049,6 @@ def main():
         f_riesgos = st.checkbox("🚨 Mostrar Solo Colaboradores con Riesgos Detectados")
         st.write("") 
 
-        # AHORA EL MOTOR REGRESA LA TABLA DE PDI
         html_mapa, df_alertas, df_pdi_tabla, kpis = generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos)
         
         if kpis is not None:
@@ -1115,7 +1112,6 @@ def main():
                         st.session_state["vista_kpi"] = None
                         st.rerun()
             
-            # SECCIÓN INFERIOR NUEVA: AVANCE DE PDI
             st.divider()
             st.markdown("### 📈 Avance de PDI (Plan de Desarrollo Individual)")
             
