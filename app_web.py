@@ -466,17 +466,30 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
     
     nombre_a_id = {nombre.strip().lower(): emp_id for emp_id, nombre in nombres_dict.items()}
 
+    # NUEVO MAPEO: Permite buscar por Nombre de Posición
+    puesto_a_id = {}
+    for row in df_seguro.to_dict('records'):
+        emp_id = clean_id(row.get('id Empleado'))
+        puesto = clean_text(row.get('Nombre de la Posición')).lower()
+        if emp_id and puesto and puesto not in puesto_a_id:
+            puesto_a_id[puesto] = emp_id
+
     def buscar_id_real(valor):
         if pd.isna(valor) or str(valor).strip().lower() in ['nan', 'none', 'pendiente', '']: 
             return ''
         v = str(valor).strip()
         if v.endswith('.0'): 
             v = v[:-2]
+        # 1. Intenta por ID de empleado
         if v in nombres_dict: 
             return v  
         v_lower = v.lower()
+        # 2. Intenta por Nombre de persona
         if v_lower in nombre_a_id: 
             return nombre_a_id[v_lower] 
+        # 3. Intenta por Nombre de Posición (NUEVO)
+        if v_lower in puesto_a_id:
+            return puesto_a_id[v_lower]
         return v 
             
     for row_dict in df_seguro.to_dict('records'):
@@ -777,6 +790,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
     for emp, info in info_nodos.items():
         is_hidden = emp not in nodos_visibles
         
+        # Mapea IDs o nombres de regreso para la tarjeta visual
         nom_suc1 = nombres_dict.get(info['suc1_id'], info['suc1_id']) if info['suc1_id'] else ""
         nom_suc2 = nombres_dict.get(info['suc2_id'], info['suc2_id']) if info['suc2_id'] else ""
         nom_suc3 = nombres_dict.get(info['suc3_id'], info['suc3_id']) if info['suc3_id'] else ""
@@ -790,9 +804,11 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
                 
             if info['suc1_id']:
                 target_id = info['suc1_id']
-                puesto_target = "Posición no encontrada"
+                puesto_target = "Posición no encontrada (o vacante)"
                 if target_id in info_nodos:
                     puesto_target = info_nodos[target_id]['puesto']
+                elif target_id: 
+                    puesto_target = target_id
                 
                 data_sucesores.append({
                     "Colaborador": info['nombre'],        
