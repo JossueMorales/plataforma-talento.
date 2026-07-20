@@ -377,7 +377,6 @@ def cargar_datos_csv(url_sheets):
     import re
     if "/edit" in url_sheets:
         base = url_sheets.split("/edit")[0]
-        # Extraemos el GID para mantener la pestaña correcta
         match = re.search(r'[#&?]gid=(\d+)', url_sheets)
         gid = match.group(1) if match else "0"
         csv_url = f"{base}/export?format=csv&gid={gid}"
@@ -552,7 +551,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
             if s_id in sucesores_oficiales_de:
                 sucesores_oficiales_de[s_id] += 1
 
-    # Nombres de las personas que SI tienen PDI
     nombres_con_pdi = set()
     if not df_pdi.empty and 'Nombre' in df_pdi.columns:
         nombres_con_pdi = set(df_pdi['Nombre'].dropna().astype(str).str.strip().str.lower())
@@ -590,7 +588,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_r
                 elif 2.0 <= eng_area < 3.0:
                     r_list.append("⚠️ Alerta de Área: Bajo Enganche del Equipo")
 
-            # INTEGRACIÓN: Riesgo de PDI
             if info['nombre'].strip().lower() not in nombres_con_pdi:
                 r_list.append("⚠️ Sin PDI: No tiene Plan de Desarrollo Individual")
                 
@@ -1013,7 +1010,6 @@ def main():
         f_riesgos = st.checkbox("🚨 Mostrar Solo Colaboradores con Riesgos Detectados (Incluye riesgo PDI)")
         st.write("") 
 
-        # SE PASA df_pdi A LA FUNCIÓN PARA CALCULAR LA ALERTA DE PDI
         html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos)
         
         if kpis is not None:
@@ -1080,16 +1076,14 @@ def main():
             st.divider()
             
             # ==========================================
-            # INTEGRACIÓN: NUEVA TABLA AVANCE PDI
+            # INTEGRACIÓN: NUEVA TABLA AVANCE PDI CON 4 FILTROS
             # ==========================================
             st.markdown("### 📈 Avance de PDI (Integrado)")
             
             if not df_pdi.empty:
-                # Filtrar la tabla de PDI para mostrar SÓLO a las personas que actualmente están filtradas y visibles
                 nombres_visibles = [d['Nombre'] for d in kpis['data_total']]
                 df_pdi_filtrado = df_pdi[df_pdi['Nombre'].isin(nombres_visibles)].copy()
                 
-                # Definir las columnas a extraer basadas en lo que solicitaste
                 columnas_deseadas = {
                     "Nombre": "Nombre",
                     "Posicion": "Posicion", 
@@ -1105,7 +1099,6 @@ def main():
                 cols_reales = []
                 nombres_finales = []
                 for col_orig, nombre_nuevo in columnas_deseadas.items():
-                    # Buscar la columna que contenga la palabra (por si hay variaciones en el nombre)
                     col_match = next((c for c in df_pdi_filtrado.columns if col_orig.lower() in str(c).lower()), None)
                     if col_match:
                         cols_reales.append(col_match)
@@ -1115,18 +1108,30 @@ def main():
                     df_pdi_mostrar = df_pdi_filtrado[cols_reales].copy()
                     df_pdi_mostrar.columns = nombres_finales
                     
-                    # Añadir filtros rápidos específicos para esta tabla
-                    col_p1, col_p2 = st.columns(2)
+                    # Añadir filtros rápidos específicos para esta tabla (4 columnas)
+                    col_p1, col_p2, col_p3, col_p4 = st.columns(4)
                     
+                    if "Nombre" in df_pdi_mostrar.columns:
+                        lista_nombres_pdi = sorted(df_pdi_mostrar['Nombre'].dropna().astype(str).unique().tolist())
+                        filtro_nombre = col_p1.multiselect("👤 Filtrar por Nombre:", options=lista_nombres_pdi)
+                        if filtro_nombre:
+                            df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Nombre'].isin(filtro_nombre)]
+                            
                     if "Dirección" in df_pdi_mostrar.columns:
-                        lista_areas_pdi = df_pdi_mostrar['Dirección'].dropna().unique().tolist()
-                        filtro_area_pdi = col_p1.multiselect("📌 Filtrar Tabla por Dirección:", options=lista_areas_pdi)
+                        lista_areas_pdi = sorted(df_pdi_mostrar['Dirección'].dropna().astype(str).unique().tolist())
+                        filtro_area_pdi = col_p2.multiselect("📌 Filtrar por Dirección:", options=lista_areas_pdi)
                         if filtro_area_pdi:
                             df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Dirección'].isin(filtro_area_pdi)]
                             
+                    if "Clasificacion" in df_pdi_mostrar.columns:
+                        lista_clasif_pdi = sorted(df_pdi_mostrar['Clasificacion'].dropna().astype(str).unique().tolist())
+                        filtro_clasif = col_p3.multiselect("🏷️ Filtrar por Clasificación:", options=lista_clasif_pdi)
+                        if filtro_clasif:
+                            df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Clasificacion'].isin(filtro_clasif)]
+                            
                     if "Estatus" in df_pdi_mostrar.columns:
-                        lista_estatus_pdi = df_pdi_mostrar['Estatus'].dropna().unique().tolist()
-                        filtro_estatus = col_p2.multiselect("🚦 Filtrar por Estatus:", options=lista_estatus_pdi)
+                        lista_estatus_pdi = sorted(df_pdi_mostrar['Estatus'].dropna().astype(str).unique().tolist())
+                        filtro_estatus = col_p4.multiselect("🚦 Filtrar por Estatus:", options=lista_estatus_pdi)
                         if filtro_estatus:
                             df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Estatus'].isin(filtro_estatus)]
                     
