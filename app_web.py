@@ -782,8 +782,7 @@ def generar_mapa_html(df_seguro, f_dir, f_lid, f_crit, f_mla, f_box, f_riesgos):
         
         G.add_node(
             emp, 
-            label=f"{prefijo}{nombre_corto}
-({info['puesto']})", 
+            label=f"{prefijo}{nombre_corto}\n({info['puesto']})", 
             title=f"<div style='padding: 5px; text-align: center;'><b>{prefijo}{info['nombre']}</b><br><small>{info['puesto']}</small></div>", 
             size=28 if emp == raiz_principal else 18, 
             color=obtener_color_9box(info['box']), 
