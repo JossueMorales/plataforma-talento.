@@ -107,9 +107,11 @@ BOTON_HTML = """
         <h3 style="margin: 0; font-size: 15px; color: #333;">Opciones Visuales</h3><span id="iconoFiltro" style="font-size: 12px; color: #666;">▼ Ocultar</span>
     </div>
     <div id="cuerpoFiltros" style="padding: 15px; display: flex; flex-direction: column; gap: 8px; max-height: 70vh; overflow-y: auto;">
+        
         <label style="font-size: 14px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; background: #e3f2fd; padding: 8px; border-radius: 5px; color: #1565c0;">
             <input type="checkbox" id="toggleOnion" checked onchange="toggleLayoutMode()" style="width: 18px; height: 18px;"> 🎯 Modo Cebolla (Radial)
         </label>
+
         <div id="sliderContainer" style="transition: 0.3s;">
             <label style="font-size: 13px; font-weight: bold; color: #555;">Amplitud Radial:</label>
             <div style="display: flex; align-items: center; gap: 10px;">
@@ -138,8 +140,18 @@ function toggleLayoutMode() {
     var isOnion = document.getElementById('toggleOnion').checked;
     window.onionMode = isOnion;
     var slider = document.getElementById('sliderContainer');
-    if (isOnion) { slider.style.opacity = "1"; slider.style.pointerEvents = "auto"; network.setOptions({ physics: { enabled: false } }); updateSpacing(); 
-    } else { slider.style.opacity = "0.4"; slider.style.pointerEvents = "none"; network.setOptions({ physics: { enabled: true } }); network.redraw(); }
+    
+    if (isOnion) { 
+        slider.style.opacity = "1"; 
+        slider.style.pointerEvents = "auto"; 
+        network.setOptions({ physics: { enabled: false } }); 
+        updateSpacing(); 
+    } else { 
+        slider.style.opacity = "0.4"; 
+        slider.style.pointerEvents = "none"; 
+        network.setOptions({ physics: { enabled: true } }); 
+        network.redraw(); 
+    }
 }
 
 function updateSpacing() {
@@ -155,10 +167,10 @@ function updateSpacing() {
         var n = allNodes[i];
         var anillo = n.AnilloReal !== undefined ? n.AnilloReal : n.anilloreal;
         var angle = n.Angle !== undefined ? n.Angle : n.angle;
-        var prof = n.Profundidad !== undefined ? n.Profundidad : n.profundidad;
         
-        if (anillo !== undefined && angle !== undefined && prof !== undefined) {
-            var nuevoRadio = (anillo * window.ringSpacing) + (prof * 120);
+        if (anillo !== undefined && angle !== undefined) {
+            // FIX: Ya no sumamos la "profundidad", así que se sientan exactamente sobre el anillo correcto
+            var nuevoRadio = anillo * window.ringSpacing;
             nodesToUpdate.push({ id: n.id, x: nuevoRadio * Math.cos(angle), y: nuevoRadio * Math.sin(angle) });
         }
     }
@@ -452,6 +464,15 @@ def acortar_nombre(nombre_completo):
     else:
         return f"{partes[0]} {partes[-2]}"
 
+def get_readiness_val(rt_str):
+    """Función para el estilo de las flechas punteadas"""
+    rt = str(rt_str).strip().lower()
+    if not rt or rt == 'pendiente' or rt == 'nan' or rt == 'none': return 4
+    if 'inmediato' in rt or 'listo' in rt or '0' in rt: return 1
+    if '1' in rt or '2' in rt or 'medio' in rt: return 2
+    if '3' in rt or '4' in rt or '5' in rt or 'más' in rt or 'mas' in rt or 'largo' in rt: return 3
+    return 4
+
 # ==========================================
 # MOTOR PRINCIPAL
 # ==========================================
@@ -718,6 +739,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
 
     def obtener_anillo_estricto(emp_id, depth_arbol):
         mla = info_nodos.get(emp_id, {}).get('mla', '')
+        mla = str(mla).replace('.0', '').strip() # FIX: Evitar que el decimal mande al gerente al anillo 2
         if mla == '5': return 0
         if mla == '4': return 1 
         if mla == '3': return 2 
@@ -761,7 +783,9 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             angulo_hijo = angulo_actual + (rebanada / 2)
             profundidad = nx.shortest_path_length(Arbol, raiz_principal, c) if raiz_principal and c in Arbol else 5
             anillo_real = obtener_anillo_estricto(c, profundidad)
-            radio_final = (anillo_real * SEPARACION_ANILLOS) + (profundidad * 120) if anillo_real != 0 else 0
+            
+            # FIX: Quitamos la distorsión matemática de + (profundidad * 120) para que sienten exactamente en la línea del anillo
+            radio_final = (anillo_real * SEPARACION_ANILLOS) if anillo_real != 0 else 0
             
             coords[c] = {
                 'x': radio_final * math.cos(angulo_hijo), 
@@ -784,7 +808,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         angulo_actual = 0
         for n in nodos_sin_coords:
             anillo = obtener_anillo_estricto(n, 5)
-            radio = (anillo * SEPARACION_ANILLOS) + 200 if anillo != 0 else 500
+            # FIX: Quitamos la distorsión matemática también en los nodos huérfanos
+            radio = (anillo * SEPARACION_ANILLOS) if anillo != 0 else 80
             coords[n] = {'x': radio * math.cos(angulo_actual), 'y': radio * math.sin(angulo_actual), 'angle': angulo_actual, 'anillo_real': anillo, 'profundidad': 5}
             angulo_actual += angulo_extra
 
@@ -890,7 +915,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             NomSuc1=nom_suc1, Read1=info['read1'], NomSuc2=nom_suc2, Read2=info['read2'], NomSuc3=nom_suc3, Read3=info['read3'],
             Eng_Ind=info['enganche_ind'], Eng_Area=info['enganche_area'], Es_Lider=info['es_lider'],
             font={'color': '#0f172a', 'strokeWidth': 2, 'strokeColor': '#ffffff', 'size': 11, 'face': 'Arial', 'weight': 'bold'},
-            x=coord_data['x'], y=coord_data['y'], Angle=coord_data['angle'], AnilloReal=coord_data['anillo_real'], Profundidad=coord_data['profundidad'],
+            x=coord_data['x'], y=coord_data['y'], Angle=coord_data['angle'], 
+            AnilloReal=coord_data['anillo_real'], Profundidad=coord_data['profundidad'],
             hidden=is_hidden
         )
 
@@ -923,10 +949,23 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             if j2: 
                 G.add_edge(emp, j2, color='#166534', width=3.5, dashes=[5,5], title='Proyección N+2', hidden=(emp not in nodos_visibles or j2 not in nodos_visibles), is_struct=False, is_9box=True, is_succ=False, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.3})
             
-        for s_id in [info['suc1_id'], info['suc2_id'], info['suc3_id']]:
+        for s_id, read_time in [(info['suc1_id'], info['read1']), (info['suc2_id'], info['read2']), (info['suc3_id'], info['read3'])]:
             if s_id and s_id in empleados_validos:
                 is_hidden_edge = (emp not in nodos_visibles or s_id not in nodos_visibles)
-                G.add_edge(emp, s_id, color='#9c27b0', width=5, dashes=False, title='🎯 Objetivo de Sucesión', hidden=is_hidden_edge, is_struct=False, is_9box=False, is_succ=True, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.6})
+                
+                # --- MANTENEMOS LÓGICA DE LÍNEAS VISUALES DE TIEMPO (BRECHAS) ---
+                val = get_readiness_val(read_time)
+                if val == 1:
+                    dashes_style = False # Línea sólida
+                    edge_width = 6
+                elif val == 2:
+                    dashes_style = [10, 10] # Línea a guiones medios
+                    edge_width = 4
+                else:
+                    dashes_style = [4, 8] # Línea punteada
+                    edge_width = 2
+                    
+                G.add_edge(emp, s_id, color='#9c27b0', width=edge_width, dashes=dashes_style, title=f'🎯 Sucesor: {read_time}', hidden=is_hidden_edge, is_struct=False, is_9box=False, is_succ=True, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.6})
 
     data_alertas = [
         {
