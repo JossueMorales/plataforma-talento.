@@ -786,6 +786,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
     data_sucesores = []
     data_operativos = []
     data_enganche = []
+    data_edr = []
     
     for emp, info in info_nodos.items():
         is_hidden = emp not in nodos_visibles
@@ -798,7 +799,15 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             nodo_data = {"Nombre": info['nombre'], "Dirección": info['direccion'], "Puesto": info['puesto']}
             data_total.append(nodo_data)
             
-            # KPI UNIFICADO: SUCESIÓN Y POSICIONES CRÍTICAS
+            # KPI DESEMPEÑO EDR
+            data_edr.append({
+                "Nombre": info['nombre'],
+                "Puesto": info['puesto'],
+                "Dirección": info['direccion'],
+                "Resultado EDR": info['edr']
+            })
+            
+            # KPI UNIFICADO: SUCESIÓN DE POSICIONES CRÍTICAS
             if info['critica'].lower() == 'si':
                 target_id = info['suc1_id']
                 nom_suc = nom_suc1 if nom_suc1 else "Pendiente"
@@ -931,11 +940,13 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         'operativos': len(data_operativos),
         'alertas': len(alertas_tabla),
         'enganche_promedio': avg_enganche,
+        'edr_count': len(data_edr),
         'data_total': data_total,
         'data_sucesores': data_sucesores,
         'data_operativos': data_operativos,
         'data_alertas': data_alertas,
-        'data_enganche': data_enganche
+        'data_enganche': data_enganche,
+        'data_edr': data_edr
     }
     
     df_alertas = pd.DataFrame(alertas_tabla)
@@ -1048,8 +1059,8 @@ def main():
             with col_datos:
                 st.markdown("### 📊 KPIs de Talento")
                 
-                # 5 TARJETAS DE KPIS PRINCIPALES
-                k1, k2, k3, k4, k5 = st.columns(5)
+                # 6 TARJETAS DE KPIS PRINCIPALES (INCLUYE NUEVO KPI EDR)
+                k1, k2, k3, k4, k5, k6 = st.columns(6)
                 
                 with k1:
                     st.markdown(crear_tarjeta_kpi("Total<br>Colab.", kpis['total'], "#3b82f6", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
@@ -1060,14 +1071,18 @@ def main():
                     if st.button("🔍 Ver", key="b_suc", use_container_width=True):
                         st.session_state["vista_kpi"] = "sucesores"
                 with k3:
+                    st.markdown(crear_tarjeta_kpi("Desempeño<br>(EDR)", kpis['edr_count'], "#0284c7", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
+                    if st.button("🔍 Ver", key="b_edr", use_container_width=True):
+                        st.session_state["vista_kpi"] = "edr"
+                with k4:
                     st.markdown(crear_tarjeta_kpi("Operat.<br>(MLA 1)", kpis['operativos'], "#10b981", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
                     if st.button("🔍 Ver", key="b_ope", use_container_width=True):
                         st.session_state["vista_kpi"] = "operativos"
-                with k4:
+                with k5:
                     st.markdown(crear_tarjeta_kpi("Alertas<br>Detect.", kpis['alertas'], "#e11d48", "#9f1239", "#fff1f2"), unsafe_allow_html=True)
                     if st.button("🔍 Ver", key="b_ale", use_container_width=True):
                         st.session_state["vista_kpi"] = "alertas"
-                with k5:
+                with k6:
                     st.markdown(crear_tarjeta_kpi("Promedio<br>Enganche", kpis['enganche_promedio'], "#14b8a6", "#0f766e", "#f0fdfa"), unsafe_allow_html=True)
                     if st.button("🔍 Ver", key="b_eng", use_container_width=True):
                         st.session_state["vista_kpi"] = "enganche"
@@ -1077,6 +1092,7 @@ def main():
                     titulos_kpi = {
                         "total": "Total de Colaboradores",
                         "sucesores": "Sucesión de Posiciones Críticas",
+                        "edr": "Evaluación de Desempeño y Resultados (EDR)",
                         "operativos": "Personal Operativo (MLA 1)",
                         "alertas": "Colaboradores con Riesgos / Alertas",
                         "enganche": "Nivel de Enganche de Líderes"
@@ -1088,6 +1104,11 @@ def main():
                     if not df_lista.empty:
                         if vista == "alertas":
                             df_lista = df_lista.drop_duplicates(subset=["Nombre", "Alerta"]).reset_index(drop=True)
+                            
+                        # OCULTAR COLUMNA "DIRECCIÓN" SI ES UN PERFIL DE DIRECCIÓN ESPECÍFICO (NO ADMIN GLOBAL)
+                        if direccion_permitida != "TODAS" and "Dirección" in df_lista.columns:
+                            df_lista = df_lista.drop(columns=["Dirección"])
+                            
                         st.dataframe(df_lista, use_container_width=True, hide_index=True)
                     else:
                         st.info("No hay registros en esta categoría.")
@@ -1099,7 +1120,7 @@ def main():
             st.divider()
             
             # ==========================================
-            # PLANIFICADOR DE SUCESIONES (AFECTADO POR FILTROS)
+            # PLANIFICADOR DE SUCESIONES (EDICIÓN EN VIVO)
             # ==========================================
             st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
             st.markdown("Usa este panel para asignar o modificar los sucesores. **Los cambios se guardarán automáticamente en tu Excel** y el mapa se actualizará al instante.")
@@ -1134,9 +1155,12 @@ def main():
                 
                 ocupante_actual = clean_text(info_pos.get('Nombre'), 'Vacante / Sin asignar')
                 direccion_pos = clean_text(info_pos.get('Dirección'), 'No asignada')
-                edr_pos = clean_text(info_pos.get('EDR', info_pos.get('EDR ')), 'Pendiente')
                 
-                st.info(f"📌 **Posición:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual} | 🏢 **Dirección:** {direccion_pos} | 📊 **EDR Actual:** {edr_pos}")
+                # BARRA INFORMATIVA LIMPIA (SIN EDR Y SIN DIRECCIÓN SI ES DIRECTOR DE ÁREA)
+                if direccion_permitida != "TODAS":
+                    st.info(f"📌 **Posición:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual}")
+                else:
+                    st.info(f"📌 **Posición:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual} | 🏢 **Dirección:** {direccion_pos}")
                 
                 nombres_empleados = sorted([clean_text(n) for n in df_completo['Nombre'].dropna().unique() if clean_text(n)])
                 opciones_sucesores = ["Pendiente"] + nombres_empleados
@@ -1245,7 +1269,11 @@ def main():
                     df_pdi_mostrar = df_pdi_filtrado[cols_reales].copy()
                     df_pdi_mostrar.columns = nombres_finales
                     
-                    col_p1, col_p2, col_p3, col_p4 = st.columns(4)
+                    # Ocultar columna de Dirección en la tabla PDI si no es perfil ADMIN
+                    if direccion_permitida != "TODAS" and "Dirección" in df_pdi_mostrar.columns:
+                        df_pdi_mostrar = df_pdi_mostrar.drop(columns=["Dirección"])
+                    
+                    col_p1, col_p2, col_p3 = st.columns(3)
                     
                     if "Nombre" in df_pdi_mostrar.columns:
                         lista_nombres_pdi = sorted(df_pdi_mostrar['Nombre'].dropna().astype(str).unique().tolist())
@@ -1253,21 +1281,15 @@ def main():
                         if filtro_nombre:
                             df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Nombre'].isin(filtro_nombre)]
                             
-                    if "Dirección" in df_pdi_mostrar.columns:
-                        lista_areas_pdi = sorted(df_pdi_mostrar['Dirección'].dropna().astype(str).unique().tolist())
-                        filtro_area_pdi = col_p2.multiselect("📌 Filtrar por Dirección:", options=lista_areas_pdi)
-                        if filtro_area_pdi:
-                            df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Dirección'].isin(filtro_area_pdi)]
-                            
                     if "Clasificacion" in df_pdi_mostrar.columns:
                         lista_clasif_pdi = sorted(df_pdi_mostrar['Clasificacion'].dropna().astype(str).unique().tolist())
-                        filtro_clasif = col_p3.multiselect("🏷️ Filtrar por Clasificación:", options=lista_clasif_pdi)
+                        filtro_clasif = col_p2.multiselect("🏷️ Filtrar por Clasificación:", options=lista_clasif_pdi)
                         if filtro_clasif:
                             df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Clasificacion'].isin(filtro_clasif)]
                             
                     if "Estatus" in df_pdi_mostrar.columns:
                         lista_estatus_pdi = sorted(df_pdi_mostrar['Estatus'].dropna().astype(str).unique().tolist())
-                        filtro_estatus = col_p4.multiselect("🚦 Filtrar por Estatus:", options=lista_estatus_pdi)
+                        filtro_estatus = col_p3.multiselect("🚦 Filtrar por Estatus:", options=lista_estatus_pdi)
                         if filtro_estatus:
                             df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Estatus'].isin(filtro_estatus)]
                     
