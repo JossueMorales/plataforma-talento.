@@ -799,7 +799,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             nodo_data = {"Nombre": info['nombre'], "Dirección": info['direccion'], "Puesto": info['puesto']}
             data_total.append(nodo_data)
             
-            # KPI DESEMPEÑO EDR
             data_edr.append({
                 "Nombre": info['nombre'],
                 "Puesto": info['puesto'],
@@ -807,7 +806,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                 "Resultado EDR": info['edr']
             })
             
-            # KPI UNIFICADO: SUCESIÓN DE POSICIONES CRÍTICAS
             if info['critica'].lower() == 'si':
                 target_id = info['suc1_id']
                 nom_suc = nom_suc1 if nom_suc1 else "Pendiente"
@@ -1059,7 +1057,6 @@ def main():
             with col_datos:
                 st.markdown("### 📊 KPIs de Talento")
                 
-                # 6 TARJETAS DE KPIS PRINCIPALES
                 k1, k2, k3, k4, k5, k6 = st.columns(6)
                 
                 with k1:
@@ -1105,7 +1102,6 @@ def main():
                         if vista == "alertas":
                             df_lista = df_lista.drop_duplicates(subset=["Nombre", "Alerta"]).reset_index(drop=True)
                             
-                        # OCULTAR COLUMNA "DIRECCIÓN" SI ES UN PERFIL DE DIRECCIÓN ESPECÍFICO
                         if direccion_permitida != "TODAS" and "Dirección" in df_lista.columns:
                             df_lista = df_lista.drop(columns=["Dirección"])
                             
@@ -1120,16 +1116,18 @@ def main():
             st.divider()
             
             # ==========================================
-            # PLANIFICADOR DE SUCESIONES (EDICIÓN EN VIVO REAL-TIME)
+            # PLANIFICADOR DE SUCESIONES (SOLO POSICIONES CRÍTICAS)
             # ==========================================
             st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
             st.markdown("Usa este panel para asignar o modificar los sucesores. **Los cambios se guardarán automáticamente en tu Excel** y el mapa se actualizará al instante.")
             
             df_posiciones_filtradas = df_seguro.copy()
+            
+            # RESTRICCIÓN CLAVE: FILTRAR ÚNICAMENTE POSICIONES CRÍTICAS (Posición Crítica == 'Si')
+            df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Posición Crítica'].apply(clean_text).str.lower() == 'si']
+            
             if f_dir != "Todas":
                 df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Dirección'].apply(clean_text) == f_dir]
-            if f_crit != "Todas":
-                df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Posición Crítica'].apply(clean_text) == f_crit]
             if f_mla != "Todos":
                 df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Nivel MLA'].apply(clean_text) == f_mla]
             if f_box != "Todos":
@@ -1147,14 +1145,12 @@ def main():
                     mapa_indices[puesto] = idx 
                     
             posiciones_opciones = sorted(list(set(posiciones_opciones)))
-            pos_seleccionada = st.selectbox("🔍 Selecciona la Posición a planificar:", [""] + posiciones_opciones)
+            pos_seleccionada = st.selectbox("🔍 Selecciona la Posición Crítica a planificar:", [""] + posiciones_opciones)
             
-            # Función para obtener la información privada del colaborador en tiempo real
             def obtener_ficha_candidato(nombre_cand):
                 if not nombre_cand or nombre_cand == "Pendiente":
                     return None
                 
-                # Búsqueda en la base de datos global
                 match_colab = df_completo[df_completo['Nombre'].astype(str).str.strip().str.lower() == nombre_cand.strip().lower()]
                 if match_colab.empty:
                     return None
@@ -1162,7 +1158,6 @@ def main():
                 row_c = match_colab.iloc[0]
                 dir_candidato = clean_text(row_c.get('Dirección', row_c.get('Direccion')), 'No asignada')
                 
-                # Regla de Privacidad: Si es Director de un área y el colaborador es de OTRA área, restringir
                 if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in dir_candidato.upper()):
                     return "RESTRINGIDO"
                 
@@ -1182,9 +1177,9 @@ def main():
                 direccion_pos = clean_text(info_pos.get('Dirección'), 'No asignada')
                 
                 if direccion_permitida != "TODAS":
-                    st.info(f"📌 **Posición:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual}")
+                    st.info(f"📌 **Posición Crítica:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual}")
                 else:
-                    st.info(f"📌 **Posición:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual} | 🏢 **Dirección:** {direccion_pos}")
+                    st.info(f"📌 **Posición Crítica:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual} | 🏢 **Dirección:** {direccion_pos}")
                 
                 nombres_empleados = sorted([clean_text(n) for n in df_completo['Nombre'].dropna().unique() if clean_text(n)])
                 opciones_sucesores = ["Pendiente"] + nombres_empleados
@@ -1204,14 +1199,12 @@ def main():
                 if c_read2 not in opciones_tiempo: opciones_tiempo.append(c_read2)
                 if c_read3 not in opciones_tiempo: opciones_tiempo.append(c_read3)
                 
-                # SECCIÓN DE EDICIÓN EN TIEMPO REAL (SIN ST.FORM)
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
                     st.markdown("#### 🥇 Sucesor 1")
                     n_suc1 = st.selectbox("Candidato 1", opciones_sucesores, index=opciones_sucesores.index(c_suc1), key="select_suc1")
                     
-                    # MOSTRAR FICHA EN TIEMPO REAL
                     ficha1 = obtener_ficha_candidato(n_suc1)
                     if ficha1 == "RESTRINGIDO":
                         st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
@@ -1224,7 +1217,6 @@ def main():
                     st.markdown("#### 🥈 Sucesor 2")
                     n_suc2 = st.selectbox("Candidato 2", opciones_sucesores, index=opciones_sucesores.index(c_suc2), key="select_suc2")
                     
-                    # MOSTRAR FICHA EN TIEMPO REAL
                     ficha2 = obtener_ficha_candidato(n_suc2)
                     if ficha2 == "RESTRINGIDO":
                         st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
@@ -1237,7 +1229,6 @@ def main():
                     st.markdown("#### 🥉 Sucesor 3")
                     n_suc3 = st.selectbox("Candidato 3", opciones_sucesores, index=opciones_sucesores.index(c_suc3), key="select_suc3")
                     
-                    # MOSTRAR FICHA EN TIEMPO REAL
                     ficha3 = obtener_ficha_candidato(n_suc3)
                     if ficha3 == "RESTRINGIDO":
                         st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
