@@ -1161,15 +1161,15 @@ def main():
                 eng_c = clean_text(row_c.get(eng_key), 'N/A') if eng_key else 'N/A'
                 return {"puesto_actual": puesto_actual, "direccion": dir_candidato, "box": box_c, "enganche": eng_c, "edr": edr_c}
 
-            # DICCIONARIO DE MERCADO IA (Semantic Context)
+            # DICCIONARIO DE MERCADO IA (Semantic Context) CORREGIDO CON CRM Y ERP
             DICCIONARIO_MERCADO = {
-                "sistemas_it": ["erp", "sistemas", "tecnologia", "informacion", "it", "software", "datos", "sap", "tecnico", "redes"],
-                "abogado": ["legal", "juridico", "contratos", "litigio", "derecho", "normativa", "corporativo"],
-                "rh": ["talento", "recursos humanos", "cultura", "clima", "capacitacion", "desarrollo", "atraccion", "beneficios", "compensaciones", "nomina", "laborales", "personal"],
+                "sistemas_it": ["erp", "sistemas", "tecnologia", "informacion", "it", "software", "datos", "sap", "tecnico", "redes", "crm", "soporte", "desarrollo"],
+                "abogado": ["legal", "juridico", "contratos", "litigio", "derecho", "normativa", "corporativo", "abogado"],
+                "rh": ["talento", "recursos humanos", "cultura", "clima", "capacitacion", "desarrollo", "atraccion", "beneficios", "compensaciones", "nomina", "laborales", "personal", "rh"],
                 "comercial": ["ventas", "clientes", "cuentas", "kam", "negocios", "mercado", "retail", "mayoreo", "comercial"],
-                "operaciones": ["planta", "produccion", "mantenimiento", "calidad", "manufactura", "procesos", "industrial"],
-                "logistica": ["reparto", "distribucion", "almacen", "inventarios", "transporte", "cadena", "suministro"],
-                "finanzas": ["contabilidad", "tesoreria", "auditoria", "fiscal", "credito", "costos", "financiero"]
+                "operaciones": ["planta", "produccion", "mantenimiento", "calidad", "manufactura", "procesos", "industrial", "operacion"],
+                "logistica": ["reparto", "distribucion", "almacen", "inventarios", "transporte", "cadena", "suministro", "logistica"],
+                "finanzas": ["contabilidad", "tesoreria", "auditoria", "fiscal", "credito", "costos", "financiero", "finanzas"]
             }
 
             def extraer_contexto(texto):
@@ -1179,14 +1179,11 @@ def main():
                 stopwords = [' de ', ' del ', ' la ', ' las ', ' el ', ' los ', ' y ', ' en ', ' para ', ' con ', ' a ', ' al ']
                 for sw in stopwords: t = t.replace(sw, ' ')
                 
-                # Extraer palabras de 4+ letras
-                palabras = set(re.findall(r'\b\w{4,}\b', t))
+                palabras = set(re.findall(r'\b\w{3,}\b', t)) 
                 
-                # Eliminar jerarquías para dejar solo la habilidad técnica
                 jerarquias = {'gerente', 'jefe', 'coordinador', 'director', 'analista', 'auxiliar', 'especialista', 'encargado', 'asistente'}
                 palabras = palabras - jerarquias
                 
-                # Expandir usando diccionario de mercado
                 contexto_ampliado = set(palabras)
                 for palabra in palabras:
                     for key, valores in DICCIONARIO_MERCADO.items():
@@ -1197,7 +1194,6 @@ def main():
                             
                 return contexto_ampliado
 
-            # Precargar PDI en diccionario para velocidad
             dict_pdi_textos = {}
             if not df_pdi.empty and 'Nombre' in df_pdi.columns:
                 col_obj = next((c for c in df_pdi.columns if 'objetivo' in str(c).lower()), None)
@@ -1214,7 +1210,6 @@ def main():
                 mla_destino = clean_text(info_pos_destino.get('Nivel MLA'), '')
                 ocupante_destino = clean_text(info_pos_destino.get('Nombre'), '').lower()
                 
-                # Contexto Técnico del Puesto Destino (Ej. "Gerente de ERP" -> {'erp', 'sistemas', 'software', ...})
                 contexto_destino = extraer_contexto(pos_destino)
                 
                 candidatos_sugeridos = []
@@ -1226,20 +1221,17 @@ def main():
                     puesto_act = clean_text(row.get('Nombre de la Posición'))
                     if puesto_act.lower() == pos_destino.lower(): continue
                     
-                    # Extraer contexto del puesto actual y del PDI del candidato
                     contexto_cand_puesto = extraer_contexto(puesto_act)
                     pdi_texto = dict_pdi_textos.get(nombre.lower(), "")
                     contexto_cand_pdi = extraer_contexto(pdi_texto)
                     
-                    # Unir perfil técnico del candidato (Lo que hace + Lo que está desarrollando)
                     perfil_tecnico_candidato = contexto_cand_puesto.union(contexto_cand_pdi)
                     
-                    # CANDADO NLP: Si no hay intersección de habilidades técnicas, descartar inmediatamente
                     if not contexto_destino.intersection(perfil_tecnico_candidato):
-                        continue # Evita sugerir HR para ERP o Finanzas para Legal
+                        continue 
                     
                     box = clean_text(row.get('Resultado 9 box')).upper()
-                    if box not in ['1', '2', '3', '4', '5', '6']: continue # Solo Alto Desempeño
+                    if box not in ['1', '2', '3', '4', '5', '6']: continue 
                     
                     mla_cand = clean_text(row.get('Nivel MLA'))
                     score = 0
@@ -1268,7 +1260,7 @@ def main():
                             score += 2
                             razones.append("Movimiento lateral orgánico")
                             
-                    if score >= 7: # Umbral estricto
+                    if score >= 7: 
                         candidatos_sugeridos.append({
                             'nombre': nombre,
                             'puesto': puesto_act,
