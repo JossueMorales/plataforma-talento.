@@ -50,7 +50,8 @@ network.on("beforeDrawing", function(ctx) {
     
     for (var i = 1; i <= limite_anillos; i++) {
         if (i > 5) break; 
-        var r = i * paso; ctx.beginPath(); ctx.arc(0, 0, r, 0, 2 * Math.PI); ctx.stroke();
+        var r = (window.onionMode === 'tiempo') ? (i * paso) + 50 : (i * paso); 
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, 2 * Math.PI); ctx.stroke();
         var etiqueta = "";
         
         if (window.onionMode === 'mla') {
@@ -183,10 +184,21 @@ function updateSpacing() {
         var n = allNodes[i];
         var anillo = (window.onionMode === 'mla') ? (n.AnilloReal !== undefined ? n.AnilloReal : n.anilloreal) : (n.AnilloSucesion !== undefined ? n.AnilloSucesion : n.anillosucesion);
         var angle = n.Angle !== undefined ? n.Angle : n.angle;
-        var prof = (window.onionMode === 'mla') ? (n.Profundidad !== undefined ? n.Profundidad : n.profundidad) : 0;
         
         if (anillo !== undefined && angle !== undefined) {
-            var nuevoRadio = (anillo * window.ringSpacing) + (prof * 120);
+            var nuevoRadio = 0;
+            if (window.onionMode === 'mla') {
+                var prof = n.Profundidad !== undefined ? n.Profundidad : n.profundidad;
+                if (prof === undefined) prof = 0;
+                nuevoRadio = (anillo * window.ringSpacing) + (prof * 120);
+            } else {
+                // SOLUCIÓN: Radio pequeño en lugar de 0 para que no colapsen
+                if (anillo === 0) {
+                    nuevoRadio = 80; 
+                } else {
+                    nuevoRadio = (anillo * window.ringSpacing) + 50;
+                }
+            }
             nodesToUpdate.push({ id: n.id, x: nuevoRadio * Math.cos(angle), y: nuevoRadio * Math.sin(angle) });
         }
     }
