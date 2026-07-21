@@ -1116,7 +1116,7 @@ def main():
             st.divider()
             
             # ==========================================
-            # PLANIFICADOR DE SUCESIONES + MOTOR AVANZADO DE CONSULTORÍA IA DE PDI
+            # PLANIFICADOR DE SUCESIONES CON RECOMENDADOR IA
             # ==========================================
             st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
             st.markdown("Usa este panel para asignar o modificar los sucesores. **Los cambios se guardarán automáticamente en tu Excel** y el mapa se actualizará al instante.")
@@ -1168,9 +1168,6 @@ def main():
                 
                 return {"puesto_actual": puesto_actual, "direccion": dir_candidato, "box": box_c, "enganche": eng_c, "edr": edr_c}
 
-            # ==========================================
-            # NUEVO MOTOR ANALÍTICO DE IA (DIAGNOSTICO PROFUNDO PDI & GAP DE PUESTO)
-            # ==========================================
             def diagnosticar_pdi_ia(nombre_cand, puesto_destino, info_cand):
                 if not nombre_cand or nombre_cand == "Pendiente" or info_cand == "RESTRINGIDO" or not info_cand:
                     return None
@@ -1198,31 +1195,25 @@ def main():
                 acciones_pdi = clean_text(row_p.get(col_acciones), 'Sin acciones descritas') if col_acciones else 'Sin acciones'
                 clasif_pdi = clean_text(row_p.get(col_clasif), 'General') if col_clasif else 'General'
                 
-                # Búsqueda semántica inteligente de alineación entre Puesto Origen, Destino y PDI
                 palabras_puesto = [p for p in puesto_destino.lower().split() if len(p) > 3 and p not in ['jefe', 'gerente', 'coordinador', 'director', 'de', 'del', 'las', 'los']]
                 palabras_pdi = (obj_pdi + " " + acciones_pdi).lower()
                 
                 coincidencias = [p for p in palabras_puesto if p in palabras_pdi]
-                
-                # Evaluación de Brecha de Puesto (Origen vs Destino)
                 puesto_origen = info_cand['puesto_actual']
-                es_mismo_puesto = puesto_origen.strip().lower() == puesto_destino.strip().lower()
                 
                 if len(coincidencias) > 0 or ("gerencia" in obj_pdi.lower() and "gerente" in puesto_destino.lower()) or ("dirección" in obj_pdi.lower() and "director" in puesto_destino.lower()):
                     estatus = "ALINEADO"
                     icono = "✅"
                     titulo_estatus = "PDI Alineado a la Posición"
-                    color_borde = "#16a34a" # Verde
+                    color_borde = "#16a34a"
                     bg_color = "#f0fdf4"
-                    
                     recomendacion = f"El PDI actual está **correctamente enfocado** en la posición de *{puesto_destino}*. Con un avance del **{avance_pdi}**, las acciones en curso cubren las competencias requeridas. Mantenimiento del plan actual."
                 else:
                     estatus = "REQUIERE_AJUSTE"
                     icono = "🟡"
                     titulo_estatus = "Ajuste Recomendado al PDI"
-                    color_borde = "#ca8a04" # Amarillo
+                    color_borde = "#ca8a04"
                     bg_color = "#fefce8"
-                    
                     recomendacion = f"💡 **Recomendación de Ajuste:** El candidato actualmente es *{puesto_origen}*. Su PDI actual está orientado a '_{obj_pdi}_'. Para asegurar su éxito hacia *{puesto_destino}*, se recomienda **actualizar sus Acciones de Desarrollo** agregando competencias técnicas y operativas específicas del nuevo puesto destino."
                 
                 return {
@@ -1240,17 +1231,95 @@ def main():
                     "recomendacion": recomendacion
                 }
 
+            # FUNCIÓN PARA GENERAR CANDIDATOS/POSICIONES SUGERIDAS POR IA
+            def generar_sugerencias_ia(pos_destino, info_pos_destino):
+                if not pos_destino or df_completo.empty:
+                    return []
+                
+                mla_destino = clean_text(info_pos_destino.get('Nivel MLA'), '')
+                dir_destino = clean_text(info_pos_destino.get('Dirección'), '')
+                ocupante_destino = clean_text(info_pos_destino.get('Nombre'), '').lower()
+                
+                candidatos_sugeridos = []
+                
+                for _, row in df_completo.iterrows():
+                    nombre = clean_text(row.get('Nombre'))
+                    if not nombre or nombre.lower() == ocupante_destino:
+                        continue
+                        
+                    puesto_act = clean_text(row.get('Nombre de la Posición'))
+                    if puesto_act.lower() == pos_destino.lower():
+                        continue
+                        
+                    box = clean_text(row.get('Resultado 9 box')).upper()
+                    dir_cand = clean_text(row.get('Dirección'))
+                    mla_cand = clean_text(row.get('Nivel MLA'))
+                    interes = clean_text(row.get('Interés del Colaborador')).lower()
+                    
+                    score = 0
+                    razones = []
+                    
+                    if box in ['1', '2', '3', '5']:
+                        score += 4
+                        razones.append("HiPo / Alto Desempeño (9-Box)")
+                    elif box in ['4', '6']:
+                        score += 2
+                        razones.append("Buen Desempeño (9-Box)")
+                        
+                    palabras_pos = [p for p in pos_destino.lower().split() if len(p) > 3 and p not in ['jefe', 'gerente', 'coordinador', 'director', 'de', 'del', 'las', 'los']]
+                    if any(p in interes for p in palabras_pos):
+                        score += 3
+                        razones.append("Interés explícito en la función")
+                        
+                    if dir_cand.upper() == dir_destino.upper() and dir_destino != '':
+                        score += 2
+                        razones.append("Misma Dirección")
+                        
+                    if mla_destino.isdigit() and mla_cand.isdigit():
+                        diff = int(mla_destino) - int(mla_cand)
+                        if diff == 1:
+                            score += 3
+                            razones.append("Nivel MLA contiguo (Ascenso ideal)")
+                        elif diff == 0:
+                            score += 2
+                            razones.append("Movimiento lateral de nivel")
+                            
+                    if score >= 4:
+                        candidatos_sugeridos.append({
+                            'nombre': nombre,
+                            'puesto': puesto_act,
+                            'direccion': dir_cand,
+                            'box': box if box else 'N/A',
+                            'score': score,
+                            'razon': " | ".join(razones)
+                        })
+                        
+                return sorted(candidatos_sugeridos, key=lambda x: x['score'], reverse=True)[:3]
+
             if pos_seleccionada:
                 idx_pandas = mapa_indices[pos_seleccionada]
                 info_pos = df_seguro.loc[idx_pandas]
                 
-                ocupante_actual = clean_text(info_pos.get('Nombre'), 'Vacante / Sin asignar')
-                direccion_pos = clean_text(info_pos.get('Dirección'), 'No asignada')
-                
-                if direccion_permitida != "TODAS":
-                    st.info(f"📌 **Posición Crítica:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual}")
-                else:
-                    st.info(f"📌 **Posición Crítica:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual} | 🏢 **Dirección:** {direccion_pos}")
+                # MOSTRAR BLOQUE DE SUGERENCIAS AUTOMÁTICAS DE IA
+                sugerencias = generar_sugerencias_ia(pos_seleccionada, info_pos)
+                if sugerencias:
+                    items_html = ""
+                    for s in sugerencias:
+                        if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in s['direccion'].upper()):
+                            info_vis = "🔒 <i>Detalles confidenciales (Otra Dirección)</i>"
+                        else:
+                            info_vis = f"📌 Puesto Actual: <b>{s['puesto']}</b> | 📊 9-Box: <b>{s['box']}</b>"
+                            
+                        items_html += f"<li>👤 <b>{s['nombre']}</b> — {info_vis}<br><span style='color:#0369a1;'>💡 {s['razon']}</span></li>"
+                        
+                    st.markdown(f"""
+                    <div style="background:#e0f2fe; border-left:5px solid #0284c7; padding:12px; border-radius:8px; margin-bottom:15px; font-size:13px; color:#0f172a;">
+                        <b style="font-size:14px; color:#0369a1;">🤖 Sugerencias de Candidatos/Posiciones por IA para esta Silla:</b>
+                        <ul style="margin:8px 0 0 0; padding-left:20px; line-height:1.5;">
+                            {items_html}
+                        </ul>
+                    </div>
+                    """, unsafe_allow_html=True)
                 
                 nombres_empleados = sorted([clean_text(n) for n in df_completo['Nombre'].dropna().unique() if clean_text(n)])
                 opciones_sucesores = ["Pendiente"] + nombres_empleados
@@ -1282,7 +1351,6 @@ def main():
                     elif ficha1:
                         st.success(f"📊 **9-Box:** {ficha1['box']} | 🔥 **Enganche:** {ficha1['enganche']} | 📈 **EDR:** {ficha1['edr']}")
                         
-                        # ANÁLISIS CONSULTIVO IA DE PDI
                         pdi_diag1 = diagnosticar_pdi_ia(n_suc1, pos_seleccionada, ficha1)
                         if pdi_diag1 and pdi_diag1.get("estatus") == "SIN_PDI":
                             st.warning(pdi_diag1['recomendacion'])
@@ -1310,7 +1378,6 @@ def main():
                     elif ficha2:
                         st.success(f"📊 **9-Box:** {ficha2['box']} | 🔥 **Enganche:** {ficha2['enganche']} | 📈 **EDR:** {ficha2['edr']}")
                         
-                        # ANÁLISIS CONSULTIVO IA DE PDI
                         pdi_diag2 = diagnosticar_pdi_ia(n_suc2, pos_seleccionada, ficha2)
                         if pdi_diag2 and pdi_diag2.get("estatus") == "SIN_PDI":
                             st.warning(pdi_diag2['recomendacion'])
@@ -1338,7 +1405,6 @@ def main():
                     elif ficha3:
                         st.success(f"📊 **9-Box:** {ficha3['box']} | 🔥 **Enganche:** {ficha3['enganche']} | 📈 **EDR:** {ficha3['edr']}")
                         
-                        # ANÁLISIS CONSULTIVO IA DE PDI
                         pdi_diag3 = diagnosticar_pdi_ia(n_suc3, pos_seleccionada, ficha3)
                         if pdi_diag3 and pdi_diag3.get("estatus") == "SIN_PDI":
                             st.warning(pdi_diag3['recomendacion'])
