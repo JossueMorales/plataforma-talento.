@@ -796,57 +796,61 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         nom_suc3 = nombres_dict.get(info['suc3_id'], info['suc3_id']) if info['suc3_id'] else ""
         
         if not is_hidden:
+            # EXCLUIR A DIRECTOR GENERAL DE LAS LISTAS ESPECÍFICAS DE KPI
+            es_andres = info['mla'] == '5' or 'ANDRES EDUARDO VILLARREAL' in info['nombre'].upper()
+            
             nodo_data = {"Nombre": info['nombre'], "Dirección": info['direccion'], "Puesto": info['puesto']}
             data_total.append(nodo_data)
             
-            data_edr.append({
-                "Nombre": info['nombre'],
-                "Puesto": info['puesto'],
-                "Dirección": info['direccion'],
-                "Resultado EDR": info['edr']
-            })
-            
-            if info['critica'].lower() == 'si':
-                target_id = info['suc1_id']
-                nom_suc = nom_suc1 if nom_suc1 else "Pendiente"
-                puesto_suc = "Pendiente"
-                
-                if target_id in info_nodos:
-                    puesto_suc = info_nodos[target_id]['puesto']
-                elif target_id:
-                    puesto_suc = target_id
-                
-                tiempo_suc = info['read1'] if info['read1'] else "Pendiente"
-                
-                data_sucesores.append({
-                    "Ocupante Actual": info['nombre'],
-                    "Posición Crítica": info['puesto'],
+            if not es_andres:
+                data_edr.append({
+                    "Nombre": info['nombre'],
+                    "Puesto": info['puesto'],
                     "Dirección": info['direccion'],
-                    "Nombre del Sucesor": nom_suc,
-                    "Puesto del Sucesor": puesto_suc,
-                    "Tiempo de Sucesión": tiempo_suc
+                    "Resultado EDR": info['edr']
                 })
                 
+                if info['critica'].lower() == 'si':
+                    target_id = info['suc1_id']
+                    nom_suc = nom_suc1 if nom_suc1 else "Pendiente"
+                    puesto_suc = "Pendiente"
+                    
+                    if target_id in info_nodos:
+                        puesto_suc = info_nodos[target_id]['puesto']
+                    elif target_id:
+                        puesto_suc = target_id
+                    
+                    tiempo_suc = info['read1'] if info['read1'] else "Pendiente"
+                    
+                    data_sucesores.append({
+                        "Ocupante Actual": info['nombre'],
+                        "Posición Crítica": info['puesto'],
+                        "Dirección": info['direccion'],
+                        "Nombre del Sucesor": nom_suc,
+                        "Puesto del Sucesor": puesto_suc,
+                        "Tiempo de Sucesión": tiempo_suc
+                    })
+                    
+                if info['es_lider']:
+                    data_enganche.append({
+                        "Líder": info['nombre'],
+                        "Puesto": info['puesto'],
+                        "Dirección": info['direccion'],
+                        "Enganche Individual": info['enganche_ind'] if info['enganche_ind'] > 0 else "N/A",
+                        "Enganche del Área": info['enganche_area'] if info['enganche_area'] > 0 else "N/A"
+                    })
+                    
+                for r in info['riesgos_lista']:
+                    alertas_tabla.append({
+                        "Colaborador": info['nombre'],
+                        "Líder Directo": info['lider'],
+                        "Puesto": info['puesto'],
+                        "Dirección": info['direccion'],
+                        "Alerta Detectada por IA": r
+                    })
+
             if info['mla'] == '1':
                 data_operativos.append(nodo_data)
-                
-            if info['es_lider']:
-                data_enganche.append({
-                    "Líder": info['nombre'],
-                    "Puesto": info['puesto'],
-                    "Dirección": info['direccion'],
-                    "Enganche Individual": info['enganche_ind'] if info['enganche_ind'] > 0 else "N/A",
-                    "Enganche del Área": info['enganche_area'] if info['enganche_area'] > 0 else "N/A"
-                })
-                
-            for r in info['riesgos_lista']:
-                alertas_tabla.append({
-                    "Colaborador": info['nombre'],
-                    "Líder Directo": info['lider'],
-                    "Puesto": info['puesto'],
-                    "Dirección": info['direccion'],
-                    "Alerta Detectada por IA": r
-                })
 
         prefijo = "🚨 " if info['riesgos_lista'] else ""
         coord_data = coords.get(emp, {'x':5000, 'y':5000, 'angle':0, 'anillo_real':5, 'profundidad':5})
@@ -928,8 +932,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         for a in alertas_tabla
     ]
     
-    eng_total_sum = sum(info_nodos[n]['enganche_ind'] for n in nodos_visibles if info_nodos[n]['enganche_ind'] > 0)
-    eng_total_count = sum(1 for n in nodos_visibles if info_nodos[n]['enganche_ind'] > 0)
+    eng_total_sum = sum(info_nodos[n]['enganche_ind'] for n in nodos_visibles if info_nodos[n]['enganche_ind'] > 0 and 'ANDRES EDUARDO VILLARREAL' not in info_nodos[n]['nombre'].upper())
+    eng_total_count = sum(1 for n in nodos_visibles if info_nodos[n]['enganche_ind'] > 0 and 'ANDRES EDUARDO VILLARREAL' not in info_nodos[n]['nombre'].upper())
     avg_enganche = round(eng_total_sum / eng_total_count, 1) if eng_total_count > 0 else 0.0
     
     kpis = {
@@ -1132,6 +1136,18 @@ def main():
                 df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Resultado 9 box'].apply(clean_text).str.upper() == f_box]
             if f_edr != "Todos" and edrs_col:
                 df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas[edrs_col].apply(clean_text) == f_edr]
+            
+            # AGREGANDO EL SELECTOR DE LÍDER ANTES DEL SELECTOR DE POSICIÓN
+            col_plan1, col_plan2 = st.columns(2)
+            
+            lideres_ids_plan = df_posiciones_filtradas['ID Del Jefe'].dropna().unique()
+            lideres_plan = sorted(list(set([dict_nom.get(clean_id(x), "Sin Líder") for x in lideres_ids_plan if clean_id(x)])))
+            
+            f_lid_plan = col_plan1.selectbox("👤 Filtrar por Líder:", ["Todos"] + lideres_plan)
+            
+            if f_lid_plan != "Todos":
+                df_posiciones_filtradas['Nombre_Lider'] = df_posiciones_filtradas['ID Del Jefe'].apply(lambda x: dict_nom.get(clean_id(x), "Sin Líder"))
+                df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Nombre_Lider'] == f_lid_plan]
                 
             posiciones_opciones = []
             mapa_indices = {}
@@ -1143,7 +1159,7 @@ def main():
                     mapa_indices[puesto] = idx 
                     
             posiciones_opciones = sorted(list(set(posiciones_opciones)))
-            pos_seleccionada = st.selectbox("🔍 Selecciona la Posición Crítica a planificar:", [""] + posiciones_opciones)
+            pos_seleccionada = col_plan2.selectbox("🔍 Selecciona la Posición Crítica a planificar:", [""] + posiciones_opciones)
             
             def obtener_ficha_candidato(nombre_cand):
                 if not nombre_cand or nombre_cand == "Pendiente":
@@ -1161,19 +1177,17 @@ def main():
                 eng_c = clean_text(row_c.get(eng_key), 'N/A') if eng_key else 'N/A'
                 return {"puesto_actual": puesto_actual, "direccion": dir_candidato, "box": box_c, "enganche": eng_c, "edr": edr_c}
 
-            # DICCIONARIO DE MERCADO IA (Semantic Context) CORREGIDO CON CRM Y ERP
             DICCIONARIO_MERCADO = {
                 "sistemas_it": ["erp", "sistemas", "tecnologia", "informacion", "it", "software", "datos", "sap", "tecnico", "redes", "crm", "soporte", "programacion"],
                 "abogado": ["legal", "juridico", "contratos", "litigio", "derecho", "normativa", "corporativo", "abogado"],
                 "rh": ["talento", "recursos humanos", "cultura", "clima", "capacitacion", "atraccion", "beneficios", "compensaciones", "nomina", "laborales", "personal", "rh", "do"],
-                "comercial": ["ventas", "clientes", "cuentas", "kam", "negocios", "mercado", "retail", "mayoreo", "comercial", "desarrollo comercial"],
+                "comercial": ["ventas", "clientes", "cuentas", "kam", "negocios", "mercado", "retail", "mayoreo", "comercial"],
                 "operaciones": ["planta", "produccion", "mantenimiento", "calidad", "manufactura", "procesos", "industrial", "operacion"],
                 "logistica": ["reparto", "distribucion", "almacen", "inventarios", "transporte", "cadena", "suministro", "logistica"],
                 "finanzas": ["contabilidad", "tesoreria", "auditoria", "fiscal", "credito", "costos", "financiero", "finanzas"]
             }
 
             def extraer_contexto(texto):
-                """Simula NLP extrayendo conceptos clave e inyectando conocimiento de mercado."""
                 if not texto or pd.isna(texto): return set()
                 t = str(texto).lower()
                 stopwords = [' de ', ' del ', ' la ', ' las ', ' el ', ' los ', ' y ', ' en ', ' para ', ' con ', ' a ', ' al ']
@@ -1181,7 +1195,7 @@ def main():
                 
                 palabras = set(re.findall(r'\b\w{3,}\b', t)) 
                 
-                jerarquias = {'gerente', 'jefe', 'coordinador', 'director', 'analista', 'auxiliar', 'especialista', 'encargado', 'asistente'}
+                jerarquias = {'gerente', 'jefe', 'coordinador', 'director', 'analista', 'auxiliar', 'especialista', 'encargado', 'asistente', 'control'}
                 palabras = palabras - jerarquias
                 
                 contexto_ampliado = set(palabras)
@@ -1299,7 +1313,7 @@ def main():
                 coincidencias = contexto_destino.intersection(contexto_pdi)
                 puesto_origen = info_cand['puesto_actual']
                 
-                if len(coincidencias) > 0 or ("gerencia" in obj_pdi.lower() and "gerente" in puesto_destino.lower()) or ("dirección" in obj_pdi.lower() and "director" in puesto_destino.lower()):
+                if len(coincidencias) > 0:
                     return {
                         "estatus": "ALINEADO", "icono": "✅", "titulo_estatus": "PDI Alineado a la Posición",
                         "color_borde": "#16a34a", "bg_color": "#f0fdf4", "puesto_origen": puesto_origen,
