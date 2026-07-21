@@ -412,12 +412,19 @@ def cargar_datos_csv(url_sheets, nombre_pestana):
         st.error(f"🤖 Error técnico del Robot: {e}")
         return pd.DataFrame()
 
+# ==========================================
+# FIX: FUNCIÓN MEJORADA PARA IGNORAR COLUMNAS REPETIDAS
+# ==========================================
 def clean_text(val, default=''):
+    if isinstance(val, pd.Series):
+        val = val.iloc[0] if not val.empty else default
     if pd.isna(val) or str(val).strip().lower() in ['nan', 'none', 'pendiente', '']:
         return default
     return str(val).strip()
 
 def clean_id(val):
+    if isinstance(val, pd.Series):
+        val = val.iloc[0] if not val.empty else ''
     if pd.isna(val) or str(val).strip().lower() in ['nan', 'none', 'pendiente', '']: 
         return ''
     v = str(val).strip()
