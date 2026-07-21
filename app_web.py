@@ -50,8 +50,7 @@ network.on("beforeDrawing", function(ctx) {
     
     for (var i = 1; i <= limite_anillos; i++) {
         if (i > 5) break; 
-        var r = (window.onionMode === 'tiempo') ? (i * paso) + 50 : (i * paso); 
-        ctx.beginPath(); ctx.arc(0, 0, r, 0, 2 * Math.PI); ctx.stroke();
+        var r = i * paso; ctx.beginPath(); ctx.arc(0, 0, r, 0, 2 * Math.PI); ctx.stroke();
         var etiqueta = "";
         
         if (window.onionMode === 'mla') {
@@ -184,20 +183,10 @@ function updateSpacing() {
         var n = allNodes[i];
         var anillo = (window.onionMode === 'mla') ? (n.AnilloReal !== undefined ? n.AnilloReal : n.anilloreal) : (n.AnilloSucesion !== undefined ? n.AnilloSucesion : n.anillosucesion);
         var angle = n.Angle !== undefined ? n.Angle : n.angle;
+        var prof = (window.onionMode === 'mla') ? (n.Profundidad !== undefined ? n.Profundidad : n.profundidad) : 0;
         
         if (anillo !== undefined && angle !== undefined) {
-            var nuevoRadio = 0;
-            if (window.onionMode === 'mla') {
-                var prof = n.Profundidad !== undefined ? n.Profundidad : n.profundidad;
-                if (prof === undefined) prof = 0;
-                nuevoRadio = (anillo * window.ringSpacing) + (prof * 120);
-            } else {
-                if (anillo === 0) {
-                    nuevoRadio = 80; 
-                } else {
-                    nuevoRadio = (anillo * window.ringSpacing) + 50;
-                }
-            }
+            var nuevoRadio = (anillo * window.ringSpacing) + (prof * 120);
             nodesToUpdate.push({ id: n.id, x: nuevoRadio * Math.cos(angle), y: nuevoRadio * Math.sin(angle) });
         }
     }
@@ -452,7 +441,7 @@ def cargar_datos_csv(url_sheets, nombre_pestana):
         return pd.DataFrame()
 
 # ==========================================
-# FUNCIONES MEJORADAS
+# FIX: FUNCIÓN MEJORADA PARA IGNORAR COLUMNAS REPETIDAS
 # ==========================================
 def clean_text(val, default=''):
     if isinstance(val, pd.Series):
@@ -483,21 +472,13 @@ def obtener_color_9box(valor):
 def acortar_nombre(nombre_completo):
     if not nombre_completo: return ""
     partes = str(nombre_completo).strip().split()
+    
     if len(partes) <= 2:
         return nombre_completo
     elif len(partes) == 3:
         return f"{partes[0]} {partes[1]}"
     else:
         return f"{partes[0]} {partes[-2]}"
-
-def get_readiness_val(rt_str):
-    """Función unificada y robusta para traducir el tiempo de readiness a un valor numérico (anillo)."""
-    rt = str(rt_str).strip().lower()
-    if not rt or rt == 'pendiente' or rt == 'nan' or rt == 'none': return 4
-    if 'inmediato' in rt or 'listo' in rt or '0' in rt: return 1
-    if '1' in rt or '2' in rt or 'medio' in rt: return 2
-    if '3' in rt or '4' in rt or '5' in rt or 'más' in rt or 'mas' in rt or 'largo' in rt: return 3
-    return 4
 
 # ==========================================
 # MOTOR PRINCIPAL
@@ -530,10 +511,13 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         v = str(valor).strip()
         if v.endswith('.0'): 
             v = v[:-2]
+        
         if v in nombres_dict: return v  
+        
         v_lower = v.lower()
         if v_lower in nombre_a_id: return nombre_a_id[v_lower] 
         if v_lower in puesto_a_id: return puesto_a_id[v_lower]
+        
         return v 
             
     for row_dict in df_seguro.to_dict('records'):
@@ -542,8 +526,10 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         
         enganche_key = next((k for k in row_dict.keys() if k and 'enganche' in str(k).lower()), None)
         if enganche_key:
-            try: eng_val = float(row_dict[enganche_key])
-            except: eng_val = 0.0
+            try:
+                eng_val = float(row_dict[enganche_key])
+            except:
+                eng_val = 0.0
         else:
             eng_val = 0.0
         
@@ -575,7 +561,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                 'read3': clean_text(row_dict.get('Tiempo de Readiness 3'), ''),
                 'enganche_ind': eng_val,
                 'enganche_area': 0.0,
-                'es_lider': False
+                'es_lider': False,
+                'anillo_sucesion': 4 # Por defecto todos en nivel 4 (Otras posiciones)
             }
             if jefe:
                 jefes_dict[emp] = jefe
@@ -619,12 +606,24 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
     sucesores_de_9box = {n: 0 for n in G_jerarquia.nodes()}
     sucesores_oficiales_de = {n: 0 for n in G_jerarquia.nodes()} 
 
-    # MANTENER CONTEO GLOBAL DE SUCESORES (Para activar alertas de "Falta Sucesor")
+    # --- NUEVA LÓGICA: CALCULAR ANILLO DE SUCESIÓN PARA EL MODO TIEMPO ---
     for emp, info in info_nodos.items():
-        sucs = [info['suc1_id'], info['suc2_id'], info['suc3_id']]
-        for s_id in sucs:
+        if info['critica'].lower() == 'si':
+            info_nodos[emp]['anillo_sucesion'] = 0 # Centro
+            
+        sucs = [(info['suc1_id'], info['read1']), (info['suc2_id'], info['read2']), (info['suc3_id'], info['read3'])]
+        for s_id, read_time in sucs:
             if s_id and s_id in info_nodos:
                 sucesores_oficiales_de[s_id] += 1
+                rt = str(read_time).strip().lower()
+                val = 4
+                if 'inmediato' in rt: val = 1
+                elif '1' in rt and '3' in rt: val = 2
+                elif 'más' in rt or 'mas' in rt or '3' in rt: val = 3
+                
+                # Quedarse con el tiempo más cercano si es sucesor de varias posiciones
+                if val < info_nodos[s_id]['anillo_sucesion']:
+                    info_nodos[s_id]['anillo_sucesion'] = val
 
     for emp, info in info_nodos.items():
         box = info['box'].upper()
@@ -724,28 +723,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             if s_id and s_id in info_nodos:
                 nodos_rescatados.add(s_id)
     nodos_visibles = nodos_rescatados
-
-    # ==============================================================
-    # FIX AISLAMIENTO DE PANTALLA: CALCULAR ANILLOS *SOLO PARA NODOS VISIBLES* 
-    # ==============================================================
-    # 1. Resetear todos los visibles a 4
-    for emp in nodos_visibles:
-        info_nodos[emp]['anillo_sucesion_final'] = 4 
-        if info_nodos[emp]['critica'].lower() == 'si':
-            info_nodos[emp]['anillo_sucesion_final'] = 0 # Centro para posiciones críticas
-            
-    # 2. Analizar únicamente las flechas visibles en el mapa actual
-    for emp in nodos_visibles:
-        if info_nodos[emp]['critica'].lower() == 'si':
-            info = info_nodos[emp]
-            sucs = [(info['suc1_id'], info['read1']), (info['suc2_id'], info['read2']), (info['suc3_id'], info['read3'])]
-            for s_id, read_time in sucs:
-                if s_id and s_id in nodos_visibles:
-                    val = get_readiness_val(read_time)
-                    # Si el sucesor NO es una posición crítica, buscar su mejor tiempo
-                    if info_nodos[s_id]['anillo_sucesion_final'] != 0: 
-                        if val < info_nodos[s_id]['anillo_sucesion_final']:
-                            info_nodos[s_id]['anillo_sucesion_final'] = val
 
     raiz_principal = None
     for emp, info in info_nodos.items():
@@ -944,6 +921,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             
         label_texto = f"{prefijo}{nombre_corto}\n({info['puesto']})"
         
+        # AÑADIMOS AnilloSucesion AL NODO PARA EL MODO TIEMPO EN JS
         G.add_node(
             emp, 
             label=label_texto, 
@@ -958,7 +936,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             Eng_Ind=info['enganche_ind'], Eng_Area=info['enganche_area'], Es_Lider=info['es_lider'],
             font={'color': '#0f172a', 'strokeWidth': 2, 'strokeColor': '#ffffff', 'size': 11, 'face': 'Arial', 'weight': 'bold'},
             x=coord_data['x'], y=coord_data['y'], Angle=coord_data['angle'], 
-            AnilloReal=coord_data['anillo_real'], AnilloSucesion=info.get('anillo_sucesion_final', 4), Profundidad=coord_data['profundidad'],
+            AnilloReal=coord_data['anillo_real'], AnilloSucesion=info['anillo_sucesion'], Profundidad=coord_data['profundidad'],
             hidden=is_hidden
         )
 
@@ -995,12 +973,12 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             if s_id and s_id in empleados_validos:
                 is_hidden_edge = (emp not in nodos_visibles or s_id not in nodos_visibles)
                 
-                # --- NUEVA LÓGICA DE LÍNEAS EXACTAMENTE IGUAL A LA DE ANILLOS ---
-                val = get_readiness_val(read_time)
-                if val == 1:
+                # --- NUEVA LÓGICA: ESTILO DE FLECHAS POR BRECHA DE TIEMPO ---
+                rt = str(read_time).strip().lower()
+                if 'inmediato' in rt:
                     dashes_style = False # Línea sólida
                     edge_width = 6
-                elif val == 2:
+                elif '1' in rt and '3' in rt:
                     dashes_style = [10, 10] # Línea a guiones medios
                     edge_width = 4
                 else:
