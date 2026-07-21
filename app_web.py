@@ -1116,7 +1116,7 @@ def main():
             st.divider()
             
             # ==========================================
-            # PLANIFICADOR DE SUCESIONES + ANÁLISIS DE IA DE PDI
+            # PLANIFICADOR DE SUCESIONES + MOTOR AVANZADO DE CONSULTORÍA IA DE PDI
             # ==========================================
             st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
             st.markdown("Usa este panel para asignar o modificar los sucesores. **Los cambios se guardarán automáticamente en tu Excel** y el mapa se actualizará al instante.")
@@ -1159,44 +1159,85 @@ def main():
                 if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in dir_candidato.upper()):
                     return "RESTRINGIDO"
                 
+                puesto_actual = clean_text(row_c.get('Nombre de la Posición'), 'Puesto no asignado')
                 box_c = clean_text(row_c.get('Resultado 9 box'), 'Pendiente')
                 edr_c = clean_text(row_c.get('EDR', row_c.get('EDR ')), 'Pendiente')
                 
                 eng_key = next((k for k in row_c.keys() if k and 'enganche' in str(k).lower()), None)
                 eng_c = clean_text(row_c.get(eng_key), 'N/A') if eng_key else 'N/A'
                 
-                return {"box": box_c, "enganche": eng_c, "edr": edr_c}
+                return {"puesto_actual": puesto_actual, "direccion": dir_candidato, "box": box_c, "enganche": eng_c, "edr": edr_c}
 
-            # NUEVA FUNCIÓN DE IA: ANALIZA SI EL PDI DEL CANDIDATO SE APUNTA A LA POSICIÓN SELECCIONADA
-            def analizar_alineacion_pdi(nombre_cand, puesto_objetivo):
-                if not nombre_cand or nombre_cand == "Pendiente" or df_pdi.empty:
+            # ==========================================
+            # NUEVO MOTOR ANALÍTICO DE IA (DIAGNOSTICO PROFUNDO PDI & GAP DE PUESTO)
+            # ==========================================
+            def diagnosticar_pdi_ia(nombre_cand, puesto_destino, info_cand):
+                if not nombre_cand or nombre_cand == "Pendiente" or info_cand == "RESTRINGIDO" or not info_cand:
                     return None
+                
+                if df_pdi.empty:
+                    return {"estatus": "SIN_DATOS", "msg": "No hay base de datos de PDI cargada."}
                 
                 match_pdi = df_pdi[df_pdi['Nombre'].astype(str).str.strip().str.lower() == nombre_cand.strip().lower()]
                 if match_pdi.empty:
-                    return "SIN_PDI"
+                    return {
+                        "estatus": "SIN_PDI", 
+                        "puesto_origen": info_cand['puesto_actual'],
+                        "puesto_destino": puesto_destino,
+                        "recomendacion": f"🚨 **Acción Requerida:** El colaborador ocupa el puesto de *{info_cand['puesto_actual']}* pero NO tiene un PDI registrado. Se requiere crear un PDI enfocado en cerrar las brechas hacia la posición de *{puesto_destino}*."
+                    }
                 
-                # Leemos los datos clave del PDI
                 col_obj = next((c for c in match_pdi.columns if 'objetivo' in str(c).lower()), None)
                 col_avance = next((c for c in match_pdi.columns if 'avance' in str(c).lower()), None)
                 col_acciones = next((c for c in match_pdi.columns if 'acciones' in str(c).lower() or 'qué' in str(c).lower()), None)
+                col_clasif = next((c for c in match_pdi.columns if 'clasificacion' in str(c).lower()), None)
                 
                 row_p = match_pdi.iloc[0]
-                objetivo_pdi = clean_text(row_p.get(col_obj), 'Sin objetivo definido') if col_obj else 'Sin objetivo'
+                obj_pdi = clean_text(row_p.get(col_obj), 'Sin objetivo definido') if col_obj else 'Sin objetivo'
                 avance_pdi = clean_text(row_p.get(col_avance), '0%') if col_avance else '0%'
                 acciones_pdi = clean_text(row_p.get(col_acciones), 'Sin acciones descritas') if col_acciones else 'Sin acciones'
+                clasif_pdi = clean_text(row_p.get(col_clasif), 'General') if col_clasif else 'General'
                 
-                # Algoritmo de alineación: Revisa palabras clave
-                palabras_puesto = [p for p in puesto_objetivo.lower().split() if len(p) > 3]
-                coincidencias = [p for p in palabras_puesto if p in objetivo_pdi.lower() or p in acciones_pdi.lower()]
+                # Búsqueda semántica inteligente de alineación entre Puesto Origen, Destino y PDI
+                palabras_puesto = [p for p in puesto_destino.lower().split() if len(p) > 3 and p not in ['jefe', 'gerente', 'coordinador', 'director', 'de', 'del', 'las', 'los']]
+                palabras_pdi = (obj_pdi + " " + acciones_pdi).lower()
                 
-                esta_encaminado = len(coincidencias) > 0 or "gerencia" in objetivo_pdi.lower() or "dirección" in objetivo_pdi.lower()
+                coincidencias = [p for p in palabras_puesto if p in palabras_pdi]
+                
+                # Evaluación de Brecha de Puesto (Origen vs Destino)
+                puesto_origen = info_cand['puesto_actual']
+                es_mismo_puesto = puesto_origen.strip().lower() == puesto_destino.strip().lower()
+                
+                if len(coincidencias) > 0 or ("gerencia" in obj_pdi.lower() and "gerente" in puesto_destino.lower()) or ("dirección" in obj_pdi.lower() and "director" in puesto_destino.lower()):
+                    estatus = "ALINEADO"
+                    icono = "✅"
+                    titulo_estatus = "PDI Alineado a la Posición"
+                    color_borde = "#16a34a" # Verde
+                    bg_color = "#f0fdf4"
+                    
+                    recomendacion = f"El PDI actual está **correctamente enfocado** en la posición de *{puesto_destino}*. Con un avance del **{avance_pdi}**, las acciones en curso cubren las competencias requeridas. Mantenimiento del plan actual."
+                else:
+                    estatus = "REQUIERE_AJUSTE"
+                    icono = "🟡"
+                    titulo_estatus = "Ajuste Recomendado al PDI"
+                    color_borde = "#ca8a04" # Amarillo
+                    bg_color = "#fefce8"
+                    
+                    recomendacion = f"💡 **Recomendación de Ajuste:** El candidato actualmente es *{puesto_origen}*. Su PDI actual está orientado a '_{obj_pdi}_'. Para asegurar su éxito hacia *{puesto_destino}*, se recomienda **actualizar sus Acciones de Desarrollo** agregando competencias técnicas y operativas específicas del nuevo puesto destino."
                 
                 return {
-                    "objetivo": objetivo_pdi,
+                    "estatus": estatus,
+                    "icono": icono,
+                    "titulo_estatus": titulo_estatus,
+                    "color_borde": color_borde,
+                    "bg_color": bg_color,
+                    "puesto_origen": puesto_origen,
+                    "puesto_destino": puesto_destino,
+                    "objetivo": obj_pdi,
                     "avance": avance_pdi,
                     "acciones": acciones_pdi,
-                    "encaminado": esta_encaminado
+                    "clasificacion": clasif_pdi,
+                    "recomendacion": recomendacion
                 }
 
             if pos_seleccionada:
@@ -1241,17 +1282,19 @@ def main():
                     elif ficha1:
                         st.success(f"📊 **9-Box:** {ficha1['box']} | 🔥 **Enganche:** {ficha1['enganche']} | 📈 **EDR:** {ficha1['edr']}")
                         
-                        # ANÁLISIS IA DE PDI
-                        pdi_ana1 = analizar_alineacion_pdi(n_suc1, pos_seleccionada)
-                        if pdi_ana1 == "SIN_PDI":
-                            st.warning("⚠️ Sin PDI: No se encontró Plan de Desarrollo para este candidato.")
-                        elif isinstance(pdi_ana1, dict):
-                            badge_enc = "✅ PDI Encaminado a Posición" if pdi_ana1['encaminado'] else "💡 PDI en Desarrollo General"
+                        # ANÁLISIS CONSULTIVO IA DE PDI
+                        pdi_diag1 = diagnosticar_pdi_ia(n_suc1, pos_seleccionada, ficha1)
+                        if pdi_diag1 and pdi_diag1.get("estatus") == "SIN_PDI":
+                            st.warning(pdi_diag1['recomendacion'])
+                        elif pdi_diag1 and isinstance(pdi_diag1, dict) and "color_borde" in pdi_diag1:
                             st.markdown(f"""
-                            <div style="background:#f0f9ff; border-left:4px solid #0284c7; padding:8px; border-radius:5px; margin-top:5px; font-size:12px;">
-                                <b>🤖 Análisis IA de PDI:</b> {badge_enc}<br>
-                                🎯 <b>Objetivo:</b> {pdi_ana1['objetivo']}<br>
-                                📈 <b>Avance:</b> {pdi_ana1['avance']} | 🛠️ <b>Acción:</b> {pdi_ana1['acciones'][:60]}...
+                            <div style="background:{pdi_diag1['bg_color']}; border-left:4px solid {pdi_diag1['color_borde']}; padding:10px; border-radius:6px; margin-top:8px; font-size:12px; color:#1e293b;">
+                                <b>🤖 Dictamen IA: {pdi_diag1['icono']} {pdi_diag1['titulo_estatus']}</b><br>
+                                👔 <b>Puesto Actual:</b> {pdi_diag1['puesto_origen']}<br>
+                                🎯 <b>Objetivo PDI:</b> {pdi_diag1['objetivo']} (Avance: <b>{pdi_diag1['avance']}</b>)<br>
+                                📋 <b>Acción Actual:</b> <i>{pdi_diag1['acciones'][:80]}...</i><br><br>
+                                📌 <b>RECOMENDACIÓN DE AJUSTE AL PDI:</b><br>
+                                {pdi_diag1['recomendacion']}
                             </div>
                             """, unsafe_allow_html=True)
                             
@@ -1267,17 +1310,19 @@ def main():
                     elif ficha2:
                         st.success(f"📊 **9-Box:** {ficha2['box']} | 🔥 **Enganche:** {ficha2['enganche']} | 📈 **EDR:** {ficha2['edr']}")
                         
-                        # ANÁLISIS IA DE PDI
-                        pdi_ana2 = analizar_alineacion_pdi(n_suc2, pos_seleccionada)
-                        if pdi_ana2 == "SIN_PDI":
-                            st.warning("⚠️ Sin PDI: No se encontró Plan de Desarrollo para este candidato.")
-                        elif isinstance(pdi_ana2, dict):
-                            badge_enc = "✅ PDI Encaminado a Posición" if pdi_ana2['encaminado'] else "💡 PDI en Desarrollo General"
+                        # ANÁLISIS CONSULTIVO IA DE PDI
+                        pdi_diag2 = diagnosticar_pdi_ia(n_suc2, pos_seleccionada, ficha2)
+                        if pdi_diag2 and pdi_diag2.get("estatus") == "SIN_PDI":
+                            st.warning(pdi_diag2['recomendacion'])
+                        elif pdi_diag2 and isinstance(pdi_diag2, dict) and "color_borde" in pdi_diag2:
                             st.markdown(f"""
-                            <div style="background:#f0f9ff; border-left:4px solid #0284c7; padding:8px; border-radius:5px; margin-top:5px; font-size:12px;">
-                                <b>🤖 Análisis IA de PDI:</b> {badge_enc}<br>
-                                🎯 <b>Objetivo:</b> {pdi_ana2['objetivo']}<br>
-                                📈 <b>Avance:</b> {pdi_ana2['avance']} | 🛠️ <b>Acción:</b> {pdi_ana2['acciones'][:60]}...
+                            <div style="background:{pdi_diag2['bg_color']}; border-left:4px solid {pdi_diag2['color_borde']}; padding:10px; border-radius:6px; margin-top:8px; font-size:12px; color:#1e293b;">
+                                <b>🤖 Dictamen IA: {pdi_diag2['icono']} {pdi_diag2['titulo_estatus']}</b><br>
+                                👔 <b>Puesto Actual:</b> {pdi_diag2['puesto_origen']}<br>
+                                🎯 <b>Objetivo PDI:</b> {pdi_diag2['objetivo']} (Avance: <b>{pdi_diag2['avance']}</b>)<br>
+                                📋 <b>Acción Actual:</b> <i>{pdi_diag2['acciones'][:80]}...</i><br><br>
+                                📌 <b>RECOMENDACIÓN DE AJUSTE AL PDI:</b><br>
+                                {pdi_diag2['recomendacion']}
                             </div>
                             """, unsafe_allow_html=True)
                             
@@ -1293,17 +1338,19 @@ def main():
                     elif ficha3:
                         st.success(f"📊 **9-Box:** {ficha3['box']} | 🔥 **Enganche:** {ficha3['enganche']} | 📈 **EDR:** {ficha3['edr']}")
                         
-                        # ANÁLISIS IA DE PDI
-                        pdi_ana3 = analizar_alineacion_pdi(n_suc3, pos_seleccionada)
-                        if pdi_ana3 == "SIN_PDI":
-                            st.warning("⚠️ Sin PDI: No se encontró Plan de Desarrollo para este candidato.")
-                        elif isinstance(pdi_ana3, dict):
-                            badge_enc = "✅ PDI Encaminado a Posición" if pdi_ana3['encaminado'] else "💡 PDI en Desarrollo General"
+                        # ANÁLISIS CONSULTIVO IA DE PDI
+                        pdi_diag3 = diagnosticar_pdi_ia(n_suc3, pos_seleccionada, ficha3)
+                        if pdi_diag3 and pdi_diag3.get("estatus") == "SIN_PDI":
+                            st.warning(pdi_diag3['recomendacion'])
+                        elif pdi_diag3 and isinstance(pdi_diag3, dict) and "color_borde" in pdi_diag3:
                             st.markdown(f"""
-                            <div style="background:#f0f9ff; border-left:4px solid #0284c7; padding:8px; border-radius:5px; margin-top:5px; font-size:12px;">
-                                <b>🤖 Análisis IA de PDI:</b> {badge_enc}<br>
-                                🎯 <b>Objetivo:</b> {pdi_ana3['objetivo']}<br>
-                                📈 <b>Avance:</b> {pdi_ana3['avance']} | 🛠️ <b>Acción:</b> {pdi_ana3['acciones'][:60]}...
+                            <div style="background:{pdi_diag3['bg_color']}; border-left:4px solid {pdi_diag3['color_borde']}; padding:10px; border-radius:6px; margin-top:8px; font-size:12px; color:#1e293b;">
+                                <b>🤖 Dictamen IA: {pdi_diag3['icono']} {pdi_diag3['titulo_estatus']}</b><br>
+                                👔 <b>Puesto Actual:</b> {pdi_diag3['puesto_origen']}<br>
+                                🎯 <b>Objetivo PDI:</b> {pdi_diag3['objetivo']} (Avance: <b>{pdi_diag3['avance']}</b>)<br>
+                                📋 <b>Acción Actual:</b> <i>{pdi_diag3['acciones'][:80]}...</i><br><br>
+                                📌 <b>RECOMENDACIÓN DE AJUSTE AL PDI:</b><br>
+                                {pdi_diag3['recomendacion']}
                             </div>
                             """, unsafe_allow_html=True)
                             
