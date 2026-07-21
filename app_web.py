@@ -1059,7 +1059,7 @@ def main():
             with col_datos:
                 st.markdown("### 📊 KPIs de Talento")
                 
-                # 6 TARJETAS DE KPIS PRINCIPALES (INCLUYE NUEVO KPI EDR)
+                # 6 TARJETAS DE KPIS PRINCIPALES
                 k1, k2, k3, k4, k5, k6 = st.columns(6)
                 
                 with k1:
@@ -1149,6 +1149,31 @@ def main():
             posiciones_opciones = sorted(list(set(posiciones_opciones)))
             pos_seleccionada = st.selectbox("🔍 Selecciona la Posición a planificar:", [""] + posiciones_opciones)
             
+            # Función auxiliar para consultar los datos del candidato seleccionado
+            def obtener_ficha_candidato(nombre_cand):
+                if not nombre_cand or nombre_cand == "Pendiente":
+                    return None
+                
+                # Buscar al colaborador en la base completa
+                match_colab = df_completo[df_completo['Nombre'].apply(clean_text).str.lower() == nombre_cand.strip().lower()]
+                if match_colab.empty:
+                    return None
+                
+                row_c = match_colab.iloc[0]
+                dir_candidato = clean_text(row_c.get('Dirección', row_c.get('Direccion')), 'No asignada')
+                
+                # Regla de Privacidad: Si el usuario es Director de un área y el candidato pertenece a OTRA área, se bloquea la vista
+                if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in dir_candidato.upper()):
+                    return "RESTRINGIDO"
+                
+                box_c = clean_text(row_c.get('Resultado 9 box'), 'Pendiente')
+                edr_c = clean_text(row_c.get('EDR', row_c.get('EDR ')), 'Pendiente')
+                
+                eng_key = next((k for k in row_c.keys() if k and 'enganche' in str(k).lower()), None)
+                eng_c = clean_text(row_c.get(eng_key), 'N/A') if eng_key else 'N/A'
+                
+                return {"box": box_c, "enganche": eng_c, "edr": edr_c}
+
             if pos_seleccionada:
                 idx_pandas = mapa_indices[pos_seleccionada]
                 info_pos = df_seguro.loc[idx_pandas]
@@ -1156,7 +1181,6 @@ def main():
                 ocupante_actual = clean_text(info_pos.get('Nombre'), 'Vacante / Sin asignar')
                 direccion_pos = clean_text(info_pos.get('Dirección'), 'No asignada')
                 
-                # BARRA INFORMATIVA LIMPIA (SIN EDR Y SIN DIRECCIÓN SI ES DIRECTOR DE ÁREA)
                 if direccion_permitida != "TODAS":
                     st.info(f"📌 **Posición:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual}")
                 else:
@@ -1182,17 +1206,44 @@ def main():
                 
                 with st.form("form_sucesion"):
                     col1, col2, col3 = st.columns(3)
+                    
                     with col1:
                         st.markdown("#### 🥇 Sucesor 1")
                         n_suc1 = st.selectbox("Candidato 1", opciones_sucesores, index=opciones_sucesores.index(c_suc1))
+                        
+                        # MOSTRAR FICHA DEL CANDIDATO 1
+                        ficha1 = obtener_ficha_candidato(n_suc1)
+                        if ficha1 == "RESTRINGIDO":
+                            st.caption("🔒 *Datos confidenciales (Colaborador de otra Dirección)*")
+                        elif ficha1:
+                            st.caption(f"📊 **9-Box:** {ficha1['box']} | 🔥 **Enganche:** {ficha1['enganche']} | 📈 **EDR:** {ficha1['edr']}")
+                            
                         n_read1 = st.selectbox("Readiness 1", opciones_tiempo, index=opciones_tiempo.index(c_read1))
+                        
                     with col2:
                         st.markdown("#### 🥈 Sucesor 2")
                         n_suc2 = st.selectbox("Candidato 2", opciones_sucesores, index=opciones_sucesores.index(c_suc2))
+                        
+                        # MOSTRAR FICHA DEL CANDIDATO 2
+                        ficha2 = obtener_ficha_candidato(n_suc2)
+                        if ficha2 == "RESTRINGIDO":
+                            st.caption("🔒 *Datos confidenciales (Colaborador de otra Dirección)*")
+                        elif ficha2:
+                            st.caption(f"📊 **9-Box:** {ficha2['box']} | 🔥 **Enganche:** {ficha2['enganche']} | 📈 **EDR:** {ficha2['edr']}")
+                            
                         n_read2 = st.selectbox("Readiness 2", opciones_tiempo, index=opciones_tiempo.index(c_read2))
+                        
                     with col3:
                         st.markdown("#### 🥉 Sucesor 3")
                         n_suc3 = st.selectbox("Candidato 3", opciones_sucesores, index=opciones_sucesores.index(c_suc3))
+                        
+                        # MOSTRAR FICHA DEL CANDIDATO 3
+                        ficha3 = obtener_ficha_candidato(n_suc3)
+                        if ficha3 == "RESTRINGIDO":
+                            st.caption("🔒 *Datos confidenciales (Colaborador de otra Dirección)*")
+                        elif ficha3:
+                            st.caption(f"📊 **9-Box:** {ficha3['box']} | 🔥 **Enganche:** {ficha3['enganche']} | 📈 **EDR:** {ficha3['edr']}")
+                            
                         n_read3 = st.selectbox("Readiness 3", opciones_tiempo, index=opciones_tiempo.index(c_read3))
                         
                     submitted = st.form_submit_button("💾 Guardar Cambios en Base de Datos", type="primary", use_container_width=True)
@@ -1269,7 +1320,6 @@ def main():
                     df_pdi_mostrar = df_pdi_filtrado[cols_reales].copy()
                     df_pdi_mostrar.columns = nombres_finales
                     
-                    # Ocultar columna de Dirección en la tabla PDI si no es perfil ADMIN
                     if direccion_permitida != "TODAS" and "Dirección" in df_pdi_mostrar.columns:
                         df_pdi_mostrar = df_pdi_mostrar.drop(columns=["Dirección"])
                     
