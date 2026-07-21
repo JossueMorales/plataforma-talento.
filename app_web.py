@@ -1116,7 +1116,7 @@ def main():
             st.divider()
             
             # ==========================================
-            # PLANIFICADOR DE SUCESIONES CON IA Y AFINIDAD DE ESPECIALIDAD
+            # PLANIFICADOR DE SUCESIONES CON IA Y AFINIDAD DE ESPECIALIDAD ESTRICTA
             # ==========================================
             st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
             st.markdown("Usa este panel para asignar o modificar los sucesores. **Los cambios se guardarán automáticamente en tu Excel** y el mapa se actualizará al instante.")
@@ -1232,7 +1232,7 @@ def main():
                 }
 
             # ==========================================
-            # MOTOR IA CON FILTRO ESTRICTO DE FAMILIA Y AFINIDAD PROFESIONAL
+            # MOTOR IA ESTRICTO DE FAMILIA Y AFINIDAD PROFESIONAL
             # ==========================================
             def detectar_familia_profesional(texto):
                 t = texto.lower()
@@ -1273,7 +1273,7 @@ def main():
                     fam_candidato = detectar_familia_profesional(puesto_act)
                     dir_cand = clean_text(row.get('Dirección')).upper()
                     
-                    # FILTRO DE INCOMPATIBILIDAD ESTRICTO DE ESPECIALIDAD (Ej. Financiero no puede sustituir Abogado)
+                    # FILTRO DE INCOMPATIBILIDAD ESTRICTO DE ESPECIALIDAD Y DIRECCIÓN
                     if fam_destino != 'GENERAL' and fam_candidato != 'GENERAL' and fam_destino != fam_candidato and dir_cand != dir_destino:
                         continue
                         
@@ -1281,39 +1281,44 @@ def main():
                     mla_cand = clean_text(row.get('Nivel MLA'))
                     interes = clean_text(row.get('Interés del Colaborador')).lower()
                     
+                    # FILTRO ESTRICTO: Descartar a personas que no tengan 9-Box de valor/potencial
+                    if box not in ['1', '2', '3', '4', '5', '6']:
+                        continue
+                    
                     score = 0
                     razones = []
                     
                     if fam_candidato == fam_destino and fam_destino != 'GENERAL':
-                        score += 5
-                        razones.append(f"Misma especialidad profesional ({fam_destino})")
+                        score += 4
+                        razones.append(f"Afinidad técnica ({fam_destino})")
                         
                     if dir_cand == dir_destino and dir_destino != '':
                         score += 3
-                        razones.append("Misma Dirección")
+                        razones.append("Conoce la Dirección")
                         
                     if box in ['1', '2', '3', '5']:
-                        score += 3
-                        razones.append("HiPo / Alto Desempeño (9-Box)")
+                        score += 4
+                        razones.append("Alto Desempeño/Potencial")
                     elif box in ['4', '6']:
-                        score += 1.5
-                        razones.append("Buen Desempeño (9-Box)")
+                        score += 2
+                        razones.append("Desempeño Sólido")
                         
                     if mla_destino.isdigit() and mla_cand.isdigit():
                         diff = int(mla_destino) - int(mla_cand)
                         if diff == 1:
-                            score += 2.5
-                            razones.append("Nivel MLA contiguo (Ascenso directo)")
+                            score += 3
+                            razones.append("Ascenso directo (Nivel MLA)")
                         elif diff == 0:
                             score += 2
-                            razones.append("Movimiento lateral de nivel")
+                            razones.append("Movimiento lateral")
                             
                     palabras_pos = [p for p in pos_destino.lower().split() if len(p) > 3 and p not in ['jefe', 'gerente', 'coordinador', 'director', 'de', 'del', 'las', 'los']]
                     if any(p in interes for p in palabras_pos):
                         score += 2
-                        razones.append("Interés explícito registrado")
+                        razones.append("Interés manifestado")
                         
-                    if score >= 4.5:
+                    # UMBRAL ESTRICTO DE LA IA (MÍNIMO 7.5 PARA SER RECOMENDADO)
+                    if score >= 7.5:
                         candidatos_sugeridos.append({
                             'nombre': nombre,
                             'puesto': puesto_act,
@@ -1329,7 +1334,16 @@ def main():
                 idx_pandas = mapa_indices[pos_seleccionada]
                 info_pos = df_seguro.loc[idx_pandas]
                 
-                # BLOQUE DE SUGERENCIAS IA DE PUESTOS Y CANDIDATOS AFINES
+                # ETIQUETA INFORMATIVA RESTAURADA (COMO LO PEDISTE)
+                ocupante_actual = clean_text(info_pos.get('Nombre'), 'Vacante / Sin asignar')
+                direccion_pos = clean_text(info_pos.get('Dirección'), 'No asignada')
+                
+                if direccion_permitida != "TODAS":
+                    st.info(f"📌 **Posición Crítica:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual}")
+                else:
+                    st.info(f"📌 **Posición Crítica:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual} | 🏢 **Dirección:** {direccion_pos}")
+
+                # BLOQUE DE SUGERENCIAS IA DE PUESTOS Y CANDIDATOS AFINES (AHORA SÚPER ESTRICTO)
                 sugerencias = generar_sugerencias_ia(pos_seleccionada, info_pos)
                 if sugerencias:
                     items_html = ""
@@ -1343,14 +1357,14 @@ def main():
                         
                     st.markdown(f"""
                     <div style="background:#e0f2fe; border-left:5px solid #0284c7; padding:12px; border-radius:8px; margin-bottom:15px; font-size:13px; color:#0f172a;">
-                        <b style="font-size:14px; color:#0369a1;">🤖 Sugerencias de Candidatos/Posiciones Afines por IA:</b>
+                        <b style="font-size:14px; color:#0369a1;">🤖 Sugerencias Altamente Compatibles por IA:</b>
                         <ul style="margin:8px 0 0 0; padding-left:20px; line-height:1.5;">
                             {items_html}
                         </ul>
                     </div>
                     """, unsafe_allow_html=True)
                 else:
-                    st.info("🤖 **Sugerencia IA:** No se encontraron candidatos con afinidad técnica/direccional directa en la plantilla actual para este perfil especializado.")
+                    st.warning("⚠️ **Dictamen IA:** No se detectaron candidatos en la plantilla actual que cumplan con los criterios estrictos de desempeño, nivel y afinidad técnica para esta posición crítica. **Se sugiere considerar reclutamiento externo o desarrollo a mediano plazo.**")
                 
                 nombres_empleados = sorted([clean_text(n) for n in df_completo['Nombre'].dropna().unique() if clean_text(n)])
                 opciones_sucesores = ["Pendiente"] + nombres_empleados
