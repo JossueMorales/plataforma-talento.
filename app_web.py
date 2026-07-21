@@ -796,7 +796,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         nom_suc3 = nombres_dict.get(info['suc3_id'], info['suc3_id']) if info['suc3_id'] else ""
         
         if not is_hidden:
-            # EXCLUIR A DIRECTOR GENERAL DE LAS LISTAS ESPECÍFICAS DE KPI
             es_andres = info['mla'] == '5' or 'ANDRES EDUARDO VILLARREAL' in info['nombre'].upper()
             
             nodo_data = {"Nombre": info['nombre'], "Dirección": info['direccion'], "Puesto": info['puesto']}
@@ -1137,7 +1136,6 @@ def main():
             if f_edr != "Todos" and edrs_col:
                 df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas[edrs_col].apply(clean_text) == f_edr]
             
-            # AGREGANDO EL SELECTOR DE LÍDER ANTES DEL SELECTOR DE POSICIÓN
             col_plan1, col_plan2 = st.columns(2)
             
             lideres_ids_plan = df_posiciones_filtradas['ID Del Jefe'].dropna().unique()
@@ -1340,27 +1338,28 @@ def main():
                 else:
                     st.info(f"📌 **Posición Crítica:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual} | 🏢 **Dirección:** {direccion_pos}")
 
-                sugerencias = generar_sugerencias_ia(pos_seleccionada, info_pos)
-                if sugerencias:
-                    items_html = ""
-                    for s in sugerencias:
-                        if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in s['direccion'].upper()):
-                            info_vis = "🔒 <i>Detalles confidenciales (Otra Dirección)</i>"
-                        else:
-                            info_vis = f"📌 Puesto Actual: <b>{s['puesto']}</b> | 📊 9-Box: <b>{s['box']}</b>"
+                # OCULTAR SUGERENCIAS DETRÁS DE UN EXPANDER
+                with st.expander("🤖 Mostrar Sugerencias de Sucesión (IA)"):
+                    sugerencias = generar_sugerencias_ia(pos_seleccionada, info_pos)
+                    if sugerencias:
+                        items_html = ""
+                        for s in sugerencias:
+                            if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in s['direccion'].upper()):
+                                info_vis = "🔒 <i>Detalles confidenciales (Otra Dirección)</i>"
+                            else:
+                                info_vis = f"📌 Puesto Actual: <b>{s['puesto']}</b> | 📊 9-Box: <b>{s['box']}</b>"
+                                
+                            items_html += f"<li>👤 <b>{s['nombre']}</b> — {info_vis}<br><span style='color:#0369a1;'>💡 {s['razon']}</span></li>"
                             
-                        items_html += f"<li>👤 <b>{s['nombre']}</b> — {info_vis}<br><span style='color:#0369a1;'>💡 {s['razon']}</span></li>"
-                        
-                    st.markdown(f"""
-                    <div style="background:#e0f2fe; border-left:5px solid #0284c7; padding:12px; border-radius:8px; margin-bottom:15px; font-size:13px; color:#0f172a;">
-                        <b style="font-size:14px; color:#0369a1;">🤖 Sugerencias Altamente Compatibles por IA:</b>
-                        <ul style="margin:8px 0 0 0; padding-left:20px; line-height:1.5;">
-                            {items_html}
-                        </ul>
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.warning("⚠️ **Dictamen IA:** No se detectaron candidatos en la plantilla actual que cumplan con los criterios estrictos de desempeño, nivel y afinidad técnica para esta posición crítica. **Se sugiere considerar reclutamiento externo o desarrollo a mediano plazo.**")
+                        st.markdown(f"""
+                        <div style="background:#e0f2fe; border-left:5px solid #0284c7; padding:12px; border-radius:8px; margin-bottom:5px; font-size:13px; color:#0f172a;">
+                            <ul style="margin:8px 0 0 0; padding-left:20px; line-height:1.5;">
+                                {items_html}
+                            </ul>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.warning("⚠️ **Dictamen IA:** No se detectaron candidatos en la plantilla actual que cumplan con los criterios estrictos de desempeño, nivel y afinidad técnica para esta posición crítica. **Se sugiere considerar reclutamiento externo o desarrollo a mediano plazo.**")
                 
                 nombres_empleados = sorted([clean_text(n) for n in df_completo['Nombre'].dropna().unique() if clean_text(n)])
                 opciones_sucesores = ["Pendiente"] + nombres_empleados
@@ -1380,6 +1379,7 @@ def main():
                 if c_read2 not in opciones_tiempo: opciones_tiempo.append(c_read2)
                 if c_read3 not in opciones_tiempo: opciones_tiempo.append(c_read3)
                 
+                st.write("") # Espacio para separar visualmente
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
