@@ -27,25 +27,39 @@ var options = {
 
 SCRIPT_ANILLOS = """
 <script>
-window.onionMode = true; 
+window.onionMode = 'mla'; 
 window.ringSpacing = 150; 
 network.on("beforeDrawing", function(ctx) {
-    if (!window.onionMode) return; 
+    if (window.onionMode === 'libre') return; 
     ctx.save(); 
     var nodos_visibles = network.body.data.nodes.get().filter(n => n.hidden !== true);
     var max_nivel_visible = 0;
     var paso = window.ringSpacing; 
+    
     nodos_visibles.forEach(function(n) {
-        var anillo = n.AnilloReal !== undefined ? n.AnilloReal : n.anilloreal;
+        var anillo = (window.onionMode === 'mla') ? (n.AnilloReal !== undefined ? n.AnilloReal : n.anilloreal) : (n.AnilloSucesion !== undefined ? n.AnilloSucesion : n.anillosucesion);
         if(anillo !== undefined) { if (anillo > max_nivel_visible) { max_nivel_visible = anillo; } }
     });
+    
     var limite_anillos = Math.max(max_nivel_visible, 1);
     ctx.strokeStyle = '#cbd5e1'; ctx.setLineDash([8, 8]); ctx.lineWidth = 2; ctx.font = "bold 24px Arial"; ctx.fillStyle = "#64748b"; ctx.textAlign = "center";
+    
+    if (window.onionMode === 'tiempo') {
+        ctx.fillText("⭐ Posiciones Críticas", 0, -20);
+    }
+    
     for (var i = 1; i <= limite_anillos; i++) {
         if (i > 5) break; 
-        var r = i * paso; ctx.beginPath(); ctx.arc(0, 0, r, 0, 2 * Math.PI); ctx.stroke();
+        var r = (window.onionMode === 'tiempo') ? (i * paso) + 50 : (i * paso); 
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, 2 * Math.PI); ctx.stroke();
         var etiqueta = "";
-        if (i === 1) etiqueta = "Gerentes (Nivel MLA 4)"; else if (i === 2) etiqueta = "Mandos Medios (Nivel MLA 3)"; else if (i === 3) etiqueta = "Analistas (Nivel MLA 2)"; else if (i === 4) etiqueta = "Operativos (Nivel MLA 1)";
+        
+        if (window.onionMode === 'mla') {
+            if (i === 1) etiqueta = "Gerentes (Nivel MLA 4)"; else if (i === 2) etiqueta = "Mandos Medios (Nivel MLA 3)"; else if (i === 3) etiqueta = "Analistas (Nivel MLA 2)"; else if (i === 4) etiqueta = "Operativos (Nivel MLA 1)";
+        } else if (window.onionMode === 'tiempo') {
+            if (i === 1) etiqueta = "🚀 Listos (Inmediato)"; else if (i === 2) etiqueta = "⏳ En Desarrollo (1 a 3 años)"; else if (i === 3) etiqueta = "🌱 Mediano Plazo (Más de 3 años)"; else if (i === 4) etiqueta = "Otras Posiciones";
+        }
+        
         if (etiqueta !== "") { ctx.fillText(etiqueta, 0, -r - 15); }
     }
     ctx.setLineDash([]); ctx.restore(); 
@@ -107,13 +121,18 @@ BOTON_HTML = """
         <h3 style="margin: 0; font-size: 15px; color: #333;">Opciones Visuales</h3><span id="iconoFiltro" style="font-size: 12px; color: #666;">▼ Ocultar</span>
     </div>
     <div id="cuerpoFiltros" style="padding: 15px; display: flex; flex-direction: column; gap: 8px; max-height: 70vh; overflow-y: auto;">
-        <label style="font-size: 14px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; background: #e3f2fd; padding: 8px; border-radius: 5px; color: #1565c0;">
-            <input type="checkbox" id="toggleOnion" checked onchange="toggleLayoutMode()" style="width: 18px; height: 18px;"> 🎯 Modo Cebolla (Radial)
-        </label>
+        
+        <label style="font-size: 13px; font-weight: bold; color: #555;">Agrupación del Mapa:</label>
+        <select id="modoAgrupacion" onchange="toggleLayoutMode()" style="width:100%; padding:6px; margin-bottom:10px; border-radius:4px; border: 1px solid #cbd5e1; font-weight: bold; color: #1e293b; cursor: pointer;">
+            <option value="mla">🎯 Por Jerarquía (MLA)</option>
+            <option value="tiempo">⏱️ Por Brecha de Sucesión</option>
+            <option value="libre">🕸️ Diseño Libre (Físicas)</option>
+        </select>
+
         <div id="sliderContainer" style="transition: 0.3s;">
             <label style="font-size: 13px; font-weight: bold; color: #555;">Amplitud Radial:</label>
             <div style="display: flex; align-items: center; gap: 10px;">
-                <input type="range" id="sliderSeparacion" min="100" max="800" value="150" oninput="updateSpacing()" style="width: 100%; cursor: pointer;">
+                <input type="range" id="sliderSeparacion" min="100" max="3500" value="150" oninput="updateSpacing()" style="width: 100%; cursor: pointer;">
                 <span id="valorSeparacion" style="font-size: 12px; font-weight:bold; color:#1976d2; min-width: 45px;">150px</span>
             </div>
         </div>
@@ -135,15 +154,25 @@ BOTON_HTML = """
 
 <script>
 function toggleLayoutMode() {
-    var isOnion = document.getElementById('toggleOnion').checked;
-    window.onionMode = isOnion;
+    var mode = document.getElementById('modoAgrupacion').value;
+    window.onionMode = mode;
     var slider = document.getElementById('sliderContainer');
-    if (isOnion) { slider.style.opacity = "1"; slider.style.pointerEvents = "auto"; network.setOptions({ physics: { enabled: false } }); updateSpacing(); 
-    } else { slider.style.opacity = "0.4"; slider.style.pointerEvents = "none"; network.setOptions({ physics: { enabled: true } }); network.redraw(); }
+    
+    if (mode !== 'libre') { 
+        slider.style.opacity = "1"; 
+        slider.style.pointerEvents = "auto"; 
+        network.setOptions({ physics: { enabled: false } }); 
+        updateSpacing(); 
+    } else { 
+        slider.style.opacity = "0.4"; 
+        slider.style.pointerEvents = "none"; 
+        network.setOptions({ physics: { enabled: true } }); 
+        network.redraw(); 
+    }
 }
 
 function updateSpacing() {
-    if(!window.onionMode) return; 
+    if(window.onionMode === 'libre') return; 
     var val = document.getElementById('sliderSeparacion').value;
     window.ringSpacing = parseInt(val);
     document.getElementById('valorSeparacion').innerText = val + "px";
@@ -153,12 +182,21 @@ function updateSpacing() {
     
     for (var i = 0; i < allNodes.length; i++) {
         var n = allNodes[i];
-        var anillo = n.AnilloReal !== undefined ? n.AnilloReal : n.anilloreal;
+        var anillo = (window.onionMode === 'mla') ? (n.AnilloReal !== undefined ? n.AnilloReal : n.anilloreal) : (n.AnilloSucesion !== undefined ? n.AnilloSucesion : n.anillosucesion);
         var angle = n.Angle !== undefined ? n.Angle : n.angle;
-        var prof = n.Profundidad !== undefined ? n.Profundidad : n.profundidad;
         
-        if (anillo !== undefined && angle !== undefined && prof !== undefined) {
-            var nuevoRadio = (anillo * window.ringSpacing) + (prof * 120);
+        if (anillo !== undefined && angle !== undefined) {
+            var nuevoRadio = 0;
+            if (window.onionMode === 'mla') {
+                // FIX: Eliminar el empuje de profundidad para que queden exactamente sobre la línea
+                nuevoRadio = (anillo * window.ringSpacing);
+            } else {
+                if (anillo === 0) {
+                    nuevoRadio = 80; 
+                } else {
+                    nuevoRadio = (anillo * window.ringSpacing) + 50;
+                }
+            }
             nodesToUpdate.push({ id: n.id, x: nuevoRadio * Math.cos(angle), y: nuevoRadio * Math.sin(angle) });
         }
     }
@@ -452,6 +490,15 @@ def acortar_nombre(nombre_completo):
     else:
         return f"{partes[0]} {partes[-2]}"
 
+def get_readiness_val(rt_str):
+    """Función unificada y robusta para traducir el tiempo de readiness a un valor numérico (anillo)."""
+    rt = str(rt_str).strip().lower()
+    if not rt or rt == 'pendiente' or rt == 'nan' or rt == 'none': return 4
+    if 'inmediato' in rt or 'listo' in rt or '0' in rt: return 1
+    if '1' in rt or '2' in rt or 'medio' in rt: return 2
+    if '3' in rt or '4' in rt or '5' in rt or 'más' in rt or 'mas' in rt or 'largo' in rt: return 3
+    return 4
+
 # ==========================================
 # MOTOR PRINCIPAL
 # ==========================================
@@ -533,7 +580,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                 'read3': clean_text(row_dict.get('Tiempo de Readiness 3'), ''),
                 'enganche_ind': eng_val,
                 'enganche_area': 0.0,
-                'es_lider': False
+                'es_lider': False,
+                'anillo_sucesion': 4 # Por defecto todos en nivel 4 (Otras posiciones)
             }
             if jefe:
                 jefes_dict[emp] = jefe
@@ -577,6 +625,13 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
     sucesores_de_9box = {n: 0 for n in G_jerarquia.nodes()}
     sucesores_oficiales_de = {n: 0 for n in G_jerarquia.nodes()} 
 
+    # MANTENER CONTEO GLOBAL DE SUCESORES (Para activar alertas de "Falta Sucesor")
+    for emp, info in info_nodos.items():
+        sucs = [info['suc1_id'], info['suc2_id'], info['suc3_id']]
+        for s_id in sucs:
+            if s_id and s_id in info_nodos:
+                sucesores_oficiales_de[s_id] += 1
+
     for emp, info in info_nodos.items():
         box = info['box'].upper()
         if box in ['5', '2']: 
@@ -587,10 +642,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             j2 = obtener_jefe_nivel_arriba(emp, 2)
             if j2: 
                 sucesores_de_9box[j2] += 1
-            
-        for s_id in [info['suc1_id'], info['suc2_id'], info['suc3_id']]:
-            if s_id in sucesores_oficiales_de:
-                sucesores_oficiales_de[s_id] += 1
 
     nombres_con_pdi = set()
     if not df_pdi.empty and 'Nombre' in df_pdi.columns:
@@ -680,6 +731,28 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                 nodos_rescatados.add(s_id)
     nodos_visibles = nodos_rescatados
 
+    # ==============================================================
+    # FIX AISLAMIENTO DE PANTALLA: CALCULAR ANILLOS *SOLO PARA NODOS VISIBLES* 
+    # ==============================================================
+    # 1. Resetear todos los visibles a 4
+    for emp in nodos_visibles:
+        info_nodos[emp]['anillo_sucesion_final'] = 4 
+        if info_nodos[emp]['critica'].lower() == 'si':
+            info_nodos[emp]['anillo_sucesion_final'] = 0 # Centro para posiciones críticas
+            
+    # 2. Analizar únicamente las flechas visibles en el mapa actual
+    for emp in nodos_visibles:
+        if info_nodos[emp]['critica'].lower() == 'si':
+            info = info_nodos[emp]
+            sucs = [(info['suc1_id'], info['read1']), (info['suc2_id'], info['read2']), (info['suc3_id'], info['read3'])]
+            for s_id, read_time in sucs:
+                if s_id and s_id in nodos_visibles:
+                    val = get_readiness_val(read_time)
+                    # Si el sucesor NO es una posición crítica, buscar su mejor tiempo
+                    if info_nodos[s_id]['anillo_sucesion_final'] != 0: 
+                        if val < info_nodos[s_id]['anillo_sucesion_final']:
+                            info_nodos[s_id]['anillo_sucesion_final'] = val
+
     raiz_principal = None
     for emp, info in info_nodos.items():
         if info['mla'] == '5':
@@ -718,6 +791,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
 
     def obtener_anillo_estricto(emp_id, depth_arbol):
         mla = info_nodos.get(emp_id, {}).get('mla', '')
+        mla = str(mla).replace('.0', '').strip() # FIX: Evitar confusión si excel manda '4.0'
         if mla == '5': return 0
         if mla == '4': return 1 
         if mla == '3': return 2 
@@ -761,7 +835,9 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             angulo_hijo = angulo_actual + (rebanada / 2)
             profundidad = nx.shortest_path_length(Arbol, raiz_principal, c) if raiz_principal and c in Arbol else 5
             anillo_real = obtener_anillo_estricto(c, profundidad)
-            radio_final = (anillo_real * SEPARACION_ANILLOS) + (profundidad * 120) if anillo_real != 0 else 0
+            
+            # FIX: Quitamos la distorsión matemática de + (profundidad * 120) para que sienten exactamente en la línea del anillo
+            radio_final = (anillo_real * SEPARACION_ANILLOS) if anillo_real != 0 else 0
             
             coords[c] = {
                 'x': radio_final * math.cos(angulo_hijo), 
@@ -784,7 +860,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         angulo_actual = 0
         for n in nodos_sin_coords:
             anillo = obtener_anillo_estricto(n, 5)
-            radio = (anillo * SEPARACION_ANILLOS) + 200 if anillo != 0 else 500
+            # FIX: Quitamos la distorsión matemática también en los nodos huérfanos
+            radio = (anillo * SEPARACION_ANILLOS) if anillo != 0 else 80
             coords[n] = {'x': radio * math.cos(angulo_actual), 'y': radio * math.sin(angulo_actual), 'angle': angulo_actual, 'anillo_real': anillo, 'profundidad': 5}
             angulo_actual += angulo_extra
 
@@ -890,7 +967,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             NomSuc1=nom_suc1, Read1=info['read1'], NomSuc2=nom_suc2, Read2=info['read2'], NomSuc3=nom_suc3, Read3=info['read3'],
             Eng_Ind=info['enganche_ind'], Eng_Area=info['enganche_area'], Es_Lider=info['es_lider'],
             font={'color': '#0f172a', 'strokeWidth': 2, 'strokeColor': '#ffffff', 'size': 11, 'face': 'Arial', 'weight': 'bold'},
-            x=coord_data['x'], y=coord_data['y'], Angle=coord_data['angle'], AnilloReal=coord_data['anillo_real'], Profundidad=coord_data['profundidad'],
+            x=coord_data['x'], y=coord_data['y'], Angle=coord_data['angle'], 
+            AnilloReal=coord_data['anillo_real'], AnilloSucesion=info.get('anillo_sucesion_final', 4), Profundidad=coord_data['profundidad'],
             hidden=is_hidden
         )
 
@@ -923,10 +1001,22 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             if j2: 
                 G.add_edge(emp, j2, color='#166534', width=3.5, dashes=[5,5], title='Proyección N+2', hidden=(emp not in nodos_visibles or j2 not in nodos_visibles), is_struct=False, is_9box=True, is_succ=False, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.3})
             
-        for s_id in [info['suc1_id'], info['suc2_id'], info['suc3_id']]:
+        for s_id, read_time in [(info['suc1_id'], info['read1']), (info['suc2_id'], info['read2']), (info['suc3_id'], info['read3'])]:
             if s_id and s_id in empleados_validos:
                 is_hidden_edge = (emp not in nodos_visibles or s_id not in nodos_visibles)
-                G.add_edge(emp, s_id, color='#9c27b0', width=5, dashes=False, title='🎯 Objetivo de Sucesión', hidden=is_hidden_edge, is_struct=False, is_9box=False, is_succ=True, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.6})
+                
+                val = get_readiness_val(read_time)
+                if val == 1:
+                    dashes_style = False 
+                    edge_width = 6
+                elif val == 2:
+                    dashes_style = [10, 10] 
+                    edge_width = 4
+                else:
+                    dashes_style = [4, 8] 
+                    edge_width = 2
+                    
+                G.add_edge(emp, s_id, color='#9c27b0', width=edge_width, dashes=dashes_style, title=f'🎯 Sucesor: {read_time}', hidden=is_hidden_edge, is_struct=False, is_9box=False, is_succ=True, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.6})
 
     data_alertas = [
         {
