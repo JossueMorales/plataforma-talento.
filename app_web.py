@@ -113,7 +113,7 @@ BOTON_HTML = """
         <div id="sliderContainer" style="transition: 0.3s;">
             <label style="font-size: 13px; font-weight: bold; color: #555;">Amplitud Radial:</label>
             <div style="display: flex; align-items: center; gap: 10px;">
-                <input type="range" id="sliderSeparacion" min="100" max="800" value="150" oninput="updateSpacing()" style="width: 100%; cursor: pointer;">
+                <input type="range" id="sliderSeparacion" min="100" max="3500" value="150" oninput="updateSpacing()" style="width: 100%; cursor: pointer;">
                 <span id="valorSeparacion" style="font-size: 12px; font-weight:bold; color:#1976d2; min-width: 45px;">150px</span>
             </div>
         </div>
@@ -1332,13 +1332,13 @@ def main():
                 
                 ocupante_actual = clean_text(info_pos.get('Nombre'), 'Vacante / Sin asignar')
                 direccion_pos = clean_text(info_pos.get('Dirección'), 'No asignada')
+                sucesor_actual_info = clean_text(info_pos.get('Sucesor actual', info_pos.get('Sucesor actual ')), 'No definido')
                 
                 if direccion_permitida != "TODAS":
-                    st.info(f"📌 **Posición Crítica:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual}")
+                    st.info(f"📌 **Posición Crítica:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual} | 🎯 **Sucesor Actual:** {sucesor_actual_info}")
                 else:
-                    st.info(f"📌 **Posición Crítica:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual} | 🏢 **Dirección:** {direccion_pos}")
+                    st.info(f"📌 **Posición Crítica:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual} | 🏢 **Dirección:** {direccion_pos} | 🎯 **Sucesor Actual:** {sucesor_actual_info}")
 
-                # OCULTAR SUGERENCIAS DETRÁS DE UN EXPANDER
                 with st.expander("🤖 Mostrar Sugerencias de Sucesión (IA)"):
                     sugerencias = generar_sugerencias_ia(pos_seleccionada, info_pos)
                     if sugerencias:
@@ -1367,10 +1367,18 @@ def main():
                 
                 c_suc1 = clean_text(info_pos.get('Sucesor P.1', 'Pendiente')) or "Pendiente"
                 c_read1 = clean_text(info_pos.get('Tiempo de Readiness 1', 'Pendiente')) or "Pendiente"
+                c_pos1 = clean_text(info_pos.get('Positivo', info_pos.get('Positivo 1', '')))
+                c_opo1 = clean_text(info_pos.get('Oportunidad', info_pos.get('Oportunidad 1', '')))
+                
                 c_suc2 = clean_text(info_pos.get('Sucesor P.2', 'Pendiente')) or "Pendiente"
                 c_read2 = clean_text(info_pos.get('Tiempo de Readiness 2', 'Pendiente')) or "Pendiente"
+                c_pos2 = clean_text(info_pos.get('Positivo.1', info_pos.get('Positivo 2', '')))
+                c_opo2 = clean_text(info_pos.get('Oportunidad.1', info_pos.get('Oportunidad 2', '')))
+                
                 c_suc3 = clean_text(info_pos.get('Sucesor P.3', 'Pendiente')) or "Pendiente"
                 c_read3 = clean_text(info_pos.get('Tiempo de Readiness 3', 'Pendiente')) or "Pendiente"
+                c_pos3 = clean_text(info_pos.get('Positivo.2', info_pos.get('Positivo 3', '')))
+                c_opo3 = clean_text(info_pos.get('Oportunidad.2', info_pos.get('Oportunidad 3', '')))
                 
                 if c_suc1 not in opciones_sucesores: opciones_sucesores.append(c_suc1)
                 if c_suc2 not in opciones_sucesores: opciones_sucesores.append(c_suc2)
@@ -1379,7 +1387,7 @@ def main():
                 if c_read2 not in opciones_tiempo: opciones_tiempo.append(c_read2)
                 if c_read3 not in opciones_tiempo: opciones_tiempo.append(c_read3)
                 
-                st.write("") # Espacio para separar visualmente
+                st.write("") 
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
@@ -1398,6 +1406,8 @@ def main():
                             st.markdown(f"<div style='background:{pdi_diag1['bg_color']}; border-left:4px solid {pdi_diag1['color_borde']}; padding:10px; border-radius:6px; font-size:12px; color:#1e293b;'><b>🤖 Dictamen IA: {pdi_diag1['icono']} {pdi_diag1['titulo_estatus']}</b><br>🎯 <b>Objetivo PDI:</b> {pdi_diag1['objetivo']} (Avance: <b>{pdi_diag1['avance']}</b>)<br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag1['recomendacion']}</div>", unsafe_allow_html=True)
                             
                     n_read1 = st.selectbox("Readiness 1", opciones_tiempo, index=opciones_tiempo.index(c_read1), key="select_read1")
+                    n_pos1 = st.text_area("👍 Comentarios Positivos 1", value=c_pos1, height=68, key="t_pos1")
+                    n_opo1 = st.text_area("📈 Áreas de Oportunidad 1", value=c_opo1, height=68, key="t_opo1")
                     
                 with col2:
                     st.markdown("#### 🥈 Sucesor 2")
@@ -1415,6 +1425,8 @@ def main():
                             st.markdown(f"<div style='background:{pdi_diag2['bg_color']}; border-left:4px solid {pdi_diag2['color_borde']}; padding:10px; border-radius:6px; font-size:12px; color:#1e293b;'><b>🤖 Dictamen IA: {pdi_diag2['icono']} {pdi_diag2['titulo_estatus']}</b><br>🎯 <b>Objetivo PDI:</b> {pdi_diag2['objetivo']} (Avance: <b>{pdi_diag2['avance']}</b>)<br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag2['recomendacion']}</div>", unsafe_allow_html=True)
                             
                     n_read2 = st.selectbox("Readiness 2", opciones_tiempo, index=opciones_tiempo.index(c_read2), key="select_read2")
+                    n_pos2 = st.text_area("👍 Comentarios Positivos 2", value=c_pos2, height=68, key="t_pos2")
+                    n_opo2 = st.text_area("📈 Áreas de Oportunidad 2", value=c_opo2, height=68, key="t_opo2")
                     
                 with col3:
                     st.markdown("#### 🥉 Sucesor 3")
@@ -1432,6 +1444,8 @@ def main():
                             st.markdown(f"<div style='background:{pdi_diag3['bg_color']}; border-left:4px solid {pdi_diag3['color_borde']}; padding:10px; border-radius:6px; font-size:12px; color:#1e293b;'><b>🤖 Dictamen IA: {pdi_diag3['icono']} {pdi_diag3['titulo_estatus']}</b><br>🎯 <b>Objetivo PDI:</b> {pdi_diag3['objetivo']} (Avance: <b>{pdi_diag3['avance']}</b>)<br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag3['recomendacion']}</div>", unsafe_allow_html=True)
                             
                     n_read3 = st.selectbox("Readiness 3", opciones_tiempo, index=opciones_tiempo.index(c_read3), key="select_read3")
+                    n_pos3 = st.text_area("👍 Comentarios Positivos 3", value=c_pos3, height=68, key="t_pos3")
+                    n_opo3 = st.text_area("📈 Áreas de Oportunidad 3", value=c_opo3, height=68, key="t_opo3")
                 
                 st.write("")
                 submitted = st.button("💾 Guardar Cambios en Base de Datos", type="primary", use_container_width=True)
@@ -1452,15 +1466,24 @@ def main():
                             archivo = cliente.open_by_key(doc_id)
                             pestana = archivo.worksheet("Base de datos")
                             
-                            rango = f'I{idx_excel}:N{idx_excel}'
+                            # Actualización del rango de I hasta T (12 columnas)
+                            rango = f'I{idx_excel}:T{idx_excel}'
                             celdas = pestana.range(rango)
                             
                             celdas[0].value = "Pendiente" if n_suc1 == "Pendiente" else n_suc1
                             celdas[1].value = "Pendiente" if n_read1 == "Pendiente" else n_read1
-                            celdas[2].value = "Pendiente" if n_suc2 == "Pendiente" else n_suc2
-                            celdas[3].value = "Pendiente" if n_read2 == "Pendiente" else n_read2
-                            celdas[4].value = "Pendiente" if n_suc3 == "Pendiente" else n_suc3
-                            celdas[5].value = "Pendiente" if n_read3 == "Pendiente" else n_read3
+                            celdas[2].value = n_pos1
+                            celdas[3].value = n_opo1
+                            
+                            celdas[4].value = "Pendiente" if n_suc2 == "Pendiente" else n_suc2
+                            celdas[5].value = "Pendiente" if n_read2 == "Pendiente" else n_read2
+                            celdas[6].value = n_pos2
+                            celdas[7].value = n_opo2
+                            
+                            celdas[8].value = "Pendiente" if n_suc3 == "Pendiente" else n_suc3
+                            celdas[9].value = "Pendiente" if n_read3 == "Pendiente" else n_read3
+                            celdas[10].value = n_pos3
+                            celdas[11].value = n_opo3
                             
                             pestana.update_cells(celdas)
                             
