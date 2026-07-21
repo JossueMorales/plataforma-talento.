@@ -1116,14 +1116,12 @@ def main():
             st.divider()
             
             # ==========================================
-            # PLANIFICADOR DE SUCESIONES (SOLO POSICIONES CRÍTICAS)
+            # PLANIFICADOR DE SUCESIONES + ANÁLISIS DE IA DE PDI
             # ==========================================
             st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
             st.markdown("Usa este panel para asignar o modificar los sucesores. **Los cambios se guardarán automáticamente en tu Excel** y el mapa se actualizará al instante.")
             
             df_posiciones_filtradas = df_seguro.copy()
-            
-            # RESTRICCIÓN CLAVE: FILTRAR ÚNICAMENTE POSICIONES CRÍTICAS (Posición Crítica == 'Si')
             df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Posición Crítica'].apply(clean_text).str.lower() == 'si']
             
             if f_dir != "Todas":
@@ -1169,6 +1167,38 @@ def main():
                 
                 return {"box": box_c, "enganche": eng_c, "edr": edr_c}
 
+            # NUEVA FUNCIÓN DE IA: ANALIZA SI EL PDI DEL CANDIDATO SE APUNTA A LA POSICIÓN SELECCIONADA
+            def analizar_alineacion_pdi(nombre_cand, puesto_objetivo):
+                if not nombre_cand or nombre_cand == "Pendiente" or df_pdi.empty:
+                    return None
+                
+                match_pdi = df_pdi[df_pdi['Nombre'].astype(str).str.strip().str.lower() == nombre_cand.strip().lower()]
+                if match_pdi.empty:
+                    return "SIN_PDI"
+                
+                # Leemos los datos clave del PDI
+                col_obj = next((c for c in match_pdi.columns if 'objetivo' in str(c).lower()), None)
+                col_avance = next((c for c in match_pdi.columns if 'avance' in str(c).lower()), None)
+                col_acciones = next((c for c in match_pdi.columns if 'acciones' in str(c).lower() or 'qué' in str(c).lower()), None)
+                
+                row_p = match_pdi.iloc[0]
+                objetivo_pdi = clean_text(row_p.get(col_obj), 'Sin objetivo definido') if col_obj else 'Sin objetivo'
+                avance_pdi = clean_text(row_p.get(col_avance), '0%') if col_avance else '0%'
+                acciones_pdi = clean_text(row_p.get(col_acciones), 'Sin acciones descritas') if col_acciones else 'Sin acciones'
+                
+                # Algoritmo de alineación: Revisa palabras clave
+                palabras_puesto = [p for p in puesto_objetivo.lower().split() if len(p) > 3]
+                coincidencias = [p for p in palabras_puesto if p in objetivo_pdi.lower() or p in acciones_pdi.lower()]
+                
+                esta_encaminado = len(coincidencias) > 0 or "gerencia" in objetivo_pdi.lower() or "dirección" in objetivo_pdi.lower()
+                
+                return {
+                    "objetivo": objetivo_pdi,
+                    "avance": avance_pdi,
+                    "acciones": acciones_pdi,
+                    "encaminado": esta_encaminado
+                }
+
             if pos_seleccionada:
                 idx_pandas = mapa_indices[pos_seleccionada]
                 info_pos = df_seguro.loc[idx_pandas]
@@ -1211,6 +1241,20 @@ def main():
                     elif ficha1:
                         st.success(f"📊 **9-Box:** {ficha1['box']} | 🔥 **Enganche:** {ficha1['enganche']} | 📈 **EDR:** {ficha1['edr']}")
                         
+                        # ANÁLISIS IA DE PDI
+                        pdi_ana1 = analizar_alineacion_pdi(n_suc1, pos_seleccionada)
+                        if pdi_ana1 == "SIN_PDI":
+                            st.warning("⚠️ Sin PDI: No se encontró Plan de Desarrollo para este candidato.")
+                        elif isinstance(pdi_ana1, dict):
+                            badge_enc = "✅ PDI Encaminado a Posición" if pdi_ana1['encaminado'] else "💡 PDI en Desarrollo General"
+                            st.markdown(f"""
+                            <div style="background:#f0f9ff; border-left:4px solid #0284c7; padding:8px; border-radius:5px; margin-top:5px; font-size:12px;">
+                                <b>🤖 Análisis IA de PDI:</b> {badge_enc}<br>
+                                🎯 <b>Objetivo:</b> {pdi_ana1['objetivo']}<br>
+                                📈 <b>Avance:</b> {pdi_ana1['avance']} | 🛠️ <b>Acción:</b> {pdi_ana1['acciones'][:60]}...
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
                     n_read1 = st.selectbox("Readiness 1", opciones_tiempo, index=opciones_tiempo.index(c_read1), key="select_read1")
                     
                 with col2:
@@ -1223,6 +1267,20 @@ def main():
                     elif ficha2:
                         st.success(f"📊 **9-Box:** {ficha2['box']} | 🔥 **Enganche:** {ficha2['enganche']} | 📈 **EDR:** {ficha2['edr']}")
                         
+                        # ANÁLISIS IA DE PDI
+                        pdi_ana2 = analizar_alineacion_pdi(n_suc2, pos_seleccionada)
+                        if pdi_ana2 == "SIN_PDI":
+                            st.warning("⚠️ Sin PDI: No se encontró Plan de Desarrollo para este candidato.")
+                        elif isinstance(pdi_ana2, dict):
+                            badge_enc = "✅ PDI Encaminado a Posición" if pdi_ana2['encaminado'] else "💡 PDI en Desarrollo General"
+                            st.markdown(f"""
+                            <div style="background:#f0f9ff; border-left:4px solid #0284c7; padding:8px; border-radius:5px; margin-top:5px; font-size:12px;">
+                                <b>🤖 Análisis IA de PDI:</b> {badge_enc}<br>
+                                🎯 <b>Objetivo:</b> {pdi_ana2['objetivo']}<br>
+                                📈 <b>Avance:</b> {pdi_ana2['avance']} | 🛠️ <b>Acción:</b> {pdi_ana2['acciones'][:60]}...
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
                     n_read2 = st.selectbox("Readiness 2", opciones_tiempo, index=opciones_tiempo.index(c_read2), key="select_read2")
                     
                 with col3:
@@ -1235,6 +1293,20 @@ def main():
                     elif ficha3:
                         st.success(f"📊 **9-Box:** {ficha3['box']} | 🔥 **Enganche:** {ficha3['enganche']} | 📈 **EDR:** {ficha3['edr']}")
                         
+                        # ANÁLISIS IA DE PDI
+                        pdi_ana3 = analizar_alineacion_pdi(n_suc3, pos_seleccionada)
+                        if pdi_ana3 == "SIN_PDI":
+                            st.warning("⚠️ Sin PDI: No se encontró Plan de Desarrollo para este candidato.")
+                        elif isinstance(pdi_ana3, dict):
+                            badge_enc = "✅ PDI Encaminado a Posición" if pdi_ana3['encaminado'] else "💡 PDI en Desarrollo General"
+                            st.markdown(f"""
+                            <div style="background:#f0f9ff; border-left:4px solid #0284c7; padding:8px; border-radius:5px; margin-top:5px; font-size:12px;">
+                                <b>🤖 Análisis IA de PDI:</b> {badge_enc}<br>
+                                🎯 <b>Objetivo:</b> {pdi_ana3['objetivo']}<br>
+                                📈 <b>Avance:</b> {pdi_ana3['avance']} | 🛠️ <b>Acción:</b> {pdi_ana3['acciones'][:60]}...
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
                     n_read3 = st.selectbox("Readiness 3", opciones_tiempo, index=opciones_tiempo.index(c_read3), key="select_read3")
                 
                 st.write("")
