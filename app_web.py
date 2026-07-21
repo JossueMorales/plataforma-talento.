@@ -1116,7 +1116,7 @@ def main():
             st.divider()
             
             # ==========================================
-            # PLANIFICADOR DE SUCESIONES CON IA Y AFINIDAD DE ESPECIALIDAD ESTRICTA
+            # PLANIFICADOR DE SUCESIONES + IA SEMÁNTICA (NLP)
             # ==========================================
             st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
             st.markdown("Usa este panel para asignar o modificar los sucesores. **Los cambios se guardarán automáticamente en tu Excel** y el mapa se actualizará al instante.")
@@ -1148,154 +1148,113 @@ def main():
             def obtener_ficha_candidato(nombre_cand):
                 if not nombre_cand or nombre_cand == "Pendiente":
                     return None
-                
                 match_colab = df_completo[df_completo['Nombre'].astype(str).str.strip().str.lower() == nombre_cand.strip().lower()]
-                if match_colab.empty:
-                    return None
-                
+                if match_colab.empty: return None
                 row_c = match_colab.iloc[0]
                 dir_candidato = clean_text(row_c.get('Dirección', row_c.get('Direccion')), 'No asignada')
-                
                 if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in dir_candidato.upper()):
                     return "RESTRINGIDO"
-                
                 puesto_actual = clean_text(row_c.get('Nombre de la Posición'), 'Puesto no asignado')
                 box_c = clean_text(row_c.get('Resultado 9 box'), 'Pendiente')
                 edr_c = clean_text(row_c.get('EDR', row_c.get('EDR ')), 'Pendiente')
-                
                 eng_key = next((k for k in row_c.keys() if k and 'enganche' in str(k).lower()), None)
                 eng_c = clean_text(row_c.get(eng_key), 'N/A') if eng_key else 'N/A'
-                
                 return {"puesto_actual": puesto_actual, "direccion": dir_candidato, "box": box_c, "enganche": eng_c, "edr": edr_c}
 
-            def diagnosticar_pdi_ia(nombre_cand, puesto_destino, info_cand):
-                if not nombre_cand or nombre_cand == "Pendiente" or info_cand == "RESTRINGIDO" or not info_cand:
-                    return None
-                
-                if df_pdi.empty:
-                    return {"estatus": "SIN_DATOS", "msg": "No hay base de datos de PDI cargada."}
-                
-                match_pdi = df_pdi[df_pdi['Nombre'].astype(str).str.strip().str.lower() == nombre_cand.strip().lower()]
-                if match_pdi.empty:
-                    return {
-                        "estatus": "SIN_PDI", 
-                        "puesto_origen": info_cand['puesto_actual'],
-                        "puesto_destino": puesto_destino,
-                        "recomendacion": f"🚨 **Acción Requerida:** El colaborador ocupa el puesto de *{info_cand['puesto_actual']}* pero NO tiene un PDI registrado. Se requiere crear un PDI enfocado en cerrar las brechas hacia la posición de *{puesto_destino}*."
-                    }
-                
-                col_obj = next((c for c in match_pdi.columns if 'objetivo' in str(c).lower()), None)
-                col_avance = next((c for c in match_pdi.columns if 'avance' in str(c).lower()), None)
-                col_acciones = next((c for c in match_pdi.columns if 'acciones' in str(c).lower() or 'qué' in str(c).lower()), None)
-                col_clasif = next((c for c in match_pdi.columns if 'clasificacion' in str(c).lower()), None)
-                
-                row_p = match_pdi.iloc[0]
-                obj_pdi = clean_text(row_p.get(col_obj), 'Sin objetivo definido') if col_obj else 'Sin objetivo'
-                avance_pdi = clean_text(row_p.get(col_avance), '0%') if col_avance else '0%'
-                acciones_pdi = clean_text(row_p.get(col_acciones), 'Sin acciones descritas') if col_acciones else 'Sin acciones'
-                clasif_pdi = clean_text(row_p.get(col_clasif), 'General') if col_clasif else 'General'
-                
-                palabras_puesto = [p for p in puesto_destino.lower().split() if len(p) > 3 and p not in ['jefe', 'gerente', 'coordinador', 'director', 'de', 'del', 'las', 'los']]
-                palabras_pdi = (obj_pdi + " " + acciones_pdi).lower()
-                
-                coincidencias = [p for p in palabras_puesto if p in palabras_pdi]
-                puesto_origen = info_cand['puesto_actual']
-                
-                if len(coincidencias) > 0 or ("gerencia" in obj_pdi.lower() and "gerente" in puesto_destino.lower()) or ("dirección" in obj_pdi.lower() and "director" in puesto_destino.lower()):
-                    estatus = "ALINEADO"
-                    icono = "✅"
-                    titulo_estatus = "PDI Alineado a la Posición"
-                    color_borde = "#16a34a"
-                    bg_color = "#f0fdf4"
-                    recomendacion = f"El PDI actual está **correctamente enfocado** en la posición de *{puesto_destino}*. Con un avance del **{avance_pdi}**, las acciones en curso cubren las competencias requeridas. Mantenimiento del plan actual."
-                else:
-                    estatus = "REQUIERE_AJUSTE"
-                    icono = "🟡"
-                    titulo_estatus = "Ajuste Recomendado al PDI"
-                    color_borde = "#ca8a04"
-                    bg_color = "#fefce8"
-                    recomendacion = f"💡 **Recomendación de Ajuste:** El candidato actualmente es *{puesto_origen}*. Su PDI actual está orientado a '_{obj_pdi}_'. Para asegurar su éxito hacia *{puesto_destino}*, se recomienda **actualizar sus Acciones de Desarrollo** agregando competencias técnicas y operativas específicas del nuevo puesto destino."
-                
-                return {
-                    "estatus": estatus,
-                    "icono": icono,
-                    "titulo_estatus": titulo_estatus,
-                    "color_borde": color_borde,
-                    "bg_color": bg_color,
-                    "puesto_origen": puesto_origen,
-                    "puesto_destino": puesto_destino,
-                    "objetivo": obj_pdi,
-                    "avance": avance_pdi,
-                    "acciones": acciones_pdi,
-                    "clasificacion": clasif_pdi,
-                    "recomendacion": recomendacion
-                }
+            # DICCIONARIO DE MERCADO IA (Semantic Context)
+            DICCIONARIO_MERCADO = {
+                "sistemas_it": ["erp", "sistemas", "tecnologia", "informacion", "it", "software", "datos", "sap", "tecnico", "redes"],
+                "abogado": ["legal", "juridico", "contratos", "litigio", "derecho", "normativa", "corporativo"],
+                "rh": ["talento", "recursos humanos", "cultura", "clima", "capacitacion", "desarrollo", "atraccion", "beneficios", "compensaciones", "nomina", "laborales", "personal"],
+                "comercial": ["ventas", "clientes", "cuentas", "kam", "negocios", "mercado", "retail", "mayoreo", "comercial"],
+                "operaciones": ["planta", "produccion", "mantenimiento", "calidad", "manufactura", "procesos", "industrial"],
+                "logistica": ["reparto", "distribucion", "almacen", "inventarios", "transporte", "cadena", "suministro"],
+                "finanzas": ["contabilidad", "tesoreria", "auditoria", "fiscal", "credito", "costos", "financiero"]
+            }
 
-            def detectar_familia_profesional(texto):
-                t = texto.lower()
-                if any(x in t for x in ['sistemas', 'it', 'tecnologia', 'crm', 'datos', 'desarrollador', 'soporte', 'informacion']):
-                    return 'SISTEMAS_IT'
-                if any(x in t for x in ['abogado', 'legal', 'juridico', 'fiscal', 'cumplimiento', 'contratos']):
-                    return 'LEGAL'
-                if any(x in t for x in ['financ', 'contab', 'tesor', 'credito', 'auditor', 'costos', 'impuest']):
-                    return 'FINANZAS'
-                if any(x in t for x in ['ventas', 'comercial', 'canal', 'mayoreo', 'retail', 'autoservicio', 'mercad']):
-                    return 'COMERCIAL'
-                if any(x in t for x in ['recursos humanos', 'rh', 'relaciones laborales', 'talento', 'nomina', 'personal']):
-                    return 'RH'
-                if any(x in t for x in ['operacion', 'planta', 'produccion', 'mantenimien', 'calidad', 'sustentab', 'seguridad industrial']):
-                    return 'OPERACIONES'
-                if any(x in t for x in ['cadena', 'suministro', 'almacen', 'inventario', 'compras', 'logistica', 'reparto']):
-                    return 'CADENA_SUMINISTRO'
-                return 'GENERAL'
+            def extraer_contexto(texto):
+                """Simula NLP extrayendo conceptos clave e inyectando conocimiento de mercado."""
+                if not texto or pd.isna(texto): return set()
+                t = str(texto).lower()
+                stopwords = [' de ', ' del ', ' la ', ' las ', ' el ', ' los ', ' y ', ' en ', ' para ', ' con ', ' a ', ' al ']
+                for sw in stopwords: t = t.replace(sw, ' ')
+                
+                # Extraer palabras de 4+ letras
+                palabras = set(re.findall(r'\b\w{4,}\b', t))
+                
+                # Eliminar jerarquías para dejar solo la habilidad técnica
+                jerarquias = {'gerente', 'jefe', 'coordinador', 'director', 'analista', 'auxiliar', 'especialista', 'encargado', 'asistente'}
+                palabras = palabras - jerarquias
+                
+                # Expandir usando diccionario de mercado
+                contexto_ampliado = set(palabras)
+                for palabra in palabras:
+                    for key, valores in DICCIONARIO_MERCADO.items():
+                        if key in palabra or palabra in key:
+                            contexto_ampliado.update(valores)
+                        if palabra in valores:
+                            contexto_ampliado.update(valores)
+                            
+                return contexto_ampliado
+
+            # Precargar PDI en diccionario para velocidad
+            dict_pdi_textos = {}
+            if not df_pdi.empty and 'Nombre' in df_pdi.columns:
+                col_obj = next((c for c in df_pdi.columns if 'objetivo' in str(c).lower()), None)
+                col_acciones = next((c for c in df_pdi.columns if 'acciones' in str(c).lower() or 'qué' in str(c).lower()), None)
+                for _, row_p in df_pdi.iterrows():
+                    nom = clean_text(row_p.get('Nombre')).lower()
+                    obj = clean_text(row_p.get(col_obj)) if col_obj else ""
+                    acc = clean_text(row_p.get(col_acciones)) if col_acciones else ""
+                    dict_pdi_textos[nom] = obj + " " + acc
 
             def generar_sugerencias_ia(pos_destino, info_pos_destino):
-                if not pos_destino or df_completo.empty:
-                    return []
+                if not pos_destino or df_completo.empty: return []
                 
-                fam_destino = detectar_familia_profesional(pos_destino)
-                dir_destino = clean_text(info_pos_destino.get('Dirección'), '').upper()
                 mla_destino = clean_text(info_pos_destino.get('Nivel MLA'), '')
                 ocupante_destino = clean_text(info_pos_destino.get('Nombre'), '').lower()
+                
+                # Contexto Técnico del Puesto Destino (Ej. "Gerente de ERP" -> {'erp', 'sistemas', 'software', ...})
+                contexto_destino = extraer_contexto(pos_destino)
                 
                 candidatos_sugeridos = []
                 
                 for _, row in df_completo.iterrows():
                     nombre = clean_text(row.get('Nombre'))
-                    if not nombre or nombre.lower() == ocupante_destino:
-                        continue
+                    if not nombre or nombre.lower() == ocupante_destino: continue
                         
                     puesto_act = clean_text(row.get('Nombre de la Posición'))
-                    if puesto_act.lower() == pos_destino.lower():
-                        continue
-                        
-                    fam_candidato = detectar_familia_profesional(puesto_act)
-                    dir_cand = clean_text(row.get('Dirección')).upper()
+                    if puesto_act.lower() == pos_destino.lower(): continue
                     
-                    if fam_destino != 'GENERAL' and fam_candidato != 'GENERAL' and fam_destino != fam_candidato and dir_cand != dir_destino:
-                        continue
-                        
+                    # Extraer contexto del puesto actual y del PDI del candidato
+                    contexto_cand_puesto = extraer_contexto(puesto_act)
+                    pdi_texto = dict_pdi_textos.get(nombre.lower(), "")
+                    contexto_cand_pdi = extraer_contexto(pdi_texto)
+                    
+                    # Unir perfil técnico del candidato (Lo que hace + Lo que está desarrollando)
+                    perfil_tecnico_candidato = contexto_cand_puesto.union(contexto_cand_pdi)
+                    
+                    # CANDADO NLP: Si no hay intersección de habilidades técnicas, descartar inmediatamente
+                    if not contexto_destino.intersection(perfil_tecnico_candidato):
+                        continue # Evita sugerir HR para ERP o Finanzas para Legal
+                    
                     box = clean_text(row.get('Resultado 9 box')).upper()
+                    if box not in ['1', '2', '3', '4', '5', '6']: continue # Solo Alto Desempeño
+                    
                     mla_cand = clean_text(row.get('Nivel MLA'))
-                    interes = clean_text(row.get('Interés del Colaborador')).lower()
-                    
-                    if box not in ['1', '2', '3', '4', '5', '6']:
-                        continue
-                    
                     score = 0
                     razones = []
                     
-                    if fam_candidato == fam_destino and fam_destino != 'GENERAL':
+                    if contexto_destino.intersection(contexto_cand_puesto):
+                        score += 5
+                        razones.append("Afinidad técnica en puesto actual")
+                    elif contexto_destino.intersection(contexto_cand_pdi):
                         score += 4
-                        razones.append(f"Afinidad técnica ({fam_destino})")
-                        
-                    if dir_cand == dir_destino and dir_destino != '':
-                        score += 3
-                        razones.append("Conoce la Dirección")
+                        razones.append("Desarrollando skills afines (PDI)")
                         
                     if box in ['1', '2', '3', '5']:
                         score += 4
-                        razones.append("Alto Desempeño/Potencial")
+                        razones.append("Alto Potencial (9-Box)")
                     elif box in ['4', '6']:
                         score += 2
                         razones.append("Desempeño Sólido")
@@ -1304,27 +1263,64 @@ def main():
                         diff = int(mla_destino) - int(mla_cand)
                         if diff == 1:
                             score += 3
-                            razones.append("Ascenso directo (Nivel MLA)")
+                            razones.append("Listo para ascenso (Nivel contiguo)")
                         elif diff == 0:
                             score += 2
-                            razones.append("Movimiento lateral")
+                            razones.append("Movimiento lateral orgánico")
                             
-                    palabras_pos = [p for p in pos_destino.lower().split() if len(p) > 3 and p not in ['jefe', 'gerente', 'coordinador', 'director', 'de', 'del', 'las', 'los']]
-                    if any(p in interes for p in palabras_pos):
-                        score += 2
-                        razones.append("Interés manifestado")
-                        
-                    if score >= 7.5:
+                    if score >= 7: # Umbral estricto
                         candidatos_sugeridos.append({
                             'nombre': nombre,
                             'puesto': puesto_act,
-                            'direccion': dir_cand,
-                            'box': box if box else 'N/A',
+                            'direccion': clean_text(row.get('Dirección')),
+                            'box': box,
                             'score': score,
                             'razon': " | ".join(razones)
                         })
                         
                 return sorted(candidatos_sugeridos, key=lambda x: x['score'], reverse=True)[:3]
+
+            def diagnosticar_pdi_ia(nombre_cand, puesto_destino, info_cand):
+                if not nombre_cand or nombre_cand == "Pendiente" or info_cand == "RESTRINGIDO" or not info_cand: return None
+                if df_pdi.empty: return {"estatus": "SIN_DATOS", "msg": "No hay base de datos de PDI cargada."}
+                
+                match_pdi = df_pdi[df_pdi['Nombre'].astype(str).str.strip().str.lower() == nombre_cand.strip().lower()]
+                if match_pdi.empty:
+                    return {
+                        "estatus": "SIN_PDI", 
+                        "puesto_origen": info_cand['puesto_actual'],
+                        "recomendacion": f"🚨 **Acción Requerida:** El colaborador ocupa el puesto de *{info_cand['puesto_actual']}* pero NO tiene un PDI registrado. Se requiere crear un PDI enfocado en cerrar las brechas hacia la posición de *{puesto_destino}*."
+                    }
+                
+                col_obj = next((c for c in match_pdi.columns if 'objetivo' in str(c).lower()), None)
+                col_avance = next((c for c in match_pdi.columns if 'avance' in str(c).lower()), None)
+                col_acciones = next((c for c in match_pdi.columns if 'acciones' in str(c).lower() or 'qué' in str(c).lower()), None)
+                
+                row_p = match_pdi.iloc[0]
+                obj_pdi = clean_text(row_p.get(col_obj), 'Sin objetivo definido') if col_obj else 'Sin objetivo'
+                avance_pdi = clean_text(row_p.get(col_avance), '0%') if col_avance else '0%'
+                acciones_pdi = clean_text(row_p.get(col_acciones), 'Sin acciones descritas') if col_acciones else 'Sin acciones'
+                
+                contexto_destino = extraer_contexto(puesto_destino)
+                contexto_pdi = extraer_contexto(obj_pdi + " " + acciones_pdi)
+                
+                coincidencias = contexto_destino.intersection(contexto_pdi)
+                puesto_origen = info_cand['puesto_actual']
+                
+                if len(coincidencias) > 0 or ("gerencia" in obj_pdi.lower() and "gerente" in puesto_destino.lower()) or ("dirección" in obj_pdi.lower() and "director" in puesto_destino.lower()):
+                    return {
+                        "estatus": "ALINEADO", "icono": "✅", "titulo_estatus": "PDI Alineado a la Posición",
+                        "color_borde": "#16a34a", "bg_color": "#f0fdf4", "puesto_origen": puesto_origen,
+                        "objetivo": obj_pdi, "avance": avance_pdi, "acciones": acciones_pdi,
+                        "recomendacion": f"El PDI actual está **correctamente enfocado** en la posición de *{puesto_destino}*. Con un avance del **{avance_pdi}**, las acciones en curso cubren las competencias requeridas. Mantenimiento del plan actual."
+                    }
+                else:
+                    return {
+                        "estatus": "REQUIERE_AJUSTE", "icono": "🟡", "titulo_estatus": "Ajuste Recomendado al PDI",
+                        "color_borde": "#ca8a04", "bg_color": "#fefce8", "puesto_origen": puesto_origen,
+                        "objetivo": obj_pdi, "avance": avance_pdi, "acciones": acciones_pdi,
+                        "recomendacion": f"💡 **Recomendación IA:** El candidato actualmente es *{puesto_origen}*. Su PDI está orientado a '_{obj_pdi}_'. Para asegurar su éxito hacia *{puesto_destino}*, se recomienda **actualizar sus Acciones de Desarrollo** agregando competencias técnicas específicas del nuevo puesto."
+                    }
 
             if pos_seleccionada:
                 idx_pandas = mapa_indices[pos_seleccionada]
@@ -1389,21 +1385,11 @@ def main():
                         st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
                     elif ficha1:
                         st.success(f"📊 **9-Box:** {ficha1['box']} | 🔥 **Enganche:** {ficha1['enganche']} | 📈 **EDR:** {ficha1['edr']}")
-                        
                         pdi_diag1 = diagnosticar_pdi_ia(n_suc1, pos_seleccionada, ficha1)
                         if pdi_diag1 and pdi_diag1.get("estatus") == "SIN_PDI":
                             st.warning(pdi_diag1['recomendacion'])
-                        elif pdi_diag1 and isinstance(pdi_diag1, dict) and "color_borde" in pdi_diag1:
-                            st.markdown(f"""
-                            <div style="background:{pdi_diag1['bg_color']}; border-left:4px solid {pdi_diag1['color_borde']}; padding:10px; border-radius:6px; margin-top:8px; font-size:12px; color:#1e293b;">
-                                <b>🤖 Dictamen IA: {pdi_diag1['icono']} {pdi_diag1['titulo_estatus']}</b><br>
-                                👔 <b>Puesto Actual:</b> {pdi_diag1['puesto_origen']}<br>
-                                🎯 <b>Objetivo PDI:</b> {pdi_diag1['objetivo']} (Avance: <b>{pdi_diag1['avance']}</b>)<br>
-                                📋 <b>Acción Actual:</b> <i>{pdi_diag1['acciones'][:80]}...</i><br><br>
-                                📌 <b>RECOMENDACIÓN DE AJUSTE AL PDI:</b><br>
-                                {pdi_diag1['recomendacion']}
-                            </div>
-                            """, unsafe_allow_html=True)
+                        elif pdi_diag1 and "color_borde" in pdi_diag1:
+                            st.markdown(f"<div style='background:{pdi_diag1['bg_color']}; border-left:4px solid {pdi_diag1['color_borde']}; padding:10px; border-radius:6px; font-size:12px; color:#1e293b;'><b>🤖 Dictamen IA: {pdi_diag1['icono']} {pdi_diag1['titulo_estatus']}</b><br>🎯 <b>Objetivo PDI:</b> {pdi_diag1['objetivo']} (Avance: <b>{pdi_diag1['avance']}</b>)<br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag1['recomendacion']}</div>", unsafe_allow_html=True)
                             
                     n_read1 = st.selectbox("Readiness 1", opciones_tiempo, index=opciones_tiempo.index(c_read1), key="select_read1")
                     
@@ -1416,21 +1402,11 @@ def main():
                         st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
                     elif ficha2:
                         st.success(f"📊 **9-Box:** {ficha2['box']} | 🔥 **Enganche:** {ficha2['enganche']} | 📈 **EDR:** {ficha2['edr']}")
-                        
                         pdi_diag2 = diagnosticar_pdi_ia(n_suc2, pos_seleccionada, ficha2)
                         if pdi_diag2 and pdi_diag2.get("estatus") == "SIN_PDI":
                             st.warning(pdi_diag2['recomendacion'])
-                        elif pdi_diag2 and isinstance(pdi_diag2, dict) and "color_borde" in pdi_diag2:
-                            st.markdown(f"""
-                            <div style="background:{pdi_diag2['bg_color']}; border-left:4px solid {pdi_diag2['color_borde']}; padding:10px; border-radius:6px; margin-top:8px; font-size:12px; color:#1e293b;">
-                                <b>🤖 Dictamen IA: {pdi_diag2['icono']} {pdi_diag2['titulo_estatus']}</b><br>
-                                👔 <b>Puesto Actual:</b> {pdi_diag2['puesto_origen']}<br>
-                                🎯 <b>Objetivo PDI:</b> {pdi_diag2['objetivo']} (Avance: <b>{pdi_diag2['avance']}</b>)<br>
-                                📋 <b>Acción Actual:</b> <i>{pdi_diag2['acciones'][:80]}...</i><br><br>
-                                📌 <b>RECOMENDACIÓN DE AJUSTE AL PDI:</b><br>
-                                {pdi_diag2['recomendacion']}
-                            </div>
-                            """, unsafe_allow_html=True)
+                        elif pdi_diag2 and "color_borde" in pdi_diag2:
+                            st.markdown(f"<div style='background:{pdi_diag2['bg_color']}; border-left:4px solid {pdi_diag2['color_borde']}; padding:10px; border-radius:6px; font-size:12px; color:#1e293b;'><b>🤖 Dictamen IA: {pdi_diag2['icono']} {pdi_diag2['titulo_estatus']}</b><br>🎯 <b>Objetivo PDI:</b> {pdi_diag2['objetivo']} (Avance: <b>{pdi_diag2['avance']}</b>)<br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag2['recomendacion']}</div>", unsafe_allow_html=True)
                             
                     n_read2 = st.selectbox("Readiness 2", opciones_tiempo, index=opciones_tiempo.index(c_read2), key="select_read2")
                     
@@ -1443,21 +1419,11 @@ def main():
                         st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
                     elif ficha3:
                         st.success(f"📊 **9-Box:** {ficha3['box']} | 🔥 **Enganche:** {ficha3['enganche']} | 📈 **EDR:** {ficha3['edr']}")
-                        
                         pdi_diag3 = diagnosticar_pdi_ia(n_suc3, pos_seleccionada, ficha3)
                         if pdi_diag3 and pdi_diag3.get("estatus") == "SIN_PDI":
                             st.warning(pdi_diag3['recomendacion'])
-                        elif pdi_diag3 and isinstance(pdi_diag3, dict) and "color_borde" in pdi_diag3:
-                            st.markdown(f"""
-                            <div style="background:{pdi_diag3['bg_color']}; border-left:4px solid {pdi_diag3['color_borde']}; padding:10px; border-radius:6px; margin-top:8px; font-size:12px; color:#1e293b;">
-                                <b>🤖 Dictamen IA: {pdi_diag3['icono']} {pdi_diag3['titulo_estatus']}</b><br>
-                                👔 <b>Puesto Actual:</b> {pdi_diag3['puesto_origen']}<br>
-                                🎯 <b>Objetivo PDI:</b> {pdi_diag3['objetivo']} (Avance: <b>{pdi_diag3['avance']}</b>)<br>
-                                📋 <b>Acción Actual:</b> <i>{pdi_diag3['acciones'][:80]}...</i><br><br>
-                                📌 <b>RECOMENDACIÓN DE AJUSTE AL PDI:</b><br>
-                                {pdi_diag3['recomendacion']}
-                            </div>
-                            """, unsafe_allow_html=True)
+                        elif pdi_diag3 and "color_borde" in pdi_diag3:
+                            st.markdown(f"<div style='background:{pdi_diag3['bg_color']}; border-left:4px solid {pdi_diag3['color_borde']}; padding:10px; border-radius:6px; font-size:12px; color:#1e293b;'><b>🤖 Dictamen IA: {pdi_diag3['icono']} {pdi_diag3['titulo_estatus']}</b><br>🎯 <b>Objetivo PDI:</b> {pdi_diag3['objetivo']} (Avance: <b>{pdi_diag3['avance']}</b>)<br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag3['recomendacion']}</div>", unsafe_allow_html=True)
                             
                     n_read3 = st.selectbox("Readiness 3", opciones_tiempo, index=opciones_tiempo.index(c_read3), key="select_read3")
                 
