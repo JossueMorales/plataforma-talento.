@@ -1105,7 +1105,7 @@ def main():
                         if vista == "alertas":
                             df_lista = df_lista.drop_duplicates(subset=["Nombre", "Alerta"]).reset_index(drop=True)
                             
-                        # OCULTAR COLUMNA "DIRECCIÓN" SI ES UN PERFIL DE DIRECCIÓN ESPECÍFICO (NO ADMIN GLOBAL)
+                        # OCULTAR COLUMNA "DIRECCIÓN" SI ES UN PERFIL DE DIRECCIÓN ESPECÍFICO
                         if direccion_permitida != "TODAS" and "Dirección" in df_lista.columns:
                             df_lista = df_lista.drop(columns=["Dirección"])
                             
@@ -1120,7 +1120,7 @@ def main():
             st.divider()
             
             # ==========================================
-            # PLANIFICADOR DE SUCESIONES (EDICIÓN EN VIVO)
+            # PLANIFICADOR DE SUCESIONES (EDICIÓN EN VIVO REAL-TIME)
             # ==========================================
             st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
             st.markdown("Usa este panel para asignar o modificar los sucesores. **Los cambios se guardarán automáticamente en tu Excel** y el mapa se actualizará al instante.")
@@ -1149,20 +1149,20 @@ def main():
             posiciones_opciones = sorted(list(set(posiciones_opciones)))
             pos_seleccionada = st.selectbox("🔍 Selecciona la Posición a planificar:", [""] + posiciones_opciones)
             
-            # Función auxiliar para consultar los datos del candidato seleccionado
+            # Función para obtener la información privada del colaborador en tiempo real
             def obtener_ficha_candidato(nombre_cand):
                 if not nombre_cand or nombre_cand == "Pendiente":
                     return None
                 
-                # Buscar al colaborador en la base completa
-                match_colab = df_completo[df_completo['Nombre'].apply(clean_text).str.lower() == nombre_cand.strip().lower()]
+                # Búsqueda en la base de datos global
+                match_colab = df_completo[df_completo['Nombre'].astype(str).str.strip().str.lower() == nombre_cand.strip().lower()]
                 if match_colab.empty:
                     return None
                 
                 row_c = match_colab.iloc[0]
                 dir_candidato = clean_text(row_c.get('Dirección', row_c.get('Direccion')), 'No asignada')
                 
-                # Regla de Privacidad: Si el usuario es Director de un área y el candidato pertenece a OTRA área, se bloquea la vista
+                # Regla de Privacidad: Si es Director de un área y el colaborador es de OTRA área, restringir
                 if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in dir_candidato.upper()):
                     return "RESTRINGIDO"
                 
@@ -1204,84 +1204,85 @@ def main():
                 if c_read2 not in opciones_tiempo: opciones_tiempo.append(c_read2)
                 if c_read3 not in opciones_tiempo: opciones_tiempo.append(c_read3)
                 
-                with st.form("form_sucesion"):
-                    col1, col2, col3 = st.columns(3)
+                # SECCIÓN DE EDICIÓN EN TIEMPO REAL (SIN ST.FORM)
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.markdown("#### 🥇 Sucesor 1")
+                    n_suc1 = st.selectbox("Candidato 1", opciones_sucesores, index=opciones_sucesores.index(c_suc1), key="select_suc1")
                     
-                    with col1:
-                        st.markdown("#### 🥇 Sucesor 1")
-                        n_suc1 = st.selectbox("Candidato 1", opciones_sucesores, index=opciones_sucesores.index(c_suc1))
+                    # MOSTRAR FICHA EN TIEMPO REAL
+                    ficha1 = obtener_ficha_candidato(n_suc1)
+                    if ficha1 == "RESTRINGIDO":
+                        st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
+                    elif ficha1:
+                        st.success(f"📊 **9-Box:** {ficha1['box']} | 🔥 **Enganche:** {ficha1['enganche']} | 📈 **EDR:** {ficha1['edr']}")
                         
-                        # MOSTRAR FICHA DEL CANDIDATO 1
-                        ficha1 = obtener_ficha_candidato(n_suc1)
-                        if ficha1 == "RESTRINGIDO":
-                            st.caption("🔒 *Datos confidenciales (Colaborador de otra Dirección)*")
-                        elif ficha1:
-                            st.caption(f"📊 **9-Box:** {ficha1['box']} | 🔥 **Enganche:** {ficha1['enganche']} | 📈 **EDR:** {ficha1['edr']}")
-                            
-                        n_read1 = st.selectbox("Readiness 1", opciones_tiempo, index=opciones_tiempo.index(c_read1))
-                        
-                    with col2:
-                        st.markdown("#### 🥈 Sucesor 2")
-                        n_suc2 = st.selectbox("Candidato 2", opciones_sucesores, index=opciones_sucesores.index(c_suc2))
-                        
-                        # MOSTRAR FICHA DEL CANDIDATO 2
-                        ficha2 = obtener_ficha_candidato(n_suc2)
-                        if ficha2 == "RESTRINGIDO":
-                            st.caption("🔒 *Datos confidenciales (Colaborador de otra Dirección)*")
-                        elif ficha2:
-                            st.caption(f"📊 **9-Box:** {ficha2['box']} | 🔥 **Enganche:** {ficha2['enganche']} | 📈 **EDR:** {ficha2['edr']}")
-                            
-                        n_read2 = st.selectbox("Readiness 2", opciones_tiempo, index=opciones_tiempo.index(c_read2))
-                        
-                    with col3:
-                        st.markdown("#### 🥉 Sucesor 3")
-                        n_suc3 = st.selectbox("Candidato 3", opciones_sucesores, index=opciones_sucesores.index(c_suc3))
-                        
-                        # MOSTRAR FICHA DEL CANDIDATO 3
-                        ficha3 = obtener_ficha_candidato(n_suc3)
-                        if ficha3 == "RESTRINGIDO":
-                            st.caption("🔒 *Datos confidenciales (Colaborador de otra Dirección)*")
-                        elif ficha3:
-                            st.caption(f"📊 **9-Box:** {ficha3['box']} | 🔥 **Enganche:** {ficha3['enganche']} | 📈 **EDR:** {ficha3['edr']}")
-                            
-                        n_read3 = st.selectbox("Readiness 3", opciones_tiempo, index=opciones_tiempo.index(c_read3))
-                        
-                    submitted = st.form_submit_button("💾 Guardar Cambios en Base de Datos", type="primary", use_container_width=True)
+                    n_read1 = st.selectbox("Readiness 1", opciones_tiempo, index=opciones_tiempo.index(c_read1), key="select_read1")
                     
-                    if submitted:
-                        with st.spinner("🤖 El robot está escribiendo en tu Excel..."):
-                            idx_excel = idx_pandas + 2 
-                            match = re.search(r'/d/([a-zA-Z0-9-_]+)', link_archivo)
-                            doc_id = match.group(1) if match else link_archivo
+                with col2:
+                    st.markdown("#### 🥈 Sucesor 2")
+                    n_suc2 = st.selectbox("Candidato 2", opciones_sucesores, index=opciones_sucesores.index(c_suc2), key="select_suc2")
+                    
+                    # MOSTRAR FICHA EN TIEMPO REAL
+                    ficha2 = obtener_ficha_candidato(n_suc2)
+                    if ficha2 == "RESTRINGIDO":
+                        st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
+                    elif ficha2:
+                        st.success(f"📊 **9-Box:** {ficha2['box']} | 🔥 **Enganche:** {ficha2['enganche']} | 📈 **EDR:** {ficha2['edr']}")
+                        
+                    n_read2 = st.selectbox("Readiness 2", opciones_tiempo, index=opciones_tiempo.index(c_read2), key="select_read2")
+                    
+                with col3:
+                    st.markdown("#### 🥉 Sucesor 3")
+                    n_suc3 = st.selectbox("Candidato 3", opciones_sucesores, index=opciones_sucesores.index(c_suc3), key="select_suc3")
+                    
+                    # MOSTRAR FICHA EN TIEMPO REAL
+                    ficha3 = obtener_ficha_candidato(n_suc3)
+                    if ficha3 == "RESTRINGIDO":
+                        st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
+                    elif ficha3:
+                        st.success(f"📊 **9-Box:** {ficha3['box']} | 🔥 **Enganche:** {ficha3['enganche']} | 📈 **EDR:** {ficha3['edr']}")
+                        
+                    n_read3 = st.selectbox("Readiness 3", opciones_tiempo, index=opciones_tiempo.index(c_read3), key="select_read3")
+                
+                st.write("")
+                submitted = st.button("💾 Guardar Cambios en Base de Datos", type="primary", use_container_width=True)
+                
+                if submitted:
+                    with st.spinner("🤖 El robot está escribiendo en tu Excel..."):
+                        idx_excel = idx_pandas + 2 
+                        match = re.search(r'/d/([a-zA-Z0-9-_]+)', link_archivo)
+                        doc_id = match.group(1) if match else link_archivo
+                        
+                        try:
+                            secretos = st.secrets["connections"]["gsheets"]
+                            credenciales = Credentials.from_service_account_info(
+                                secretos,
+                                scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+                            )
+                            cliente = gspread.authorize(credenciales)
+                            archivo = cliente.open_by_key(doc_id)
+                            pestana = archivo.worksheet("Base de datos")
                             
-                            try:
-                                secretos = st.secrets["connections"]["gsheets"]
-                                credenciales = Credentials.from_service_account_info(
-                                    secretos,
-                                    scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-                                )
-                                cliente = gspread.authorize(credenciales)
-                                archivo = cliente.open_by_key(doc_id)
-                                pestana = archivo.worksheet("Base de datos")
-                                
-                                rango = f'I{idx_excel}:N{idx_excel}'
-                                celdas = pestana.range(rango)
-                                
-                                celdas[0].value = "Pendiente" if n_suc1 == "Pendiente" else n_suc1
-                                celdas[1].value = "Pendiente" if n_read1 == "Pendiente" else n_read1
-                                celdas[2].value = "Pendiente" if n_suc2 == "Pendiente" else n_suc2
-                                celdas[3].value = "Pendiente" if n_read2 == "Pendiente" else n_read2
-                                celdas[4].value = "Pendiente" if n_suc3 == "Pendiente" else n_suc3
-                                celdas[5].value = "Pendiente" if n_read3 == "Pendiente" else n_read3
-                                
-                                pestana.update_cells(celdas)
-                                
-                                st.success("✅ ¡Guardado exitosamente! El mapa se está actualizando...")
-                                st.cache_data.clear()
-                                st.rerun()
-                                
-                            except Exception as e:
-                                st.error(f"❌ Error técnico al intentar escribir en el Excel: {e}")
+                            rango = f'I{idx_excel}:N{idx_excel}'
+                            celdas = pestana.range(rango)
+                            
+                            celdas[0].value = "Pendiente" if n_suc1 == "Pendiente" else n_suc1
+                            celdas[1].value = "Pendiente" if n_read1 == "Pendiente" else n_read1
+                            celdas[2].value = "Pendiente" if n_suc2 == "Pendiente" else n_suc2
+                            celdas[3].value = "Pendiente" if n_read2 == "Pendiente" else n_read2
+                            celdas[4].value = "Pendiente" if n_suc3 == "Pendiente" else n_suc3
+                            celdas[5].value = "Pendiente" if n_read3 == "Pendiente" else n_read3
+                            
+                            pestana.update_cells(celdas)
+                            
+                            st.success("✅ ¡Guardado exitosamente! El mapa se está actualizando...")
+                            st.cache_data.clear()
+                            st.rerun()
+                            
+                        except Exception as e:
+                            st.error(f"❌ Error técnico al intentar escribir en el Excel: {e}")
 
             st.divider()
             
