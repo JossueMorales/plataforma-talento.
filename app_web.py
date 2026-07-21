@@ -192,7 +192,6 @@ function updateSpacing() {
                 if (prof === undefined) prof = 0;
                 nuevoRadio = (anillo * window.ringSpacing) + (prof * 120);
             } else {
-                // SOLUCIÓN: Radio pequeño en lugar de 0 para que no colapsen
                 if (anillo === 0) {
                     nuevoRadio = 80; 
                 } else {
@@ -618,24 +617,12 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
     sucesores_de_9box = {n: 0 for n in G_jerarquia.nodes()}
     sucesores_oficiales_de = {n: 0 for n in G_jerarquia.nodes()} 
 
-    # --- NUEVA LÓGICA: CALCULAR ANILLO DE SUCESIÓN PARA EL MODO TIEMPO ---
+    # MANTENER CONTEO GLOBAL DE SUCESORES (Para activar alertas de "Falta Sucesor")
     for emp, info in info_nodos.items():
-        if info['critica'].lower() == 'si':
-            info_nodos[emp]['anillo_sucesion'] = 0 # Centro
-            
-        sucs = [(info['suc1_id'], info['read1']), (info['suc2_id'], info['read2']), (info['suc3_id'], info['read3'])]
-        for s_id, read_time in sucs:
+        sucs = [info['suc1_id'], info['suc2_id'], info['suc3_id']]
+        for s_id in sucs:
             if s_id and s_id in info_nodos:
                 sucesores_oficiales_de[s_id] += 1
-                rt = str(read_time).strip().lower()
-                val = 4
-                if 'inmediato' in rt: val = 1
-                elif '1' in rt and '3' in rt: val = 2
-                elif 'más' in rt or 'mas' in rt or '3' in rt: val = 3
-                
-                # Quedarse con el tiempo más cercano si es sucesor de varias posiciones
-                if val < info_nodos[s_id]['anillo_sucesion']:
-                    info_nodos[s_id]['anillo_sucesion'] = val
 
     for emp, info in info_nodos.items():
         box = info['box'].upper()
@@ -735,6 +722,28 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             if s_id and s_id in info_nodos:
                 nodos_rescatados.add(s_id)
     nodos_visibles = nodos_rescatados
+
+    # --- NUEVA LÓGICA: CALCULAR ANILLOS DE SUCESIÓN *SÓLO PARA NODOS VISIBLES* ---
+    # Esto asegura que el tiempo de Readiness refleje únicamente las flechas en pantalla
+    for emp in nodos_visibles:
+        if info_nodos[emp]['critica'].lower() == 'si':
+            info_nodos[emp]['anillo_sucesion'] = 0
+            
+    for emp in nodos_visibles:
+        info = info_nodos[emp]
+        sucs = [(info['suc1_id'], info['read1']), (info['suc2_id'], info['read2']), (info['suc3_id'], info['read3'])]
+        for s_id, read_time in sucs:
+            if s_id and s_id in nodos_visibles:
+                rt = str(read_time).strip().lower()
+                val = 4
+                if 'inmediato' in rt: val = 1
+                elif '1' in rt and '3' in rt: val = 2
+                elif 'más' in rt or 'mas' in rt or '3' in rt: val = 3
+                
+                # Proteger a las posiciones críticas de ser reescritas y buscar el mejor tiempo visible
+                if info_nodos[s_id]['anillo_sucesion'] != 0: 
+                    if val < info_nodos[s_id]['anillo_sucesion']:
+                        info_nodos[s_id]['anillo_sucesion'] = val
 
     raiz_principal = None
     for emp, info in info_nodos.items():
@@ -933,7 +942,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             
         label_texto = f"{prefijo}{nombre_corto}\n({info['puesto']})"
         
-        # AÑADIMOS AnilloSucesion AL NODO PARA EL MODO TIEMPO EN JS
         G.add_node(
             emp, 
             label=label_texto, 
@@ -985,7 +993,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             if s_id and s_id in empleados_validos:
                 is_hidden_edge = (emp not in nodos_visibles or s_id not in nodos_visibles)
                 
-                # --- NUEVA LÓGICA: ESTILO DE FLECHAS POR BRECHA DE TIEMPO ---
                 rt = str(read_time).strip().lower()
                 if 'inmediato' in rt:
                     dashes_style = False # Línea sólida
