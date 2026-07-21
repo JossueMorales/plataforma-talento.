@@ -1116,7 +1116,7 @@ def main():
             st.divider()
             
             # ==========================================
-            # PLANIFICADOR DE SUCESIONES CON RECOMENDADOR IA
+            # PLANIFICADOR DE SUCESIONES CON IA Y AFINIDAD DE ESPECIALIDAD
             # ==========================================
             st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
             st.markdown("Usa este panel para asignar o modificar los sucesores. **Los cambios se guardarán automáticamente en tu Excel** y el mapa se actualizará al instante.")
@@ -1231,13 +1231,32 @@ def main():
                     "recomendacion": recomendacion
                 }
 
-            # FUNCIÓN PARA GENERAR CANDIDATOS/POSICIONES SUGERIDAS POR IA
+            # ==========================================
+            # MOTOR IA CON FILTRO ESTRICTO DE FAMILIA Y AFINIDAD PROFESIONAL
+            # ==========================================
+            def detectar_familia_profesional(texto):
+                t = texto.lower()
+                if any(x in t for x in ['abogado', 'legal', 'juridico', 'fiscal', 'cumplimiento', 'contratos']):
+                    return 'LEGAL'
+                if any(x in t for x in ['financ', 'contab', 'tesor', 'credito', 'auditor', 'costos', 'impuest']):
+                    return 'FINANZAS'
+                if any(x in t for x in ['ventas', 'comercial', 'canal', 'mayoreo', 'retail', 'autoservicio', 'crm', 'mercad']):
+                    return 'COMERCIAL'
+                if any(x in t for x in ['recursos humanos', 'rh', 'relaciones laborales', 'talento', 'nomina', 'personal']):
+                    return 'RH'
+                if any(x in t for x in ['operacion', 'planta', 'produccion', 'mantenimien', 'calidad', 'sustentab', 'seguridad industrial']):
+                    return 'OPERACIONES'
+                if any(x in t for x in ['cadena', 'suministro', 'almacen', 'inventario', 'compras', 'logistica', 'reparto']):
+                    return 'CADENA_SUMINISTRO'
+                return 'GENERAL'
+
             def generar_sugerencias_ia(pos_destino, info_pos_destino):
                 if not pos_destino or df_completo.empty:
                     return []
                 
+                fam_destino = detectar_familia_profesional(pos_destino)
+                dir_destino = clean_text(info_pos_destino.get('Dirección'), '').upper()
                 mla_destino = clean_text(info_pos_destino.get('Nivel MLA'), '')
-                dir_destino = clean_text(info_pos_destino.get('Dirección'), '')
                 ocupante_destino = clean_text(info_pos_destino.get('Nombre'), '').lower()
                 
                 candidatos_sugeridos = []
@@ -1251,40 +1270,50 @@ def main():
                     if puesto_act.lower() == pos_destino.lower():
                         continue
                         
+                    fam_candidato = detectar_familia_profesional(puesto_act)
+                    dir_cand = clean_text(row.get('Dirección')).upper()
+                    
+                    # FILTRO DE INCOMPATIBILIDAD ESTRICTO DE ESPECIALIDAD (Ej. Financiero no puede sustituir Abogado)
+                    if fam_destino != 'GENERAL' and fam_candidato != 'GENERAL' and fam_destino != fam_candidato and dir_cand != dir_destino:
+                        continue
+                        
                     box = clean_text(row.get('Resultado 9 box')).upper()
-                    dir_cand = clean_text(row.get('Dirección'))
                     mla_cand = clean_text(row.get('Nivel MLA'))
                     interes = clean_text(row.get('Interés del Colaborador')).lower()
                     
                     score = 0
                     razones = []
                     
+                    if fam_candidato == fam_destino and fam_destino != 'GENERAL':
+                        score += 5
+                        razones.append(f"Misma especialidad profesional ({fam_destino})")
+                        
+                    if dir_cand == dir_destino and dir_destino != '':
+                        score += 3
+                        razones.append("Misma Dirección")
+                        
                     if box in ['1', '2', '3', '5']:
-                        score += 4
+                        score += 3
                         razones.append("HiPo / Alto Desempeño (9-Box)")
                     elif box in ['4', '6']:
-                        score += 2
+                        score += 1.5
                         razones.append("Buen Desempeño (9-Box)")
-                        
-                    palabras_pos = [p for p in pos_destino.lower().split() if len(p) > 3 and p not in ['jefe', 'gerente', 'coordinador', 'director', 'de', 'del', 'las', 'los']]
-                    if any(p in interes for p in palabras_pos):
-                        score += 3
-                        razones.append("Interés explícito en la función")
-                        
-                    if dir_cand.upper() == dir_destino.upper() and dir_destino != '':
-                        score += 2
-                        razones.append("Misma Dirección")
                         
                     if mla_destino.isdigit() and mla_cand.isdigit():
                         diff = int(mla_destino) - int(mla_cand)
                         if diff == 1:
-                            score += 3
-                            razones.append("Nivel MLA contiguo (Ascenso ideal)")
+                            score += 2.5
+                            razones.append("Nivel MLA contiguo (Ascenso directo)")
                         elif diff == 0:
                             score += 2
                             razones.append("Movimiento lateral de nivel")
                             
-                    if score >= 4:
+                    palabras_pos = [p for p in pos_destino.lower().split() if len(p) > 3 and p not in ['jefe', 'gerente', 'coordinador', 'director', 'de', 'del', 'las', 'los']]
+                    if any(p in interes for p in palabras_pos):
+                        score += 2
+                        razones.append("Interés explícito registrado")
+                        
+                    if score >= 4.5:
                         candidatos_sugeridos.append({
                             'nombre': nombre,
                             'puesto': puesto_act,
@@ -1300,7 +1329,7 @@ def main():
                 idx_pandas = mapa_indices[pos_seleccionada]
                 info_pos = df_seguro.loc[idx_pandas]
                 
-                # MOSTRAR BLOQUE DE SUGERENCIAS AUTOMÁTICAS DE IA
+                # BLOQUE DE SUGERENCIAS IA DE PUESTOS Y CANDIDATOS AFINES
                 sugerencias = generar_sugerencias_ia(pos_seleccionada, info_pos)
                 if sugerencias:
                     items_html = ""
@@ -1314,12 +1343,14 @@ def main():
                         
                     st.markdown(f"""
                     <div style="background:#e0f2fe; border-left:5px solid #0284c7; padding:12px; border-radius:8px; margin-bottom:15px; font-size:13px; color:#0f172a;">
-                        <b style="font-size:14px; color:#0369a1;">🤖 Sugerencias de Candidatos/Posiciones por IA para esta Silla:</b>
+                        <b style="font-size:14px; color:#0369a1;">🤖 Sugerencias de Candidatos/Posiciones Afines por IA:</b>
                         <ul style="margin:8px 0 0 0; padding-left:20px; line-height:1.5;">
                             {items_html}
                         </ul>
                     </div>
                     """, unsafe_allow_html=True)
+                else:
+                    st.info("🤖 **Sugerencia IA:** No se encontraron candidatos con afinidad técnica/direccional directa en la plantilla actual para este perfil especializado.")
                 
                 nombres_empleados = sorted([clean_text(n) for n in df_completo['Nombre'].dropna().unique() if clean_text(n)])
                 opciones_sucesores = ["Pendiente"] + nombres_empleados
