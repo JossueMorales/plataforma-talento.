@@ -783,7 +783,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
 
     alertas_tabla = []
     data_total = []
-    data_criticas = []
     data_sucesores = []
     data_operativos = []
     data_enganche = []
@@ -799,11 +798,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             nodo_data = {"Nombre": info['nombre'], "Dirección": info['direccion'], "Puesto": info['puesto']}
             data_total.append(nodo_data)
             
-            # INTEGRACIÓN: KPI POSICIONES CRÍTICAS CON SUCESIÓN
+            # KPI UNIFICADO: SUCESIÓN Y POSICIONES CRÍTICAS
             if info['critica'].lower() == 'si':
-                data_criticas.append(nodo_data)
-                
-                # Buscamos los datos exactos del sucesor 1
                 target_id = info['suc1_id']
                 nom_suc = nom_suc1 if nom_suc1 else "Pendiente"
                 puesto_suc = "Pendiente"
@@ -931,13 +927,11 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
     
     kpis = {
         'total': len(data_total),
-        'criticas': len(data_criticas),
         'sucesores': len(data_sucesores),
         'operativos': len(data_operativos),
         'alertas': len(alertas_tabla),
         'enganche_promedio': avg_enganche,
         'data_total': data_total,
-        'data_criticas': data_criticas,
         'data_sucesores': data_sucesores,
         'data_operativos': data_operativos,
         'data_alertas': data_alertas,
@@ -1054,29 +1048,26 @@ def main():
             with col_datos:
                 st.markdown("### 📊 KPIs de Talento")
                 
-                k1, k2, k3, k4, k5, k6 = st.columns(6)
+                # 5 TARJETAS DE KPIS PRINCIPALES
+                k1, k2, k3, k4, k5 = st.columns(5)
                 
                 with k1:
                     st.markdown(crear_tarjeta_kpi("Total<br>Colab.", kpis['total'], "#3b82f6", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
                     if st.button("🔍 Ver", key="b_tot", use_container_width=True):
                         st.session_state["vista_kpi"] = "total"
                 with k2:
-                    st.markdown(crear_tarjeta_kpi("Pos.<br>Críticas", kpis['criticas'], "#ef4444", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
-                    if st.button("🔍 Ver", key="b_cri", use_container_width=True):
-                        st.session_state["vista_kpi"] = "criticas"
-                with k3:
                     st.markdown(crear_tarjeta_kpi("Sucesión<br>(Pos. Críticas)", kpis['sucesores'], "#8b5cf6", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
                     if st.button("🔍 Ver", key="b_suc", use_container_width=True):
                         st.session_state["vista_kpi"] = "sucesores"
-                with k4:
+                with k3:
                     st.markdown(crear_tarjeta_kpi("Operat.<br>(MLA 1)", kpis['operativos'], "#10b981", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
                     if st.button("🔍 Ver", key="b_ope", use_container_width=True):
                         st.session_state["vista_kpi"] = "operativos"
-                with k5:
+                with k4:
                     st.markdown(crear_tarjeta_kpi("Alertas<br>Detect.", kpis['alertas'], "#e11d48", "#9f1239", "#fff1f2"), unsafe_allow_html=True)
                     if st.button("🔍 Ver", key="b_ale", use_container_width=True):
                         st.session_state["vista_kpi"] = "alertas"
-                with k6:
+                with k5:
                     st.markdown(crear_tarjeta_kpi("Promedio<br>Enganche", kpis['enganche_promedio'], "#14b8a6", "#0f766e", "#f0fdfa"), unsafe_allow_html=True)
                     if st.button("🔍 Ver", key="b_eng", use_container_width=True):
                         st.session_state["vista_kpi"] = "enganche"
@@ -1085,7 +1076,6 @@ def main():
                     vista = st.session_state["vista_kpi"]
                     titulos_kpi = {
                         "total": "Total de Colaboradores",
-                        "criticas": "Posiciones Críticas",
                         "sucesores": "Sucesión de Posiciones Críticas",
                         "operativos": "Personal Operativo (MLA 1)",
                         "alertas": "Colaboradores con Riesgos / Alertas",
