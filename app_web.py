@@ -1163,10 +1163,10 @@ def main():
 
             # DICCIONARIO DE MERCADO IA (Semantic Context) CORREGIDO CON CRM Y ERP
             DICCIONARIO_MERCADO = {
-                "sistemas_it": ["erp", "sistemas", "tecnologia", "informacion", "it", "software", "datos", "sap", "tecnico", "redes", "crm", "soporte", "desarrollo"],
+                "sistemas_it": ["erp", "sistemas", "tecnologia", "informacion", "it", "software", "datos", "sap", "tecnico", "redes", "crm", "soporte", "programacion"],
                 "abogado": ["legal", "juridico", "contratos", "litigio", "derecho", "normativa", "corporativo", "abogado"],
-                "rh": ["talento", "recursos humanos", "cultura", "clima", "capacitacion", "desarrollo", "atraccion", "beneficios", "compensaciones", "nomina", "laborales", "personal", "rh"],
-                "comercial": ["ventas", "clientes", "cuentas", "kam", "negocios", "mercado", "retail", "mayoreo", "comercial"],
+                "rh": ["talento", "recursos humanos", "cultura", "clima", "capacitacion", "atraccion", "beneficios", "compensaciones", "nomina", "laborales", "personal", "rh", "do"],
+                "comercial": ["ventas", "clientes", "cuentas", "kam", "negocios", "mercado", "retail", "mayoreo", "comercial", "desarrollo comercial"],
                 "operaciones": ["planta", "produccion", "mantenimiento", "calidad", "manufactura", "procesos", "industrial", "operacion"],
                 "logistica": ["reparto", "distribucion", "almacen", "inventarios", "transporte", "cadena", "suministro", "logistica"],
                 "finanzas": ["contabilidad", "tesoreria", "auditoria", "fiscal", "credito", "costos", "financiero", "finanzas"]
