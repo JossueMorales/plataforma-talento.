@@ -1231,16 +1231,15 @@ def main():
                     "recomendacion": recomendacion
                 }
 
-            # ==========================================
-            # MOTOR IA ESTRICTO DE FAMILIA Y AFINIDAD PROFESIONAL
-            # ==========================================
             def detectar_familia_profesional(texto):
                 t = texto.lower()
+                if any(x in t for x in ['sistemas', 'it', 'tecnologia', 'crm', 'datos', 'desarrollador', 'soporte', 'informacion']):
+                    return 'SISTEMAS_IT'
                 if any(x in t for x in ['abogado', 'legal', 'juridico', 'fiscal', 'cumplimiento', 'contratos']):
                     return 'LEGAL'
                 if any(x in t for x in ['financ', 'contab', 'tesor', 'credito', 'auditor', 'costos', 'impuest']):
                     return 'FINANZAS'
-                if any(x in t for x in ['ventas', 'comercial', 'canal', 'mayoreo', 'retail', 'autoservicio', 'crm', 'mercad']):
+                if any(x in t for x in ['ventas', 'comercial', 'canal', 'mayoreo', 'retail', 'autoservicio', 'mercad']):
                     return 'COMERCIAL'
                 if any(x in t for x in ['recursos humanos', 'rh', 'relaciones laborales', 'talento', 'nomina', 'personal']):
                     return 'RH'
@@ -1273,7 +1272,6 @@ def main():
                     fam_candidato = detectar_familia_profesional(puesto_act)
                     dir_cand = clean_text(row.get('Dirección')).upper()
                     
-                    # FILTRO DE INCOMPATIBILIDAD ESTRICTO DE ESPECIALIDAD Y DIRECCIÓN
                     if fam_destino != 'GENERAL' and fam_candidato != 'GENERAL' and fam_destino != fam_candidato and dir_cand != dir_destino:
                         continue
                         
@@ -1281,7 +1279,6 @@ def main():
                     mla_cand = clean_text(row.get('Nivel MLA'))
                     interes = clean_text(row.get('Interés del Colaborador')).lower()
                     
-                    # FILTRO ESTRICTO: Descartar a personas que no tengan 9-Box de valor/potencial
                     if box not in ['1', '2', '3', '4', '5', '6']:
                         continue
                     
@@ -1317,7 +1314,6 @@ def main():
                         score += 2
                         razones.append("Interés manifestado")
                         
-                    # UMBRAL ESTRICTO DE LA IA (MÍNIMO 7.5 PARA SER RECOMENDADO)
                     if score >= 7.5:
                         candidatos_sugeridos.append({
                             'nombre': nombre,
@@ -1334,7 +1330,6 @@ def main():
                 idx_pandas = mapa_indices[pos_seleccionada]
                 info_pos = df_seguro.loc[idx_pandas]
                 
-                # ETIQUETA INFORMATIVA RESTAURADA (COMO LO PEDISTE)
                 ocupante_actual = clean_text(info_pos.get('Nombre'), 'Vacante / Sin asignar')
                 direccion_pos = clean_text(info_pos.get('Dirección'), 'No asignada')
                 
@@ -1343,7 +1338,6 @@ def main():
                 else:
                     st.info(f"📌 **Posición Crítica:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual} | 🏢 **Dirección:** {direccion_pos}")
 
-                # BLOQUE DE SUGERENCIAS IA DE PUESTOS Y CANDIDATOS AFINES (AHORA SÚPER ESTRICTO)
                 sugerencias = generar_sugerencias_ia(pos_seleccionada, info_pos)
                 if sugerencias:
                     items_html = ""
