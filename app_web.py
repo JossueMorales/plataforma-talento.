@@ -18,7 +18,7 @@ var options = {
   },
   "physics": {
       "enabled": false,
-      "forceAtlas2Based": {"gravitationalConstant": -350, "centralGravity": 0.01, "springLength": 250, "springConstant": 0.08, "avoidOverlap": 0.5},
+      "forceAtlas2Based": {"gravitationalConstant": -150, "centralGravity": 0.01, "springLength": 250, "springConstant": 0.08, "avoidOverlap": 0.5},
       "solver": "forceAtlas2Based"
   },
   "interaction": {"hover": true, "tooltipDelay": 200}
@@ -113,7 +113,7 @@ BOTON_HTML = """
         <div id="sliderContainer" style="transition: 0.3s;">
             <label style="font-size: 13px; font-weight: bold; color: #555;">Amplitud Radial:</label>
             <div style="display: flex; align-items: center; gap: 10px;">
-                <input type="range" id="sliderSeparacion" min="100" max="800" value="350" oninput="updateSpacing()" style="width: 100%; cursor: pointer;">
+                <input type="range" id="sliderSeparacion" min="100" max="800" value="150" oninput="updateSpacing()" style="width: 100%; cursor: pointer;">
                 <span id="valorSeparacion" style="font-size: 12px; font-weight:bold; color:#1976d2; min-width: 45px;">150px</span>
             </div>
         </div>
