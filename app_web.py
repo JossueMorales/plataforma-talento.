@@ -134,12 +134,14 @@ BOTON_HTML = """
 </div>
 
 <script>
+// MOTOR DE DISPERSIÓN EN JAVASCRIPT
 function getDispersionOffset(nodeId, spacing) {
     var str = String(nodeId);
     var h = 0;
     for (var k = 0; k < str.length; k++) {
         h += str.charCodeAt(k);
     }
+    // Genera un valor pseudo-aleatorio estable entre -0.25 y +0.25 del espaciado
     return spacing * (((h % 9) / 8.0) * 0.5 - 0.25); 
 }
 
@@ -168,6 +170,7 @@ function updateSpacing() {
         
         var nuevoRadio = 0;
         if (nivelBase !== 0) {
+            // Se calcula la nueva orbita con la dispersión para evitar empalmes
             nuevoRadio = (nivelBase * window.ringSpacing) + (dispersion * window.ringSpacing);
         }
         
@@ -179,7 +182,7 @@ function updateSpacing() {
 
 network.on("zoom", function() {
     var currentScale = network.getScale();
-    var minScale = 0.1; 
+    var minScale = 0.1; // Permitir alejar la cámara aún más para mapas amplios
     var maxScale = 2.5; 
     
     if (currentScale < minScale) {
@@ -1615,7 +1618,7 @@ def main():
                         if pdi_diag1 and pdi_diag1.get("estatus") == "SIN_PDI":
                             st.warning(pdi_diag1['recomendacion'])
                         elif pdi_diag1 and "color_borde" in pdi_diag1:
-                            st.markdown(f"<div style='background:{pdi_diag1['bg_color']}; border-left:4px solid {pdi_diag1['color_borde']}; padding:10px; border-radius:6px; font-size:12px; color:#1e293b;'><b>🤖 Dictamen IA: {pdi_diag1['icono']} {pdi_diag1['titulo_estatus']}</b><br>🎯 <b>Objetivo PDI:</b> {pdi_diag1['objetivo']} (Avance: <b>{pdi_diag1['avance']}</b>)<br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag1['recomendacion']}</div>", unsafe_allow_html=True)
+                            st.markdown(f"<details style='background:{pdi_diag1['bg_color']}; border-left:4px solid {pdi_diag1['color_borde']}; padding:12px; border-radius:6px; cursor:pointer;'><summary style='font-weight:bold; font-size:15px; color:#1e293b; outline:none;'>🤖 Dictamen IA: {pdi_diag1['icono']} {pdi_diag1['titulo_estatus']}</summary><div style='margin-top:10px; font-size:14px; color:#334155; line-height:1.5;'>🎯 <b>Objetivo PDI:</b> {pdi_diag1['objetivo']} (Avance: <b>{pdi_diag1['avance']}</b>)<br><br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag1['recomendacion']}</div></details>", unsafe_allow_html=True)
                             
                     n_read1 = st.selectbox("Readiness 1", opciones_tiempo, index=opciones_tiempo.index(c_read1), key="select_read1")
                     n_pos1 = st.text_area("👍 Comentarios Positivos 1", value=c_pos1, height=68, key="t_pos1")
@@ -1634,7 +1637,7 @@ def main():
                         if pdi_diag2 and pdi_diag2.get("estatus") == "SIN_PDI":
                             st.warning(pdi_diag2['recomendacion'])
                         elif pdi_diag2 and "color_borde" in pdi_diag2:
-                            st.markdown(f"<div style='background:{pdi_diag2['bg_color']}; border-left:4px solid {pdi_diag2['color_borde']}; padding:10px; border-radius:6px; font-size:12px; color:#1e293b;'><b>🤖 Dictamen IA: {pdi_diag2['icono']} {pdi_diag2['titulo_estatus']}</b><br>🎯 <b>Objetivo PDI:</b> {pdi_diag2['objetivo']} (Avance: <b>{pdi_diag2['avance']}</b>)<br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag2['recomendacion']}</div>", unsafe_allow_html=True)
+                            st.markdown(f"<details style='background:{pdi_diag2['bg_color']}; border-left:4px solid {pdi_diag2['color_borde']}; padding:12px; border-radius:6px; cursor:pointer;'><summary style='font-weight:bold; font-size:15px; color:#1e293b; outline:none;'>🤖 Dictamen IA: {pdi_diag2['icono']} {pdi_diag2['titulo_estatus']}</summary><div style='margin-top:10px; font-size:14px; color:#334155; line-height:1.5;'>🎯 <b>Objetivo PDI:</b> {pdi_diag2['objetivo']} (Avance: <b>{pdi_diag2['avance']}</b>)<br><br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag2['recomendacion']}</div></details>", unsafe_allow_html=True)
                             
                     n_read2 = st.selectbox("Readiness 2", opciones_tiempo, index=opciones_tiempo.index(c_read2), key="select_read2")
                     n_pos2 = st.text_area("👍 Comentarios Positivos 2", value=c_pos2, height=68, key="t_pos2")
@@ -1653,7 +1656,7 @@ def main():
                         if pdi_diag3 and pdi_diag3.get("estatus") == "SIN_PDI":
                             st.warning(pdi_diag3['recomendacion'])
                         elif pdi_diag3 and "color_borde" in pdi_diag3:
-                            st.markdown(f"<div style='background:{pdi_diag3['bg_color']}; border-left:4px solid {pdi_diag3['color_borde']}; padding:10px; border-radius:6px; font-size:12px; color:#1e293b;'><b>🤖 Dictamen IA: {pdi_diag3['icono']} {pdi_diag3['titulo_estatus']}</b><br>🎯 <b>Objetivo PDI:</b> {pdi_diag3['objetivo']} (Avance: <b>{pdi_diag3['avance']}</b>)<br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag3['recomendacion']}</div>", unsafe_allow_html=True)
+                            st.markdown(f"<details style='background:{pdi_diag3['bg_color']}; border-left:4px solid {pdi_diag3['color_borde']}; padding:12px; border-radius:6px; cursor:pointer;'><summary style='font-weight:bold; font-size:15px; color:#1e293b; outline:none;'>🤖 Dictamen IA: {pdi_diag3['icono']} {pdi_diag3['titulo_estatus']}</summary><div style='margin-top:10px; font-size:14px; color:#334155; line-height:1.5;'>🎯 <b>Objetivo PDI:</b> {pdi_diag3['objetivo']} (Avance: <b>{pdi_diag3['avance']}</b>)<br><br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag3['recomendacion']}</div></details>", unsafe_allow_html=True)
                             
                     n_read3 = st.selectbox("Readiness 3", opciones_tiempo, index=opciones_tiempo.index(c_read3), key="select_read3")
                     n_pos3 = st.text_area("👍 Comentarios Positivos 3", value=c_pos3, height=68, key="t_pos3")
