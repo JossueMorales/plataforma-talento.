@@ -28,7 +28,7 @@ var options = {
 SCRIPT_ANILLOS = """
 <script>
 window.onionMode = true; 
-window.ringSpacing = 150; 
+window.ringSpacing = 348; 
 network.on("beforeDrawing", function(ctx) {
     if (!window.onionMode) return; 
     ctx.save(); 
@@ -37,7 +37,7 @@ network.on("beforeDrawing", function(ctx) {
     var paso = window.ringSpacing; 
     nodos_visibles.forEach(function(n) {
         var anillo = n.NivelCalculado !== undefined ? n.NivelCalculado : (n.AnilloReal !== undefined ? n.AnilloReal : 5);
-        if(anillo !== undefined) { if (anillo > max_nivel_visible) { max_nivel_visible = anillo; } }
+        if(anillo > max_nivel_visible) { max_nivel_visible = anillo; }
     });
     var limite_anillos = Math.max(Math.ceil(max_nivel_visible), 1);
     ctx.strokeStyle = '#cbd5e1'; ctx.setLineDash([8, 8]); ctx.lineWidth = 2; ctx.font = "bold 24px Arial"; ctx.fillStyle = "#64748b"; ctx.textAlign = "center";
@@ -113,8 +113,8 @@ BOTON_HTML = """
         <div id="sliderContainer" style="transition: 0.3s;">
             <label style="font-size: 13px; font-weight: bold; color: #555;">Amplitud Radial:</label>
             <div style="display: flex; align-items: center; gap: 10px;">
-                <input type="range" id="sliderSeparacion" min="100" max="800" value="150" oninput="updateSpacing()" style="width: 100%; cursor: pointer;">
-                <span id="valorSeparacion" style="font-size: 12px; font-weight:bold; color:#1976d2; min-width: 45px;">150px</span>
+                <input type="range" id="sliderSeparacion" min="100" max="800" value="348" oninput="updateSpacing()" style="width: 100%; cursor: pointer;">
+                <span id="valorSeparacion" style="font-size: 12px; font-weight:bold; color:#1976d2; min-width: 45px;">348px</span>
             </div>
         </div>
         <hr style="margin: 10px 0; border: 0; border-top: 1px solid #ddd;">
@@ -182,7 +182,7 @@ function updateSpacing() {
 
 network.on("zoom", function() {
     var currentScale = network.getScale();
-    var minScale = 0.3; 
+    var minScale = 0.1; // Permitir alejar la cámara aún más para mapas amplios
     var maxScale = 2.5; 
     
     if (currentScale < minScale) {
@@ -327,7 +327,6 @@ function enfocarPantalla() {
 }
 
 setTimeout(function() {
-    // Forzar la actualización del espaciado al inicio para aplicar la dispersión visual
     updateSpacing();
     applyVisualFilters();
     enfocarPantalla();
@@ -824,7 +823,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         if mla == '1': return 4 
         return min(depth_arbol, 5)
 
-    SEPARACION_ANILLOS = 150 
+    # --- AQUÍ ESTÁ EL AJUSTE A 348 PX INICIALES ---
+    SEPARACION_ANILLOS = 348 
     conteo_hojas = {}
     
     def calcular_hojas(n):
@@ -859,15 +859,13 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             rebanada = (peso / hojas_totales) * (angulo_fin - angulo_inicio)
             angulo_hijo = angulo_actual + (rebanada / 2)
             profundidad = nx.shortest_path_length(Arbol, raiz_principal, c) if raiz_principal and c in Arbol else 5
-            
             anillo_real = obtener_anillo_estricto(c, profundidad)
             
-            # FIX JERARQUÍA: Un subordinado nunca puede estar más adentro que su jefe
+            # REGLA DE JERARQUÍA PARA QUE NO SE CRUCEN HACIA ATRÁS
             nivel_calculado = max(float(anillo_real), float(nivel_padre) + 0.6)
             
-            # FIX DISPERSIÓN: Sumar un offset aleatorio basado en el ID para evitar amontonamiento en la línea
+            # DISPERSIÓN CONTROLADA PARA QUE NO SE AMONTONEN EN LA LÍNEA
             dispersion = get_dispersion_offset(c) if nivel_calculado != 0 else 0
-            
             radio_final = (nivel_calculado + dispersion) * SEPARACION_ANILLOS if nivel_calculado != 0 else 0
             
             coords[c] = {
@@ -972,7 +970,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                 data_operativos.append(nodo_data)
 
         prefijo = "🚨 " if info['riesgos_lista'] else ""
-        coord_data = coords.get(emp, {'x':5000, 'y':5000, 'angle':0, 'anillo_real':5, 'nivel_calculado': 5, 'dispersion': 0, 'profundidad':5})
+        coord_data = coords.get(emp, {'angle':0, 'nivel_calculado':5, 'profundidad':5, 'anillo_real': 5})
         
         nombre_corto = acortar_nombre(info['nombre'])
         puesto_corto = acortar_puesto(info['puesto'])
