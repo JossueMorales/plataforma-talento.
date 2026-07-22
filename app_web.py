@@ -37,7 +37,7 @@ network.on("beforeDrawing", function(ctx) {
     var paso = window.ringSpacing; 
     nodos_visibles.forEach(function(n) {
         var anillo = n.NivelCalculado !== undefined ? n.NivelCalculado : (n.AnilloReal !== undefined ? n.AnilloReal : 5);
-        if(anillo > max_nivel_visible) { max_nivel_visible = anillo; }
+        if(anillo !== undefined) { if (anillo > max_nivel_visible) { max_nivel_visible = anillo; } }
     });
     var limite_anillos = Math.max(Math.ceil(max_nivel_visible), 1);
     ctx.strokeStyle = '#cbd5e1'; ctx.setLineDash([8, 8]); ctx.lineWidth = 2; ctx.font = "bold 24px Arial"; ctx.fillStyle = "#64748b"; ctx.textAlign = "center";
@@ -134,6 +134,17 @@ BOTON_HTML = """
 </div>
 
 <script>
+// MOTOR DE DISPERSIÓN EN JAVASCRIPT
+function getDispersionOffset(nodeId, spacing) {
+    var str = String(nodeId);
+    var h = 0;
+    for (var k = 0; k < str.length; k++) {
+        h += str.charCodeAt(k);
+    }
+    // Genera un valor pseudo-aleatorio estable entre -0.25 y +0.25 del espaciado
+    return spacing * (((h % 9) / 8.0) * 0.5 - 0.25); 
+}
+
 function toggleLayoutMode() {
     var isOnion = document.getElementById('toggleOnion').checked;
     window.onionMode = isOnion;
@@ -159,8 +170,8 @@ function updateSpacing() {
         
         var nuevoRadio = 0;
         if (nivelBase !== 0) {
-            // FIX: Aplicamos el factor de dispersión orgánico para que no se amontonen en la línea
-            nuevoRadio = (nivelBase + dispersion) * window.ringSpacing;
+            // Se calcula la nueva orbita con la dispersión para evitar empalmes
+            nuevoRadio = (nivelBase * window.ringSpacing) + (dispersion * window.ringSpacing);
         }
         
         nodesToUpdate.push({ id: n.id, x: nuevoRadio * Math.cos(angle), y: nuevoRadio * Math.sin(angle) });
@@ -316,6 +327,8 @@ function enfocarPantalla() {
 }
 
 setTimeout(function() {
+    // Forzar la actualización del espaciado al inicio para aplicar la dispersión visual
+    updateSpacing();
     applyVisualFilters();
     enfocarPantalla();
 }, 1000); 
@@ -530,6 +543,12 @@ def get_readiness_val(rt_str):
     if '1' in rt or '2' in rt or 'medio' in rt: return 2
     if '3' in rt or '4' in rt or '5' in rt or 'más' in rt or 'mas' in rt or 'largo' in rt: return 3
     return 4
+
+# MOTOR DE DISPERSIÓN PYTHON
+def get_dispersion_offset(node_id):
+    h = sum(ord(c) for c in str(node_id))
+    # Genera un factor estable entre -0.25 y +0.25 para esparcir los nodos
+    return ((h % 9) / 8.0) * 0.5 - 0.25
 
 # ==========================================
 # MOTOR PRINCIPAL
@@ -824,8 +843,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         calcular_hojas(raiz_principal)
 
     coords = {}
-    
-    # FIX JERARQUÍA: Garantizar que el subordinado tenga un radio mayor que el jefe
     def asignar_coordenada_radial(nodo, angulo_inicio, angulo_fin, nivel_padre=0):
         hijos = [c for c in Arbol.successors(nodo) if c in nodos_activos]
         if not hijos: 
@@ -842,15 +859,24 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             rebanada = (peso / hojas_totales) * (angulo_fin - angulo_inicio)
             angulo_hijo = angulo_actual + (rebanada / 2)
             profundidad = nx.shortest_path_length(Arbol, raiz_principal, c) if raiz_principal and c in Arbol else 5
+            
             anillo_real = obtener_anillo_estricto(c, profundidad)
             
-            # El nivel calculado nunca puede ser menor al nivel de su jefe + 0.6
+            # FIX JERARQUÍA: Un subordinado nunca puede estar más adentro que su jefe
             nivel_calculado = max(float(anillo_real), float(nivel_padre) + 0.6)
             
+            # FIX DISPERSIÓN: Sumar un offset aleatorio basado en el ID para evitar amontonamiento en la línea
+            dispersion = get_dispersion_offset(c) if nivel_calculado != 0 else 0
+            
+            radio_final = (nivel_calculado + dispersion) * SEPARACION_ANILLOS if nivel_calculado != 0 else 0
+            
             coords[c] = {
+                'x': radio_final * math.cos(angulo_hijo), 
+                'y': radio_final * math.sin(angulo_hijo), 
                 'angle': angulo_hijo, 
-                'anillo_real': anillo_real, 
+                'anillo_real': anillo_real,
                 'nivel_calculado': nivel_calculado,
+                'dispersion': dispersion,
                 'profundidad': profundidad
             }
             
@@ -858,7 +884,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             angulo_actual += rebanada
 
     if raiz_principal:
-        coords[raiz_principal] = {'angle': 0, 'anillo_real': 0, 'nivel_calculado': 0, 'profundidad': 0}
+        coords[raiz_principal] = {'x': 0, 'y': 0, 'angle': 0, 'anillo_real': 0, 'nivel_calculado': 0, 'dispersion': 0, 'profundidad': 0}
         asignar_coordenada_radial(raiz_principal, 0, 2 * math.pi, 0)
 
     nodos_sin_coords = [n for n in G_jerarquia.nodes() if n not in coords and n in nodos_visibles]
@@ -867,7 +893,12 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         angulo_actual = 0
         for n in nodos_sin_coords:
             anillo = obtener_anillo_estricto(n, 5)
-            coords[n] = {'angle': angulo_actual, 'anillo_real': anillo, 'nivel_calculado': float(anillo) if anillo != 0 else 1.0, 'profundidad': 5}
+            nivel_calculado = float(anillo) if anillo != 0 else 1.0
+            dispersion = get_dispersion_offset(n)
+            
+            radio = (nivel_calculado + dispersion) * SEPARACION_ANILLOS if nivel_calculado != 0 else 80
+            
+            coords[n] = {'x': radio * math.cos(angulo_actual), 'y': radio * math.sin(angulo_actual), 'angle': angulo_actual, 'anillo_real': anillo, 'nivel_calculado': nivel_calculado, 'dispersion': dispersion, 'profundidad': 5}
             angulo_actual += angulo_extra
 
     alertas_tabla = []
@@ -941,7 +972,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                 data_operativos.append(nodo_data)
 
         prefijo = "🚨 " if info['riesgos_lista'] else ""
-        coord_data = coords.get(emp, {'angle':0, 'nivel_calculado':5, 'profundidad':5, 'anillo_real': 5})
+        coord_data = coords.get(emp, {'x':5000, 'y':5000, 'angle':0, 'anillo_real':5, 'nivel_calculado': 5, 'dispersion': 0, 'profundidad':5})
         
         nombre_corto = acortar_nombre(info['nombre'])
         puesto_corto = acortar_puesto(info['puesto'])
@@ -960,10 +991,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             
         label_texto = f"{prefijo}{nombre_corto}\n({puesto_corto})"
         
-        # FIX DISPERSIÓN: Crear una fluctuación matemática estable para separar los nodos
-        h = sum(ord(ch) for ch in str(emp))
-        dispersion_offset = (((h % 9) / 8.0) * 0.4) - 0.2 
-        
         G.add_node(
             emp, 
             label=label_texto, 
@@ -977,10 +1004,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             NomSuc1=nom_suc1, Read1=info['read1'], NomSuc2=nom_suc2, Read2=info['read2'], NomSuc3=nom_suc3, Read3=info['read3'],
             Eng_Ind=info['enganche_ind'], Eng_Area=info['enganche_area'], Es_Lider=info['es_lider'],
             font={'color': '#0f172a', 'strokeWidth': 2, 'strokeColor': '#ffffff', 'size': 11, 'face': 'Arial', 'weight': 'bold'},
-            Angle=coord_data['angle'], 
-            NivelCalculado=coord_data.get('nivel_calculado', 5),
-            Dispersion=dispersion_offset,
-            AnilloReal=coord_data.get('anillo_real', 5), 
+            x=coord_data['x'], y=coord_data['y'], Angle=coord_data['angle'], 
+            AnilloReal=coord_data['anillo_real'], NivelCalculado=coord_data['nivel_calculado'], Dispersion=coord_data['dispersion'], Profundidad=coord_data['profundidad'],
             hidden=is_hidden
         )
 
