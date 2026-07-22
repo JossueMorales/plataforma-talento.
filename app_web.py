@@ -36,10 +36,10 @@ network.on("beforeDrawing", function(ctx) {
     var max_nivel_visible = 0;
     var paso = window.ringSpacing; 
     nodos_visibles.forEach(function(n) {
-        var anillo = n.AnilloReal !== undefined ? n.AnilloReal : n.anilloreal;
-        if(anillo !== undefined) { if (anillo > max_nivel_visible) { max_nivel_visible = anillo; } }
+        var anillo = n.NivelCalculado !== undefined ? n.NivelCalculado : (n.AnilloReal !== undefined ? n.AnilloReal : 5);
+        if(anillo > max_nivel_visible) { max_nivel_visible = anillo; }
     });
-    var limite_anillos = Math.max(max_nivel_visible, 1);
+    var limite_anillos = Math.max(Math.ceil(max_nivel_visible), 1);
     ctx.strokeStyle = '#cbd5e1'; ctx.setLineDash([8, 8]); ctx.lineWidth = 2; ctx.font = "bold 24px Arial"; ctx.fillStyle = "#64748b"; ctx.textAlign = "center";
     for (var i = 1; i <= limite_anillos; i++) {
         if (i > 5) break; 
@@ -153,13 +153,17 @@ function updateSpacing() {
     
     for (var i = 0; i < allNodes.length; i++) {
         var n = allNodes[i];
-        var anillo = n.AnilloReal !== undefined ? n.AnilloReal : n.anilloreal;
-        var angle = n.Angle !== undefined ? n.Angle : n.angle;
+        var angle = n.Angle !== undefined ? n.Angle : 0;
+        var dispersion = n.Dispersion !== undefined ? n.Dispersion : 0;
+        var nivelBase = n.NivelCalculado !== undefined ? n.NivelCalculado : (n.AnilloReal !== undefined ? n.AnilloReal : 5);
         
-        if (anillo !== undefined && angle !== undefined) {
-            var nuevoRadio = anillo * window.ringSpacing;
-            nodesToUpdate.push({ id: n.id, x: nuevoRadio * Math.cos(angle), y: nuevoRadio * Math.sin(angle) });
+        var nuevoRadio = 0;
+        if (nivelBase !== 0) {
+            // FIX: Aplicamos el factor de dispersión orgánico para que no se amontonen en la línea
+            nuevoRadio = (nivelBase + dispersion) * window.ringSpacing;
         }
+        
+        nodesToUpdate.push({ id: n.id, x: nuevoRadio * Math.cos(angle), y: nuevoRadio * Math.sin(angle) });
     }
     
     network.body.data.nodes.update(nodesToUpdate);
@@ -820,7 +824,9 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         calcular_hojas(raiz_principal)
 
     coords = {}
-    def asignar_coordenada_radial(nodo, angulo_inicio, angulo_fin):
+    
+    # FIX JERARQUÍA: Garantizar que el subordinado tenga un radio mayor que el jefe
+    def asignar_coordenada_radial(nodo, angulo_inicio, angulo_fin, nivel_padre=0):
         hijos = [c for c in Arbol.successors(nodo) if c in nodos_activos]
         if not hijos: 
             return
@@ -838,20 +844,22 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             profundidad = nx.shortest_path_length(Arbol, raiz_principal, c) if raiz_principal and c in Arbol else 5
             anillo_real = obtener_anillo_estricto(c, profundidad)
             
+            # El nivel calculado nunca puede ser menor al nivel de su jefe + 0.6
+            nivel_calculado = max(float(anillo_real), float(nivel_padre) + 0.6)
+            
             coords[c] = {
-                'x': (anillo_real * SEPARACION_ANILLOS) * math.cos(angulo_hijo) if anillo_real != 0 else 0, 
-                'y': (anillo_real * SEPARACION_ANILLOS) * math.sin(angulo_hijo) if anillo_real != 0 else 0, 
                 'angle': angulo_hijo, 
                 'anillo_real': anillo_real, 
+                'nivel_calculado': nivel_calculado,
                 'profundidad': profundidad
             }
             
-            asignar_coordenada_radial(c, angulo_actual, angulo_actual + rebanada)
+            asignar_coordenada_radial(c, angulo_actual, angulo_actual + rebanada, nivel_calculado)
             angulo_actual += rebanada
 
     if raiz_principal:
-        coords[raiz_principal] = {'x': 0, 'y': 0, 'angle': 0, 'anillo_real': 0, 'profundidad': 0}
-        asignar_coordenada_radial(raiz_principal, 0, 2 * math.pi)
+        coords[raiz_principal] = {'angle': 0, 'anillo_real': 0, 'nivel_calculado': 0, 'profundidad': 0}
+        asignar_coordenada_radial(raiz_principal, 0, 2 * math.pi, 0)
 
     nodos_sin_coords = [n for n in G_jerarquia.nodes() if n not in coords and n in nodos_visibles]
     if nodos_sin_coords:
@@ -859,8 +867,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         angulo_actual = 0
         for n in nodos_sin_coords:
             anillo = obtener_anillo_estricto(n, 5)
-            radio = (anillo * SEPARACION_ANILLOS) if anillo != 0 else 80
-            coords[n] = {'x': radio * math.cos(angulo_actual), 'y': radio * math.sin(angulo_actual), 'angle': angulo_actual, 'anillo_real': anillo, 'profundidad': 5}
+            coords[n] = {'angle': angulo_actual, 'anillo_real': anillo, 'nivel_calculado': float(anillo) if anillo != 0 else 1.0, 'profundidad': 5}
             angulo_actual += angulo_extra
 
     alertas_tabla = []
@@ -934,7 +941,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                 data_operativos.append(nodo_data)
 
         prefijo = "🚨 " if info['riesgos_lista'] else ""
-        coord_data = coords.get(emp, {'x':5000, 'y':5000, 'angle':0, 'anillo_real':5, 'profundidad':5})
+        coord_data = coords.get(emp, {'angle':0, 'nivel_calculado':5, 'profundidad':5, 'anillo_real': 5})
         
         nombre_corto = acortar_nombre(info['nombre'])
         puesto_corto = acortar_puesto(info['puesto'])
@@ -953,6 +960,10 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             
         label_texto = f"{prefijo}{nombre_corto}\n({puesto_corto})"
         
+        # FIX DISPERSIÓN: Crear una fluctuación matemática estable para separar los nodos
+        h = sum(ord(ch) for ch in str(emp))
+        dispersion_offset = (((h % 9) / 8.0) * 0.4) - 0.2 
+        
         G.add_node(
             emp, 
             label=label_texto, 
@@ -966,8 +977,10 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             NomSuc1=nom_suc1, Read1=info['read1'], NomSuc2=nom_suc2, Read2=info['read2'], NomSuc3=nom_suc3, Read3=info['read3'],
             Eng_Ind=info['enganche_ind'], Eng_Area=info['enganche_area'], Es_Lider=info['es_lider'],
             font={'color': '#0f172a', 'strokeWidth': 2, 'strokeColor': '#ffffff', 'size': 11, 'face': 'Arial', 'weight': 'bold'},
-            x=coord_data['x'], y=coord_data['y'], Angle=coord_data['angle'], 
-            AnilloReal=coord_data['anillo_real'], Profundidad=coord_data['profundidad'],
+            Angle=coord_data['angle'], 
+            NivelCalculado=coord_data.get('nivel_calculado', 5),
+            Dispersion=dispersion_offset,
+            AnilloReal=coord_data.get('anillo_real', 5), 
             hidden=is_hidden
         )
 
@@ -1556,7 +1569,7 @@ def main():
                             st.markdown(f"<div style='background:{pdi_diag3['bg_color']}; border-left:4px solid {pdi_diag3['color_borde']}; padding:10px; border-radius:6px; font-size:12px; color:#1e293b;'><b>🤖 Dictamen IA: {pdi_diag3['icono']} {pdi_diag3['titulo_estatus']}</b><br>🎯 <b>Objetivo PDI:</b> {pdi_diag3['objetivo']} (Avance: <b>{pdi_diag3['avance']}</b>)<br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag3['recomendacion']}</div>", unsafe_allow_html=True)
                             
                     n_read3 = st.selectbox("Readiness 3", opciones_tiempo, index=opciones_tiempo.index(c_read3), key="select_read3")
-                    n_pos3 = text_area("👍 Comentarios Positivos 3", value=c_pos3, height=68, key="t_pos3")
+                    n_pos3 = st.text_area("👍 Comentarios Positivos 3", value=c_pos3, height=68, key="t_pos3")
                     n_opo3 = st.text_area("📈 Áreas de Oportunidad 3", value=c_opo3, height=68, key="t_opo3")
                 
                 st.write("")
