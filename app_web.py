@@ -134,6 +134,17 @@ BOTON_HTML = """
 </div>
 
 <script>
+function getDispersionOffset(nodeId, spacing) {
+    var str = String(nodeId);
+    var h = 0;
+    for (var k = 0; k < str.length; k++) {
+        h += str.charCodeAt(k);
+    }
+    // Crea una fluctuación matemática (entre -0.3 y +0.3) multiplicada por el espaciado
+    var factor = ((h % 7) / 6.0) * 0.6 - 0.3;
+    return spacing * factor;
+}
+
 function toggleLayoutMode() {
     var isOnion = document.getElementById('toggleOnion').checked;
     window.onionMode = isOnion;
@@ -157,7 +168,12 @@ function updateSpacing() {
         var angle = n.Angle !== undefined ? n.Angle : n.angle;
         
         if (anillo !== undefined && angle !== undefined) {
-            var nuevoRadio = anillo * window.ringSpacing;
+            // FIX: Dispersión visual controlada en lugar de estar amontonados
+            var offset = 0;
+            if (anillo !== 0) {
+                offset = getDispersionOffset(n.id, window.ringSpacing);
+            }
+            var nuevoRadio = (anillo * window.ringSpacing) + offset;
             nodesToUpdate.push({ id: n.id, x: nuevoRadio * Math.cos(angle), y: nuevoRadio * Math.sin(angle) });
         }
     }
@@ -456,7 +472,6 @@ def acortar_puesto(puesto):
     if not puesto: return ""
     p = str(puesto).strip().upper()
     
-    # Diccionario de reemplazos (de los más largos a los más cortos)
     reemplazos = {
         "RECURSOS HUMANOS": "RH",
         "TALENTO Y CULTURA": "TYC",
@@ -514,7 +529,6 @@ def acortar_puesto(puesto):
     for original, abrev in reemplazos.items():
         p = p.replace(original, abrev)
     
-    # Si después de abreviar sigue muy largo, lo truncamos con puntos suspensivos
     if len(p) > 35:
         p = p[:32] + "..."
         
@@ -806,6 +820,12 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
     SEPARACION_ANILLOS = 150 
     conteo_hojas = {}
     
+    # NUEVA FUNCIÓN: Dispersión determinista basada en el ID del nodo para que no se amontonen en la línea
+    def get_dispersion_offset(node_id, spacing):
+        h = sum(ord(c) for c in str(node_id))
+        factor = ((h % 7) / 6.0) * 0.6 - 0.3
+        return spacing * factor
+    
     def calcular_hojas(n):
         hijos = [c for c in Arbol.successors(n) if c in nodos_activos]
         if not hijos:
@@ -840,9 +860,13 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             profundidad = nx.shortest_path_length(Arbol, raiz_principal, c) if raiz_principal and c in Arbol else 5
             anillo_real = obtener_anillo_estricto(c, profundidad)
             
+            # APLICANDO LA DISPERSIÓN CONTROLADA
+            offset = get_dispersion_offset(c, SEPARACION_ANILLOS) if anillo_real != 0 else 0
+            radio_final = (anillo_real * SEPARACION_ANILLOS) + offset if anillo_real != 0 else 0
+            
             coords[c] = {
-                'x': (anillo_real * SEPARACION_ANILLOS) * math.cos(angulo_hijo) if anillo_real != 0 else 0, 
-                'y': (anillo_real * SEPARACION_ANILLOS) * math.sin(angulo_hijo) if anillo_real != 0 else 0, 
+                'x': radio_final * math.cos(angulo_hijo), 
+                'y': radio_final * math.sin(angulo_hijo), 
                 'angle': angulo_hijo, 
                 'anillo_real': anillo_real, 
                 'profundidad': profundidad
@@ -861,7 +885,9 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         angulo_actual = 0
         for n in nodos_sin_coords:
             anillo = obtener_anillo_estricto(n, 5)
-            radio = (anillo * SEPARACION_ANILLOS) if anillo != 0 else 80
+            # APLICANDO LA DISPERSIÓN CONTROLADA A HUÉRFANOS
+            offset = get_dispersion_offset(n, SEPARACION_ANILLOS) if anillo != 0 else 0
+            radio = (anillo * SEPARACION_ANILLOS) + offset if anillo != 0 else 80
             coords[n] = {'x': radio * math.cos(angulo_actual), 'y': radio * math.sin(angulo_actual), 'angle': angulo_actual, 'anillo_real': anillo, 'profundidad': 5}
             angulo_actual += angulo_extra
 
