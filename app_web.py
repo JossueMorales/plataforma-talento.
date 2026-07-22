@@ -985,10 +985,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             
         label_texto = f"{prefijo}{nombre_corto}\n({puesto_corto})"
         
-        # FIX DISPERSIÓN: Crear una fluctuación matemática estable basada en el ID del nodo para que no se amontonen
-        h = sum(ord(ch) for ch in str(emp))
-        dispersion_offset = (((h % 9) / 8.0) * 0.4) - 0.2 
-        
         G.add_node(
             emp, 
             label=label_texto, 
@@ -1004,7 +1000,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             font={'color': '#0f172a', 'strokeWidth': 2, 'strokeColor': '#ffffff', 'size': 11, 'face': 'Arial', 'weight': 'bold'},
             Angle=coord_data['angle'], 
             NivelCalculado=coord_data.get('nivel_calculado', 5), 
-            Dispersion=dispersion_offset,
+            Dispersion=coord_data.get('dispersion', 0),
             AnilloReal=coord_data.get('anillo_real', 5), 
             hidden=is_hidden
         )
@@ -1539,6 +1535,7 @@ def main():
 
                 col_info1, col_info2 = st.columns(2)
                 with col_info1:
+                    st.write("") # Alinea con el selector oculto
                     if hasattr(st, 'popover'):
                         with st.popover(f"👤 Ocupante Actual: {ocupante_actual}", use_container_width=True):
                             mostrar_ficha_mini(ocupante_actual, df_completo)
@@ -1561,10 +1558,11 @@ def main():
                     except Exception:
                         pass
                     
+                    # Usamos label_visibility="collapsed" para que no empuje el cajón hacia abajo y quede a la misma altura que el ocupante
                     if sucesores_pasados:
-                        st.selectbox("⏳ Sucesores del Año Pasado:", ["Ver historial de candidatos..."] + sucesores_pasados, key="historial_suc_1")
+                        st.selectbox("Historial_Suc", ["⏳ Sucesores del Año Pasado..."] + sucesores_pasados, key="historial_suc_1", label_visibility="collapsed")
                     else:
-                        st.selectbox("⏳ Sucesores del Año Pasado:", ["No hay historial registrado en el Excel"], key="historial_suc_2")
+                        st.selectbox("Historial_Suc", ["⏳ Sucesores del Año Pasado (Sin registros)"], key="historial_suc_2", label_visibility="collapsed")
                 
                 st.write("")
                 # ---------------------------------------------------------
