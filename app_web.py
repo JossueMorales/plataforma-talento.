@@ -134,12 +134,14 @@ BOTON_HTML = """
 </div>
 
 <script>
+// MOTOR DE DISPERSIÓN EN JAVASCRIPT
 function getDispersionOffset(nodeId, spacing) {
     var str = String(nodeId);
     var h = 0;
     for (var k = 0; k < str.length; k++) {
         h += str.charCodeAt(k);
     }
+    // Genera un valor pseudo-aleatorio estable entre -0.25 y +0.25 del espaciado
     return spacing * (((h % 9) / 8.0) * 0.5 - 0.25); 
 }
 
@@ -168,6 +170,7 @@ function updateSpacing() {
         
         var nuevoRadio = 0;
         if (nivelBase !== 0) {
+            // Se calcula la nueva orbita con la dispersión para evitar empalmes
             nuevoRadio = (nivelBase * window.ringSpacing) + (dispersion * window.ringSpacing);
         }
         
@@ -985,6 +988,10 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             
         label_texto = f"{prefijo}{nombre_corto}\n({puesto_corto})"
         
+        # FIX DISPERSIÓN: Crear una fluctuación matemática estable basada en el ID del nodo para que no se amontonen
+        h = sum(ord(ch) for ch in str(emp))
+        dispersion_offset = (((h % 9) / 8.0) * 0.4) - 0.2 
+        
         G.add_node(
             emp, 
             label=label_texto, 
@@ -1000,7 +1007,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             font={'color': '#0f172a', 'strokeWidth': 2, 'strokeColor': '#ffffff', 'size': 11, 'face': 'Arial', 'weight': 'bold'},
             Angle=coord_data['angle'], 
             NivelCalculado=coord_data.get('nivel_calculado', 5), 
-            Dispersion=coord_data.get('dispersion', 0),
+            Dispersion=dispersion_offset,
             AnilloReal=coord_data.get('anillo_real', 5), 
             hidden=is_hidden
         )
@@ -1535,7 +1542,6 @@ def main():
 
                 col_info1, col_info2 = st.columns(2)
                 with col_info1:
-                    st.write("") # Alinea con el selector oculto
                     if hasattr(st, 'popover'):
                         with st.popover(f"👤 Ocupante Actual: {ocupante_actual}", use_container_width=True):
                             mostrar_ficha_mini(ocupante_actual, df_completo)
@@ -1544,10 +1550,8 @@ def main():
                             mostrar_ficha_mini(ocupante_actual, df_completo)
                             
                 with col_info2:
-                    # --- NUEVA LISTA DESPLEGABLE: SUCESORES DEL AÑO PASADO (SEGURO CONTRA NOMBRES DE COLUMNA) ---
                     sucesores_pasados = []
                     try:
-                        # Buscamos exactamente por los nombres de las columnas mostradas en la imagen
                         columnas_historial = ["1. Sucesor 2025", "2. Sucesor 2025", "3. Sucesor 2025", "4. Sucesor 2025"]
                         for col_name in info_pos.index:
                             if isinstance(col_name, str) and (col_name in columnas_historial or bool(re.search(r'Sucesor 20\d\d', col_name, re.IGNORECASE))):
@@ -1558,11 +1562,20 @@ def main():
                     except Exception:
                         pass
                     
-                    # Usamos label_visibility="collapsed" para que no empuje el cajón hacia abajo y quede a la misma altura que el ocupante
-                    if sucesores_pasados:
-                        st.selectbox("Historial_Suc", ["⏳ Sucesores del Año Pasado..."] + sucesores_pasados, key="historial_suc_1", label_visibility="collapsed")
+                    if hasattr(st, 'popover'):
+                        with st.popover("⏳ Sucesores del Año Pasado", use_container_width=True):
+                            if sucesores_pasados:
+                                for s_pasado in sucesores_pasados:
+                                    st.markdown(f"- {s_pasado}")
+                            else:
+                                st.info("No hay historial registrado en el Excel")
                     else:
-                        st.selectbox("Historial_Suc", ["⏳ Sucesores del Año Pasado (Sin registros)"], key="historial_suc_2", label_visibility="collapsed")
+                        with st.expander("⏳ Sucesores del Año Pasado"):
+                            if sucesores_pasados:
+                                for s_pasado in sucesores_pasados:
+                                    st.markdown(f"- {s_pasado}")
+                            else:
+                                st.info("No hay historial registrado en el Excel")
                 
                 st.write("")
                 # ---------------------------------------------------------
