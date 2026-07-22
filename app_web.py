@@ -18,7 +18,7 @@ var options = {
   },
   "physics": {
       "enabled": false,
-      "forceAtlas2Based": {"gravitationalConstant": -150, "centralGravity": 0.01, "springLength": 250, "springConstant": 0.08, "avoidOverlap": 0.5},
+      "forceAtlas2Based": {"gravitationalConstant": -350, "centralGravity": 0.01, "springLength": 250, "springConstant": 0.08, "avoidOverlap": 0.5},
       "solver": "forceAtlas2Based"
   },
   "interaction": {"hover": true, "tooltipDelay": 200}
