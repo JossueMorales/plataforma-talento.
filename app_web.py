@@ -842,6 +842,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         calcular_hojas(raiz_principal)
 
     coords = {}
+    
+    # FIX JERARQUÍA: Garantizar que el subordinado tenga un radio mayor que el jefe
     def asignar_coordenada_radial(nodo, angulo_inicio, angulo_fin, nivel_padre=0):
         hijos = [c for c in Arbol.successors(nodo) if c in nodos_activos]
         if not hijos: 
@@ -860,20 +862,13 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             profundidad = nx.shortest_path_length(Arbol, raiz_principal, c) if raiz_principal and c in Arbol else 5
             anillo_real = obtener_anillo_estricto(c, profundidad)
             
-            # REGLA DE JERARQUÍA PARA QUE NO SE CRUCEN HACIA ATRÁS
+            # El nivel calculado nunca puede ser menor al nivel de su jefe + 0.6
             nivel_calculado = max(float(anillo_real), float(nivel_padre) + 0.6)
             
-            # DISPERSIÓN CONTROLADA PARA QUE NO SE AMONTONEN EN LA LÍNEA
-            dispersion = get_dispersion_offset(c) if nivel_calculado != 0 else 0
-            radio_final = (nivel_calculado + dispersion) * SEPARACION_ANILLOS if nivel_calculado != 0 else 0
-            
             coords[c] = {
-                'x': radio_final * math.cos(angulo_hijo), 
-                'y': radio_final * math.sin(angulo_hijo), 
                 'angle': angulo_hijo, 
-                'anillo_real': anillo_real,
+                'anillo_real': anillo_real, 
                 'nivel_calculado': nivel_calculado,
-                'dispersion': dispersion,
                 'profundidad': profundidad
             }
             
@@ -881,7 +876,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             angulo_actual += rebanada
 
     if raiz_principal:
-        coords[raiz_principal] = {'x': 0, 'y': 0, 'angle': 0, 'anillo_real': 0, 'nivel_calculado': 0, 'dispersion': 0, 'profundidad': 0}
+        coords[raiz_principal] = {'angle': 0, 'anillo_real': 0, 'nivel_calculado': 0, 'profundidad': 0}
         asignar_coordenada_radial(raiz_principal, 0, 2 * math.pi, 0)
 
     nodos_sin_coords = [n for n in G_jerarquia.nodes() if n not in coords and n in nodos_visibles]
@@ -890,12 +885,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         angulo_actual = 0
         for n in nodos_sin_coords:
             anillo = obtener_anillo_estricto(n, 5)
-            nivel_calculado = float(anillo) if anillo != 0 else 1.0
-            dispersion = get_dispersion_offset(n)
-            
-            radio = (nivel_calculado + dispersion) * SEPARACION_ANILLOS if nivel_calculado != 0 else 80
-            
-            coords[n] = {'x': radio * math.cos(angulo_actual), 'y': radio * math.sin(angulo_actual), 'angle': angulo_actual, 'anillo_real': anillo, 'nivel_calculado': nivel_calculado, 'dispersion': dispersion, 'profundidad': 5}
+            coords[n] = {'angle': angulo_actual, 'anillo_real': anillo, 'nivel_calculado': float(anillo) if anillo != 0 else 1.0, 'profundidad': 5}
             angulo_actual += angulo_extra
 
     alertas_tabla = []
@@ -988,6 +978,10 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             
         label_texto = f"{prefijo}{nombre_corto}\n({puesto_corto})"
         
+        # FIX DISPERSIÓN: Crear una fluctuación matemática estable basada en el ID del nodo para que no se amontonen
+        h = sum(ord(ch) for ch in str(emp))
+        dispersion_offset = (((h % 9) / 8.0) * 0.4) - 0.2 
+        
         G.add_node(
             emp, 
             label=label_texto, 
@@ -1001,8 +995,10 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             NomSuc1=nom_suc1, Read1=info['read1'], NomSuc2=nom_suc2, Read2=info['read2'], NomSuc3=nom_suc3, Read3=info['read3'],
             Eng_Ind=info['enganche_ind'], Eng_Area=info['enganche_area'], Es_Lider=info['es_lider'],
             font={'color': '#0f172a', 'strokeWidth': 2, 'strokeColor': '#ffffff', 'size': 11, 'face': 'Arial', 'weight': 'bold'},
-            x=coord_data['x'], y=coord_data['y'], Angle=coord_data['angle'], 
-            AnilloReal=coord_data['anillo_real'], NivelCalculado=coord_data['nivel_calculado'], Dispersion=coord_data['dispersion'], Profundidad=coord_data['profundidad'],
+            Angle=coord_data['angle'], 
+            NivelCalculado=coord_data.get('nivel_calculado', 5), 
+            Dispersion=dispersion_offset,
+            AnilloReal=coord_data.get('anillo_real', 5), 
             hidden=is_hidden
         )
 
@@ -1552,7 +1548,23 @@ def main():
                             mostrar_ficha_mini(sucesor_actual_info, df_completo)
                 
                 st.write("")
-                # -------------------------------------------------------------------------
+                
+                # --- NUEVA LISTA DESPLEGABLE: SUCESORES DEL AÑO PASADO ---
+                sucesores_pasados = []
+                try:
+                    cols_pasados = df_seguro.columns[20:24]
+                    for c in cols_pasados:
+                        val = clean_text(info_pos.get(c, ''))
+                        if val and val.lower() not in ['nan', 'none', 'pendiente', '']:
+                            sucesores_pasados.append(val)
+                except Exception:
+                    pass
+                
+                if sucesores_pasados:
+                    st.selectbox("⏳ Sucesores del Año Pasado (Solo lectura):", ["Ver historial de candidatos..."] + sucesores_pasados)
+                
+                st.write("")
+                # ---------------------------------------------------------
 
                 with st.expander("🤖 Mostrar Sugerencias de Sucesión (IA)"):
                     sugerencias = generar_sugerencias_ia(pos_seleccionada, info_pos)
