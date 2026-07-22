@@ -1547,33 +1547,24 @@ def main():
                             mostrar_ficha_mini(ocupante_actual, df_completo)
                             
                 with col_info2:
-                    if hasattr(st, 'popover'):
-                        with st.popover(f"🎯 Sucesor Actual: {sucesor_actual_info}", use_container_width=True):
-                            mostrar_ficha_mini(sucesor_actual_info, df_completo)
+                    # --- NUEVA LISTA DESPLEGABLE: SUCESORES DEL AÑO PASADO (SEGURO CONTRA NOMBRES DE COLUMNA) ---
+                    sucesores_pasados = []
+                    try:
+                        # Buscamos exactamente por los nombres de las columnas mostradas en la imagen
+                        columnas_historial = ["1. Sucesor 2025", "2. Sucesor 2025", "3. Sucesor 2025", "4. Sucesor 2025"]
+                        for col_name in info_pos.index:
+                            if isinstance(col_name, str) and (col_name in columnas_historial or bool(re.search(r'Sucesor 20\d\d', col_name, re.IGNORECASE))):
+                                val = clean_text(info_pos.get(col_name, ''))
+                                if val and val.lower() not in ['nan', 'none', 'pendiente', '', 'n/a', 'no definido']:
+                                    if val not in sucesores_pasados:
+                                        sucesores_pasados.append(val)
+                    except Exception:
+                        pass
+                    
+                    if sucesores_pasados:
+                        st.selectbox("⏳ Sucesores del Año Pasado:", ["Ver historial de candidatos..."] + sucesores_pasados, key="historial_suc_1")
                     else:
-                        with st.expander(f"🎯 Sucesor Actual: {sucesor_actual_info}"):
-                            mostrar_ficha_mini(sucesor_actual_info, df_completo)
-                
-                st.write("")
-                
-                # --- NUEVA LISTA DESPLEGABLE: SUCESORES DEL AÑO PASADO ---
-                sucesores_pasados = []
-                try:
-                    # Buscamos exactamente por los nombres de las columnas mostradas en la imagen
-                    columnas_historial = ["1. Sucesor 2025", "2. Sucesor 2025", "3. Sucesor 2025", "4. Sucesor 2025"]
-                    for col_name in info_pos.index:
-                        if isinstance(col_name, str) and (col_name in columnas_historial or bool(re.search(r'Sucesor 20\d\d', col_name, re.IGNORECASE))):
-                            val = clean_text(info_pos.get(col_name, ''))
-                            if val and val.lower() not in ['nan', 'none', 'pendiente', '', 'n/a', 'no definido']:
-                                if val not in sucesores_pasados:
-                                    sucesores_pasados.append(val)
-                except Exception:
-                    pass
-                
-                if sucesores_pasados:
-                    st.selectbox("⏳ Sucesores del Año Pasado (Solo lectura):", ["Ver historial de candidatos..."] + sucesores_pasados)
-                else:
-                    st.selectbox("⏳ Sucesores del Año Pasado (Solo lectura):", ["No hay historial registrado en el Excel"])
+                        st.selectbox("⏳ Sucesores del Año Pasado:", ["No hay historial registrado en el Excel"], key="historial_suc_2")
                 
                 st.write("")
                 # ---------------------------------------------------------
