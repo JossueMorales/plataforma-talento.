@@ -1113,7 +1113,26 @@ def main():
         else:
             df_seguro = df_completo.copy()
 
-        st.markdown("### 🎛️ Filtros Globales (Controlan Mapa, KPIs y Tablas)")
+        # --- AÑADIDO: BUSCADOR RÁPIDO DE COLABORADORES EN LA CABECERA ---
+        col_head1, col_head2 = st.columns([2, 1])
+        with col_head1:
+            st.markdown("### 🎛️ Filtros Globales (Controlan Mapa, KPIs y Tablas)")
+            
+        with col_head2:
+            lista_nombres_buscador = sorted([clean_text(n) for n in df_seguro['Nombre'].dropna().unique() if clean_text(n)])
+            colab_buscado = st.selectbox("🔍 Búsqueda rápida de colaborador:", [""] + lista_nombres_buscador)
+
+        if colab_buscado:
+            datos_c = df_seguro[df_seguro['Nombre'].apply(lambda x: clean_text(x)) == colab_buscado].iloc[0]
+            p_puesto = clean_text(datos_c.get('Nombre de la Posición', 'N/A'))
+            p_dir = clean_text(datos_c.get('Dirección', datos_c.get('Direccion', 'N/A')))
+            p_box = clean_text(datos_c.get('Resultado 9 box', 'N/A'))
+            edr_key = 'EDR' if 'EDR' in datos_c else ('EDR ' if 'EDR ' in datos_c else None)
+            p_edr = clean_text(datos_c.get(edr_key, 'N/A')) if edr_key else 'N/A'
+            p_mla = clean_text(datos_c.get('Nivel MLA', 'N/A'))
+            
+            st.success(f"👤 **{colab_buscado}** | 🏢 **Puesto:** {p_puesto} | 📍 **Dirección:** {p_dir} | 📊 **9-Box:** {p_box} | 📈 **EDR:** {p_edr} | 🥇 **Nivel MLA:** {p_mla}")
+        # -----------------------------------------------------------------
         
         dirs = sorted([clean_text(x) for x in df_seguro['Dirección'].unique() if clean_text(x)])
         mlas = sorted([clean_text(x) for x in df_seguro['Nivel MLA'].unique() if clean_text(x)])
@@ -1537,7 +1556,7 @@ def main():
                             st.markdown(f"<div style='background:{pdi_diag3['bg_color']}; border-left:4px solid {pdi_diag3['color_borde']}; padding:10px; border-radius:6px; font-size:12px; color:#1e293b;'><b>🤖 Dictamen IA: {pdi_diag3['icono']} {pdi_diag3['titulo_estatus']}</b><br>🎯 <b>Objetivo PDI:</b> {pdi_diag3['objetivo']} (Avance: <b>{pdi_diag3['avance']}</b>)<br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag3['recomendacion']}</div>", unsafe_allow_html=True)
                             
                     n_read3 = st.selectbox("Readiness 3", opciones_tiempo, index=opciones_tiempo.index(c_read3), key="select_read3")
-                    n_pos3 = st.text_area("👍 Comentarios Positivos 3", value=c_pos3, height=68, key="t_pos3")
+                    n_pos3 = text_area("👍 Comentarios Positivos 3", value=c_pos3, height=68, key="t_pos3")
                     n_opo3 = st.text_area("📈 Áreas de Oportunidad 3", value=c_opo3, height=68, key="t_opo3")
                 
                 st.write("")
