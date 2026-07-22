@@ -27,25 +27,39 @@ var options = {
 
 SCRIPT_ANILLOS = """
 <script>
-window.onionMode = true; 
+window.onionMode = 'mla'; 
 window.ringSpacing = 150; 
 network.on("beforeDrawing", function(ctx) {
-    if (!window.onionMode) return; 
+    if (window.onionMode === 'libre') return; 
     ctx.save(); 
     var nodos_visibles = network.body.data.nodes.get().filter(n => n.hidden !== true);
     var max_nivel_visible = 0;
     var paso = window.ringSpacing; 
+    
     nodos_visibles.forEach(function(n) {
-        var anillo = n.AnilloReal !== undefined ? n.AnilloReal : n.anilloreal;
+        var anillo = (window.onionMode === 'mla') ? (n.NivelCalculado !== undefined ? n.NivelCalculado : 5) : (n.AnilloSucesion !== undefined ? n.AnilloSucesion : 4);
         if(anillo !== undefined) { if (anillo > max_nivel_visible) { max_nivel_visible = anillo; } }
     });
-    var limite_anillos = Math.max(max_nivel_visible, 1);
+    
+    var limite_anillos = Math.max(Math.ceil(max_nivel_visible), 1);
     ctx.strokeStyle = '#cbd5e1'; ctx.setLineDash([8, 8]); ctx.lineWidth = 2; ctx.font = "bold 24px Arial"; ctx.fillStyle = "#64748b"; ctx.textAlign = "center";
+    
+    if (window.onionMode === 'tiempo') {
+        ctx.fillText("⭐ Posiciones Críticas", 0, -20);
+    }
+    
     for (var i = 1; i <= limite_anillos; i++) {
         if (i > 5) break; 
-        var r = i * paso; ctx.beginPath(); ctx.arc(0, 0, r, 0, 2 * Math.PI); ctx.stroke();
+        var r = i * paso; 
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, 2 * Math.PI); ctx.stroke();
         var etiqueta = "";
-        if (i === 1) etiqueta = "Gerentes (Nivel MLA 4)"; else if (i === 2) etiqueta = "Mandos Medios (Nivel MLA 3)"; else if (i === 3) etiqueta = "Analistas (Nivel MLA 2)"; else if (i === 4) etiqueta = "Operativos (Nivel MLA 1)";
+        
+        if (window.onionMode === 'mla') {
+            if (i === 1) etiqueta = "Gerentes (Nivel MLA 4)"; else if (i === 2) etiqueta = "Mandos Medios (Nivel MLA 3)"; else if (i === 3) etiqueta = "Analistas (Nivel MLA 2)"; else if (i === 4) etiqueta = "Operativos (Nivel MLA 1)";
+        } else if (window.onionMode === 'tiempo') {
+            if (i === 1) etiqueta = "🚀 Listos (Inmediato)"; else if (i === 2) etiqueta = "⏳ En Desarrollo (1 a 3 años)"; else if (i === 3) etiqueta = "🌱 Mediano Plazo (Más de 3 años)"; else if (i === 4) etiqueta = "Otras Posiciones";
+        }
+        
         if (etiqueta !== "") { ctx.fillText(etiqueta, 0, -r - 15); }
     }
     ctx.setLineDash([]); ctx.restore(); 
@@ -107,9 +121,14 @@ BOTON_HTML = """
         <h3 style="margin: 0; font-size: 15px; color: #333;">Opciones Visuales</h3><span id="iconoFiltro" style="font-size: 12px; color: #666;">▼ Ocultar</span>
     </div>
     <div id="cuerpoFiltros" style="padding: 15px; display: flex; flex-direction: column; gap: 8px; max-height: 70vh; overflow-y: auto;">
-        <label style="font-size: 14px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; background: #e3f2fd; padding: 8px; border-radius: 5px; color: #1565c0;">
-            <input type="checkbox" id="toggleOnion" checked onchange="toggleLayoutMode()" style="width: 18px; height: 18px;"> 🎯 Modo Cebolla (Radial)
-        </label>
+        
+        <label style="font-size: 13px; font-weight: bold; color: #555;">Agrupación del Mapa:</label>
+        <select id="modoAgrupacion" onchange="toggleLayoutMode()" style="width:100%; padding:6px; margin-bottom:10px; border-radius:4px; border: 1px solid #cbd5e1; font-weight: bold; color: #1e293b; cursor: pointer;">
+            <option value="mla">🎯 Por Jerarquía (MLA)</option>
+            <option value="tiempo">⏱️ Por Brecha de Sucesión</option>
+            <option value="libre">🕸️ Diseño Libre (Físicas)</option>
+        </select>
+
         <div id="sliderContainer" style="transition: 0.3s;">
             <label style="font-size: 13px; font-weight: bold; color: #555;">Amplitud Radial:</label>
             <div style="display: flex; align-items: center; gap: 10px;">
@@ -134,27 +153,26 @@ BOTON_HTML = """
 </div>
 
 <script>
-function getDispersionOffset(nodeId, spacing) {
-    var str = String(nodeId);
-    var h = 0;
-    for (var k = 0; k < str.length; k++) {
-        h += str.charCodeAt(k);
-    }
-    // Crea una fluctuación matemática (entre -0.3 y +0.3) multiplicada por el espaciado
-    var factor = ((h % 7) / 6.0) * 0.6 - 0.3;
-    return spacing * factor;
-}
-
 function toggleLayoutMode() {
-    var isOnion = document.getElementById('toggleOnion').checked;
-    window.onionMode = isOnion;
+    var mode = document.getElementById('modoAgrupacion').value;
+    window.onionMode = mode;
     var slider = document.getElementById('sliderContainer');
-    if (isOnion) { slider.style.opacity = "1"; slider.style.pointerEvents = "auto"; network.setOptions({ physics: { enabled: false } }); updateSpacing(); 
-    } else { slider.style.opacity = "0.4"; slider.style.pointerEvents = "none"; network.setOptions({ physics: { enabled: true } }); network.redraw(); }
+    
+    if (mode !== 'libre') { 
+        slider.style.opacity = "1"; 
+        slider.style.pointerEvents = "auto"; 
+        network.setOptions({ physics: { enabled: false } }); 
+        updateSpacing(); 
+    } else { 
+        slider.style.opacity = "0.4"; 
+        slider.style.pointerEvents = "none"; 
+        network.setOptions({ physics: { enabled: true } }); 
+        network.redraw(); 
+    }
 }
 
 function updateSpacing() {
-    if(!window.onionMode) return; 
+    if(window.onionMode === 'libre') return; 
     var val = document.getElementById('sliderSeparacion').value;
     window.ringSpacing = parseInt(val);
     document.getElementById('valorSeparacion').innerText = val + "px";
@@ -164,18 +182,28 @@ function updateSpacing() {
     
     for (var i = 0; i < allNodes.length; i++) {
         var n = allNodes[i];
-        var anillo = n.AnilloReal !== undefined ? n.AnilloReal : n.anilloreal;
-        var angle = n.Angle !== undefined ? n.Angle : n.angle;
+        var angle = n.Angle !== undefined ? n.Angle : 0;
+        var dispersion = n.Dispersion !== undefined ? n.Dispersion : 0;
+        var nuevoRadio = 0;
         
-        if (anillo !== undefined && angle !== undefined) {
-            // FIX: Dispersión visual controlada en lugar de estar amontonados
-            var offset = 0;
-            if (anillo !== 0) {
-                offset = getDispersionOffset(n.id, window.ringSpacing);
+        if (window.onionMode === 'mla') {
+            var nivelBase = n.NivelCalculado !== undefined ? n.NivelCalculado : 5;
+            if (nivelBase === 0) {
+                nuevoRadio = 0; // Director General al centro exacto
+            } else {
+                // Radio = Nivel Jerarquico + Factor de Dispersión
+                nuevoRadio = (nivelBase + dispersion) * window.ringSpacing;
             }
-            var nuevoRadio = (anillo * window.ringSpacing) + offset;
-            nodesToUpdate.push({ id: n.id, x: nuevoRadio * Math.cos(angle), y: nuevoRadio * Math.sin(angle) });
+        } else {
+            var anilloSuc = n.AnilloSucesion !== undefined ? n.AnilloSucesion : 4;
+            if (anilloSuc === 0) {
+                nuevoRadio = window.ringSpacing * 0.4; // Centro de Posiciones Críticas
+            } else {
+                var nivelEstetico = n.NivelCalculado !== undefined ? (n.NivelCalculado * 0.05) : 0;
+                nuevoRadio = (anilloSuc + dispersion + nivelEstetico) * window.ringSpacing;
+            }
         }
+        nodesToUpdate.push({ id: n.id, x: nuevoRadio * Math.cos(angle), y: nuevoRadio * Math.sin(angle) });
     }
     
     network.body.data.nodes.update(nodesToUpdate);
@@ -624,7 +652,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                 'read3': clean_text(row_dict.get('Tiempo de Readiness 3'), ''),
                 'enganche_ind': eng_val,
                 'enganche_area': 0.0,
-                'es_lider': False
+                'es_lider': False,
+                'anillo_sucesion_final': 4 
             }
             if jefe:
                 jefes_dict[emp] = jefe
@@ -771,6 +800,22 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                 nodos_rescatados.add(s_id)
     nodos_visibles = nodos_rescatados
 
+    # Lógica de cálculo de sucesión SOLO PARA NODOS VISIBLES
+    for emp in nodos_visibles:
+        if info_nodos[emp]['critica'].lower() == 'si':
+            info_nodos[emp]['anillo_sucesion_final'] = 0 
+            
+    for emp in nodos_visibles:
+        if info_nodos[emp]['critica'].lower() == 'si':
+            info = info_nodos[emp]
+            sucs = [(info['suc1_id'], info['read1']), (info['suc2_id'], info['read2']), (info['suc3_id'], info['read3'])]
+            for s_id, read_time in sucs:
+                if s_id and s_id in nodos_visibles:
+                    val = get_readiness_val(read_time)
+                    if info_nodos[s_id]['anillo_sucesion_final'] != 0: 
+                        if val < info_nodos[s_id]['anillo_sucesion_final']:
+                            info_nodos[s_id]['anillo_sucesion_final'] = val
+
     raiz_principal = None
     for emp, info in info_nodos.items():
         if info['mla'] == '5':
@@ -820,12 +865,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
     SEPARACION_ANILLOS = 150 
     conteo_hojas = {}
     
-    # NUEVA FUNCIÓN: Dispersión determinista basada en el ID del nodo para que no se amontonen en la línea
-    def get_dispersion_offset(node_id, spacing):
-        h = sum(ord(c) for c in str(node_id))
-        factor = ((h % 7) / 6.0) * 0.6 - 0.3
-        return spacing * factor
-    
     def calcular_hojas(n):
         hijos = [c for c in Arbol.successors(n) if c in nodos_activos]
         if not hijos:
@@ -842,7 +881,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         calcular_hojas(raiz_principal)
 
     coords = {}
-    def asignar_coordenada_radial(nodo, angulo_inicio, angulo_fin):
+    def asignar_coordenada_radial(nodo, angulo_inicio, angulo_fin, nivel_padre=0):
         hijos = [c for c in Arbol.successors(nodo) if c in nodos_activos]
         if not hijos: 
             return
@@ -860,24 +899,22 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             profundidad = nx.shortest_path_length(Arbol, raiz_principal, c) if raiz_principal and c in Arbol else 5
             anillo_real = obtener_anillo_estricto(c, profundidad)
             
-            # APLICANDO LA DISPERSIÓN CONTROLADA
-            offset = get_dispersion_offset(c, SEPARACION_ANILLOS) if anillo_real != 0 else 0
-            radio_final = (anillo_real * SEPARACION_ANILLOS) + offset if anillo_real != 0 else 0
+            # REGLA DE ORO DE JERARQUÍA: Un subordinado SIEMPRE debe estar en un radio mayor que su jefe.
+            # Esto evita que las flechas se crucen hacia atrás causando desorden visual
+            nivel_calculado = max(float(anillo_real), float(nivel_padre) + 0.6)
             
             coords[c] = {
-                'x': radio_final * math.cos(angulo_hijo), 
-                'y': radio_final * math.sin(angulo_hijo), 
                 'angle': angulo_hijo, 
-                'anillo_real': anillo_real, 
+                'nivel_calculado': nivel_calculado, 
                 'profundidad': profundidad
             }
             
-            asignar_coordenada_radial(c, angulo_actual, angulo_actual + rebanada)
+            asignar_coordenada_radial(c, angulo_actual, angulo_actual + rebanada, nivel_calculado)
             angulo_actual += rebanada
 
     if raiz_principal:
-        coords[raiz_principal] = {'x': 0, 'y': 0, 'angle': 0, 'anillo_real': 0, 'profundidad': 0}
-        asignar_coordenada_radial(raiz_principal, 0, 2 * math.pi)
+        coords[raiz_principal] = {'angle': 0, 'nivel_calculado': 0, 'profundidad': 0}
+        asignar_coordenada_radial(raiz_principal, 0, 2 * math.pi, 0)
 
     nodos_sin_coords = [n for n in G_jerarquia.nodes() if n not in coords and n in nodos_visibles]
     if nodos_sin_coords:
@@ -885,10 +922,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         angulo_actual = 0
         for n in nodos_sin_coords:
             anillo = obtener_anillo_estricto(n, 5)
-            # APLICANDO LA DISPERSIÓN CONTROLADA A HUÉRFANOS
-            offset = get_dispersion_offset(n, SEPARACION_ANILLOS) if anillo != 0 else 0
-            radio = (anillo * SEPARACION_ANILLOS) + offset if anillo != 0 else 80
-            coords[n] = {'x': radio * math.cos(angulo_actual), 'y': radio * math.sin(angulo_actual), 'angle': angulo_actual, 'anillo_real': anillo, 'profundidad': 5}
+            coords[n] = {'angle': angulo_actual, 'nivel_calculado': float(anillo) if anillo != 0 else 1.0, 'profundidad': 5}
             angulo_actual += angulo_extra
 
     alertas_tabla = []
@@ -962,7 +996,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                 data_operativos.append(nodo_data)
 
         prefijo = "🚨 " if info['riesgos_lista'] else ""
-        coord_data = coords.get(emp, {'x':5000, 'y':5000, 'angle':0, 'anillo_real':5, 'profundidad':5})
+        coord_data = coords.get(emp, {'angle':0, 'nivel_calculado':5, 'profundidad':5})
         
         nombre_corto = acortar_nombre(info['nombre'])
         puesto_corto = acortar_puesto(info['puesto'])
@@ -981,6 +1015,10 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             
         label_texto = f"{prefijo}{nombre_corto}\n({puesto_corto})"
         
+        # FIX DISPERSIÓN: Crear una fluctuación matemática estable basada en el ID del nodo para que no se amontonen
+        h = sum(ord(ch) for ch in str(emp))
+        dispersion_offset = (((h % 7) / 6.0) * 0.3) - 0.15 # Genera un valor entre -0.15 y +0.15
+        
         G.add_node(
             emp, 
             label=label_texto, 
@@ -994,8 +1032,10 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             NomSuc1=nom_suc1, Read1=info['read1'], NomSuc2=nom_suc2, Read2=info['read2'], NomSuc3=nom_suc3, Read3=info['read3'],
             Eng_Ind=info['enganche_ind'], Eng_Area=info['enganche_area'], Es_Lider=info['es_lider'],
             font={'color': '#0f172a', 'strokeWidth': 2, 'strokeColor': '#ffffff', 'size': 11, 'face': 'Arial', 'weight': 'bold'},
-            x=coord_data['x'], y=coord_data['y'], Angle=coord_data['angle'], 
-            AnilloReal=coord_data['anillo_real'], Profundidad=coord_data['profundidad'],
+            Angle=coord_data['angle'], 
+            NivelCalculado=coord_data.get('nivel_calculado', 5), 
+            Dispersion=dispersion_offset,
+            AnilloSucesion=info.get('anillo_sucesion_final', 4),
             hidden=is_hidden
         )
 
