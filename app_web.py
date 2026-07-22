@@ -458,6 +458,13 @@ def acortar_puesto(puesto):
     
     # Diccionario de reemplazos (de los más largos a los más cortos)
     reemplazos = {
+        "RECURSOS HUMANOS": "RH",
+        "TALENTO Y CULTURA": "TYC",
+        "DESARROLLO ORGANIZACIONAL": "D.O.",
+        "ADMINISTRATIVO": "ADM.",
+        "ADMINISTRATIVA": "ADM.",
+        "ADMINISTRADOR DE ": "ADMIN. ",
+        "ADMINISTRADOR ": "ADMIN. ",
         "COORDINADOR DE ": "COORD. ",
         "COORDINADORA DE ": "COORD. ",
         "COORDINADOR ": "COORD. ",
@@ -474,24 +481,42 @@ def acortar_puesto(puesto):
         "DIRECTORA DE ": "DIR. ",
         "DIRECTOR ": "DIR. ",
         "DIRECTORA ": "DIR. ",
-        "ADMINISTRADOR DE ": "ADMIN. ",
-        "ADMINISTRADOR ": "ADMIN. ",
         "JEFE DE ": "JEFE ",
-        "RECURSOS HUMANOS": "RH",
-        "TALENTO Y CULTURA": "TYC",
-        "DESARROLLO ORGANIZACIONAL": "D.O.",
         "ADQUISICIÓN": "ADQ.",
         "ADQUISICION": "ADQ.",
         "TRANSFORMACIÓN": "TRANSF.",
-        "TRANSFORMACION": "TRANSF."
+        "TRANSFORMACION": "TRANSF.",
+        "SUCURSAL": "SUC.",
+        "OPERACIONES": "OP.",
+        "MANTENIMIENTO": "MANTTO.",
+        "PRODUCCIÓN": "PROD.",
+        "PRODUCCION": "PROD.",
+        "TECNOLOGÍA": "TECH",
+        "TECNOLOGIA": "TECH",
+        "INFORMACIÓN": "INFO.",
+        "INFORMACION": "INFO.",
+        "COMERCIAL": "COM.",
+        "DISTRIBUCIÓN": "DIST.",
+        "DISTRIBUCION": "DIST.",
+        "LOGÍSTICA": "LOG.",
+        "LOGISTICA": "LOG.",
+        "SISTEMAS": "SIST.",
+        "PROYECTOS": "PROY.",
+        "NACIONAL": "NAL.",
+        "REGIONAL": "REG.",
+        "EJECUTIVO": "EJEC.",
+        "EJECUTIVA": "EJEC.",
+        "REPRESENTANTE": "REP.",
+        "ASISTENTE": "ASIST.",
+        "AUXILIAR": "AUX."
     }
     
     for original, abrev in reemplazos.items():
         p = p.replace(original, abrev)
     
-    # Si después de abreviar sigue muy largo (ej. más de 32 caracteres), lo truncamos
-    if len(p) > 32:
-        p = p[:29] + "..."
+    # Si después de abreviar sigue muy largo, lo truncamos con puntos suspensivos
+    if len(p) > 35:
+        p = p[:32] + "..."
         
     return p
 
