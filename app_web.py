@@ -134,14 +134,12 @@ BOTON_HTML = """
 </div>
 
 <script>
-// MOTOR DE DISPERSIÓN EN JAVASCRIPT
 function getDispersionOffset(nodeId, spacing) {
     var str = String(nodeId);
     var h = 0;
     for (var k = 0; k < str.length; k++) {
         h += str.charCodeAt(k);
     }
-    // Genera un valor pseudo-aleatorio estable entre -0.25 y +0.25 del espaciado
     return spacing * (((h % 9) / 8.0) * 0.5 - 0.25); 
 }
 
@@ -170,7 +168,6 @@ function updateSpacing() {
         
         var nuevoRadio = 0;
         if (nivelBase !== 0) {
-            // Se calcula la nueva orbita con la dispersión para evitar empalmes
             nuevoRadio = (nivelBase * window.ringSpacing) + (dispersion * window.ringSpacing);
         }
         
@@ -182,7 +179,7 @@ function updateSpacing() {
 
 network.on("zoom", function() {
     var currentScale = network.getScale();
-    var minScale = 0.1; // Permitir alejar la cámara aún más para mapas amplios
+    var minScale = 0.1; 
     var maxScale = 2.5; 
     
     if (currentScale < minScale) {
@@ -842,8 +839,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         calcular_hojas(raiz_principal)
 
     coords = {}
-    
-    # FIX JERARQUÍA: Garantizar que el subordinado tenga un radio mayor que el jefe
     def asignar_coordenada_radial(nodo, angulo_inicio, angulo_fin, nivel_padre=0):
         hijos = [c for c in Arbol.successors(nodo) if c in nodos_activos]
         if not hijos: 
@@ -862,13 +857,20 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             profundidad = nx.shortest_path_length(Arbol, raiz_principal, c) if raiz_principal and c in Arbol else 5
             anillo_real = obtener_anillo_estricto(c, profundidad)
             
-            # El nivel calculado nunca puede ser menor al nivel de su jefe + 0.6
+            # REGLA DE JERARQUÍA PARA QUE NO SE CRUCEN HACIA ATRÁS
             nivel_calculado = max(float(anillo_real), float(nivel_padre) + 0.6)
             
+            # DISPERSIÓN CONTROLADA PARA QUE NO SE AMONTONEN EN LA LÍNEA
+            dispersion = get_dispersion_offset(c) if nivel_calculado != 0 else 0
+            radio_final = (nivel_calculado + dispersion) * SEPARACION_ANILLOS if nivel_calculado != 0 else 0
+            
             coords[c] = {
+                'x': radio_final * math.cos(angulo_hijo), 
+                'y': radio_final * math.sin(angulo_hijo), 
                 'angle': angulo_hijo, 
-                'anillo_real': anillo_real, 
+                'anillo_real': anillo_real,
                 'nivel_calculado': nivel_calculado,
+                'dispersion': dispersion,
                 'profundidad': profundidad
             }
             
@@ -876,7 +878,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             angulo_actual += rebanada
 
     if raiz_principal:
-        coords[raiz_principal] = {'angle': 0, 'anillo_real': 0, 'nivel_calculado': 0, 'profundidad': 0}
+        coords[raiz_principal] = {'x': 0, 'y': 0, 'angle': 0, 'anillo_real': 0, 'nivel_calculado': 0, 'dispersion': 0, 'profundidad': 0}
         asignar_coordenada_radial(raiz_principal, 0, 2 * math.pi, 0)
 
     nodos_sin_coords = [n for n in G_jerarquia.nodes() if n not in coords and n in nodos_visibles]
@@ -885,7 +887,12 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         angulo_actual = 0
         for n in nodos_sin_coords:
             anillo = obtener_anillo_estricto(n, 5)
-            coords[n] = {'angle': angulo_actual, 'anillo_real': anillo, 'nivel_calculado': float(anillo) if anillo != 0 else 1.0, 'profundidad': 5}
+            nivel_calculado = float(anillo) if anillo != 0 else 1.0
+            dispersion = get_dispersion_offset(n)
+            
+            radio = (nivel_calculado + dispersion) * SEPARACION_ANILLOS if nivel_calculado != 0 else 80
+            
+            coords[n] = {'x': radio * math.cos(angulo_actual), 'y': radio * math.sin(angulo_actual), 'angle': angulo_actual, 'anillo_real': anillo, 'nivel_calculado': nivel_calculado, 'dispersion': dispersion, 'profundidad': 5}
             angulo_actual += angulo_extra
 
     alertas_tabla = []
@@ -1552,16 +1559,21 @@ def main():
                 # --- NUEVA LISTA DESPLEGABLE: SUCESORES DEL AÑO PASADO ---
                 sucesores_pasados = []
                 try:
-                    cols_pasados = df_seguro.columns[20:24]
-                    for c in cols_pasados:
-                        val = clean_text(info_pos.get(c, ''))
-                        if val and val.lower() not in ['nan', 'none', 'pendiente', '']:
-                            sucesores_pasados.append(val)
+                    # Buscamos exactamente por los nombres de las columnas mostradas en la imagen
+                    columnas_historial = ["1. Sucesor 2025", "2. Sucesor 2025", "3. Sucesor 2025", "4. Sucesor 2025"]
+                    for col_name in info_pos.index:
+                        if isinstance(col_name, str) and (col_name in columnas_historial or bool(re.search(r'Sucesor 20\d\d', col_name, re.IGNORECASE))):
+                            val = clean_text(info_pos.get(col_name, ''))
+                            if val and val.lower() not in ['nan', 'none', 'pendiente', '', 'n/a', 'no definido']:
+                                if val not in sucesores_pasados:
+                                    sucesores_pasados.append(val)
                 except Exception:
                     pass
                 
                 if sucesores_pasados:
                     st.selectbox("⏳ Sucesores del Año Pasado (Solo lectura):", ["Ver historial de candidatos..."] + sucesores_pasados)
+                else:
+                    st.selectbox("⏳ Sucesores del Año Pasado (Solo lectura):", ["No hay historial registrado en el Excel"])
                 
                 st.write("")
                 # ---------------------------------------------------------
