@@ -134,14 +134,12 @@ BOTON_HTML = """
 </div>
 
 <script>
-// MOTOR DE DISPERSIÓN EN JAVASCRIPT
 function getDispersionOffset(nodeId, spacing) {
     var str = String(nodeId);
     var h = 0;
     for (var k = 0; k < str.length; k++) {
         h += str.charCodeAt(k);
     }
-    // Genera un valor pseudo-aleatorio estable entre -0.25 y +0.25 del espaciado
     return spacing * (((h % 9) / 8.0) * 0.5 - 0.25); 
 }
 
@@ -170,7 +168,6 @@ function updateSpacing() {
         
         var nuevoRadio = 0;
         if (nivelBase !== 0) {
-            // Se calcula la nueva orbita con la dispersión para evitar empalmes
             nuevoRadio = (nivelBase * window.ringSpacing) + (dispersion * window.ringSpacing);
         }
         
@@ -182,7 +179,7 @@ function updateSpacing() {
 
 network.on("zoom", function() {
     var currentScale = network.getScale();
-    var minScale = 0.1; // Permitir alejar la cámara aún más para mapas amplios
+    var minScale = 0.1; 
     var maxScale = 2.5; 
     
     if (currentScale < minScale) {
@@ -823,7 +820,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         if mla == '1': return 4 
         return min(depth_arbol, 5)
 
-    # --- AQUÍ ESTÁ EL AJUSTE A 348 PX INICIALES ---
     SEPARACION_ANILLOS = 348 
     conteo_hojas = {}
     
@@ -1149,7 +1145,7 @@ def main():
         else:
             df_seguro = df_completo.copy()
 
-        # --- AÑADIDO: BUSCADOR RÁPIDO DE COLABORADORES EN LA CABECERA ---
+        # --- BUSCADOR RÁPIDO DE COLABORADORES ---
         col_head1, col_head2 = st.columns([2, 1])
         with col_head1:
             st.markdown("### 🎛️ Filtros Globales (Controlan Mapa, KPIs y Tablas)")
@@ -1482,10 +1478,78 @@ def main():
                 direccion_pos = clean_text(info_pos.get('Dirección'), 'No asignada')
                 sucesor_actual_info = clean_text(info_pos.get('Sucesor actual', info_pos.get('Sucesor actual ')), 'No definido')
                 
-                if direccion_permitida != "TODAS":
-                    st.info(f"📌 **Posición Crítica:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual} | 🎯 **Sucesor Actual:** {sucesor_actual_info}")
-                else:
-                    st.info(f"📌 **Posición Crítica:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual} | 🏢 **Dirección:** {direccion_pos} | 🎯 **Sucesor Actual:** {sucesor_actual_info}")
+                # --- NUEVA LÓGICA: ETIQUETAS INTERACTIVAS (FICHAS) DE OCUPANTE Y SUCESOR ---
+                st.markdown(f"#### 📌 Posición Crítica: `{pos_seleccionada}`")
+                
+                def mostrar_ficha_mini(nombre_cand, df_db):
+                    if not nombre_cand or nombre_cand in ["Pendiente", "Vacante / Sin asignar", "No definido"]:
+                        st.info("Sin información")
+                        return
+                        
+                    match = df_db[df_db['Nombre'].astype(str).str.strip().str.lower() == nombre_cand.strip().lower()]
+                    if match.empty:
+                        st.warning("Colaborador no encontrado en la base.")
+                        return
+                        
+                    row = match.iloc[0]
+                    
+                    nombres_db = {clean_id(r.get('id Empleado')): clean_text(r.get('Nombre')) for _, r in df_db.iterrows()}
+                    def get_nom(val):
+                        v = clean_id(val)
+                        return nombres_db.get(v, val)
+                    
+                    puesto = clean_text(row.get('Nombre de la Posición', 'N/A'))
+                    lider = get_nom(row.get('ID Del Jefe', ''))
+                    dir_c = clean_text(row.get('Dirección', row.get('Direccion', 'N/A')))
+                    crit = clean_text(row.get('Posición Crítica', row.get('Posicion Critica', 'No')))
+                    mla = clean_text(row.get('Nivel MLA', 'N/A'))
+                    box = clean_text(row.get('Resultado 9 box', 'Pendiente'))
+                    
+                    edr_key = next((k for k in row.keys() if k and 'edr' in str(k).lower()), None)
+                    edr = clean_text(row.get(edr_key, 'Pendiente')) if edr_key else 'Pendiente'
+                    
+                    eng_key = next((k for k in row.keys() if k and 'enganche' in str(k).lower()), None)
+                    eng = clean_text(row.get(eng_key, 'N/A')) if eng_key else 'N/A'
+                    
+                    suc1 = get_nom(row.get('Sucesor P.1', row.get('Sucesor 1', '')))
+                    read1 = clean_text(row.get('Tiempo de Readiness 1', ''))
+                    
+                    st.markdown(f"""
+                    <div style='padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; font-family: sans-serif; background: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);'>
+                        <h4 style='margin-top: 0; color: #1e3a8a; font-size: 18px;'>{nombre_cand}</h4>
+                        <p style='margin: 2px 0; font-size: 13px; color: #475569;'><b>Puesto:</b> {puesto}</p>
+                        <p style='margin: 2px 0; font-size: 13px; color: #475569;'><b>Líder:</b> {lider}</p>
+                        <p style='margin: 2px 0; font-size: 13px; color: #475569;'><b>Dirección:</b> {dir_c}</p>
+                        <hr style='margin: 10px 0; border: 0; border-top: 1px dashed #cbd5e1;'>
+                        <div style='display: flex; gap: 8px; margin-bottom: 10px;'>
+                            <span style='background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>MLA: {mla}</span>
+                            <span style='background: #f1f5f9; color: #334155; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>9-BOX: {box}</span>
+                            <span style='background: #f1f5f9; color: #334155; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>EDR: {edr}</span>
+                        </div>
+                        <p style='margin: 0; font-size: 13px; color: #b91c1c;'><b>🔥 Enganche Individual:</b> {eng}</p>
+                        <p style='margin: 6px 0 0 0; font-size: 13px; color: #4338ca;'><b>🥇 Sucesor 1:</b> {suc1 if suc1 else 'Pendiente'} <span style='font-size:11px; color:#64748b;'>{read1}</span></p>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                col_info1, col_info2 = st.columns(2)
+                with col_info1:
+                    if hasattr(st, 'popover'):
+                        with st.popover(f"👤 Ocupante Actual: {ocupante_actual}", use_container_width=True):
+                            mostrar_ficha_mini(ocupante_actual, df_completo)
+                    else:
+                        with st.expander(f"👤 Ocupante Actual: {ocupante_actual}"):
+                            mostrar_ficha_mini(ocupante_actual, df_completo)
+                            
+                with col_info2:
+                    if hasattr(st, 'popover'):
+                        with st.popover(f"🎯 Sucesor Actual: {sucesor_actual_info}", use_container_width=True):
+                            mostrar_ficha_mini(sucesor_actual_info, df_completo)
+                    else:
+                        with st.expander(f"🎯 Sucesor Actual: {sucesor_actual_info}"):
+                            mostrar_ficha_mini(sucesor_actual_info, df_completo)
+                
+                st.write("")
+                # -------------------------------------------------------------------------
 
                 with st.expander("🤖 Mostrar Sugerencias de Sucesión (IA)"):
                     sugerencias = generar_sugerencias_ia(pos_seleccionada, info_pos)
