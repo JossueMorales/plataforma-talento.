@@ -113,7 +113,7 @@ BOTON_HTML = """
         <div id="sliderContainer" style="transition: 0.3s;">
             <label style="font-size: 13px; font-weight: bold; color: #555;">Amplitud Radial:</label>
             <div style="display: flex; align-items: center; gap: 10px;">
-                <input type="range" id="sliderSeparacion" min="100" max="800" value="350" oninput="updateSpacing()" style="width: 100%; cursor: pointer;">
+                <input type="range" id="sliderSeparacion" min="100" max="800" value="150" oninput="updateSpacing()" style="width: 100%; cursor: pointer;">
                 <span id="valorSeparacion" style="font-size: 12px; font-weight:bold; color:#1976d2; min-width: 45px;">150px</span>
             </div>
         </div>
@@ -155,10 +155,9 @@ function updateSpacing() {
         var n = allNodes[i];
         var anillo = n.AnilloReal !== undefined ? n.AnilloReal : n.anilloreal;
         var angle = n.Angle !== undefined ? n.Angle : n.angle;
-        var prof = n.Profundidad !== undefined ? n.Profundidad : n.profundidad;
         
-        if (anillo !== undefined && angle !== undefined && prof !== undefined) {
-            var nuevoRadio = (anillo * window.ringSpacing) + (prof * 120);
+        if (anillo !== undefined && angle !== undefined) {
+            var nuevoRadio = anillo * window.ringSpacing;
             nodesToUpdate.push({ id: n.id, x: nuevoRadio * Math.cos(angle), y: nuevoRadio * Math.sin(angle) });
         }
     }
@@ -794,6 +793,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
 
     def obtener_anillo_estricto(emp_id, depth_arbol):
         mla = info_nodos.get(emp_id, {}).get('mla', '')
+        mla = str(mla).replace('.0', '').strip() 
         if mla == '5': return 0
         if mla == '4': return 1 
         if mla == '3': return 2 
@@ -837,11 +837,10 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             angulo_hijo = angulo_actual + (rebanada / 2)
             profundidad = nx.shortest_path_length(Arbol, raiz_principal, c) if raiz_principal and c in Arbol else 5
             anillo_real = obtener_anillo_estricto(c, profundidad)
-            radio_final = (anillo_real * SEPARACION_ANILLOS) + (profundidad * 120) if anillo_real != 0 else 0
             
             coords[c] = {
-                'x': radio_final * math.cos(angulo_hijo), 
-                'y': radio_final * math.sin(angulo_hijo), 
+                'x': (anillo_real * SEPARACION_ANILLOS) * math.cos(angulo_hijo) if anillo_real != 0 else 0, 
+                'y': (anillo_real * SEPARACION_ANILLOS) * math.sin(angulo_hijo) if anillo_real != 0 else 0, 
                 'angle': angulo_hijo, 
                 'anillo_real': anillo_real, 
                 'profundidad': profundidad
@@ -860,7 +859,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         angulo_actual = 0
         for n in nodos_sin_coords:
             anillo = obtener_anillo_estricto(n, 5)
-            radio = (anillo * SEPARACION_ANILLOS) + 200 if anillo != 0 else 500
+            radio = (anillo * SEPARACION_ANILLOS) if anillo != 0 else 80
             coords[n] = {'x': radio * math.cos(angulo_actual), 'y': radio * math.sin(angulo_actual), 'angle': angulo_actual, 'anillo_real': anillo, 'profundidad': 5}
             angulo_actual += angulo_extra
 
@@ -967,7 +966,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             NomSuc1=nom_suc1, Read1=info['read1'], NomSuc2=nom_suc2, Read2=info['read2'], NomSuc3=nom_suc3, Read3=info['read3'],
             Eng_Ind=info['enganche_ind'], Eng_Area=info['enganche_area'], Es_Lider=info['es_lider'],
             font={'color': '#0f172a', 'strokeWidth': 2, 'strokeColor': '#ffffff', 'size': 11, 'face': 'Arial', 'weight': 'bold'},
-            x=coord_data['x'], y=coord_data['y'], Angle=coord_data['angle'], AnilloReal=coord_data['anillo_real'], Profundidad=coord_data['profundidad'],
+            x=coord_data['x'], y=coord_data['y'], Angle=coord_data['angle'], 
+            AnilloReal=coord_data['anillo_real'], Profundidad=coord_data['profundidad'],
             hidden=is_hidden
         )
 
@@ -1223,21 +1223,18 @@ def main():
             df_posiciones_filtradas = df_seguro.copy()
             df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Posición Crítica'].apply(clean_text).str.lower() == 'si']
             
-            if f_dir != "Todas":
-                df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Dirección'].apply(clean_text) == f_dir]
-            if f_mla != "Todos":
-                df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Nivel MLA'].apply(clean_text) == f_mla]
-            if f_box != "Todos":
-                df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Resultado 9 box'].apply(clean_text).str.upper() == f_box]
-            if f_edr != "Todos" and edrs_col:
-                df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas[edrs_col].apply(clean_text) == f_edr]
+            col_plan1, col_plan2, col_plan3 = st.columns(3)
             
-            col_plan1, col_plan2 = st.columns(2)
+            dirs_plan = sorted(list(set([clean_text(x) for x in df_posiciones_filtradas['Dirección'].unique() if clean_text(x)])))
+            f_dir_plan = col_plan1.selectbox("🏢 Filtrar por Dirección:", ["Todas"] + dirs_plan, key="plan_dir")
+            
+            if f_dir_plan != "Todas":
+                df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Dirección'].apply(clean_text) == f_dir_plan]
             
             lideres_ids_plan = df_posiciones_filtradas['ID Del Jefe'].dropna().unique()
             lideres_plan = sorted(list(set([dict_nom.get(clean_id(x), "Sin Líder") for x in lideres_ids_plan if clean_id(x)])))
             
-            f_lid_plan = col_plan1.selectbox("👤 Filtrar por Líder:", ["Todos"] + lideres_plan)
+            f_lid_plan = col_plan2.selectbox("👤 Filtrar por Líder:", ["Todos"] + lideres_plan, key="plan_lid")
             
             if f_lid_plan != "Todos":
                 df_posiciones_filtradas['Nombre_Lider'] = df_posiciones_filtradas['ID Del Jefe'].apply(lambda x: dict_nom.get(clean_id(x), "Sin Líder"))
@@ -1253,7 +1250,7 @@ def main():
                     mapa_indices[puesto] = idx 
                     
             posiciones_opciones = sorted(list(set(posiciones_opciones)))
-            pos_seleccionada = col_plan2.selectbox("🔍 Selecciona la Posición Crítica a planificar:", [""] + posiciones_opciones)
+            pos_seleccionada = col_plan3.selectbox("🔍 Selecciona la Posición Crítica:", [""] + posiciones_opciones, key="plan_pos")
             
             def obtener_ficha_candidato(nombre_cand):
                 if not nombre_cand or nombre_cand == "Pendiente":
@@ -1428,11 +1425,12 @@ def main():
                 
                 ocupante_actual = clean_text(info_pos.get('Nombre'), 'Vacante / Sin asignar')
                 direccion_pos = clean_text(info_pos.get('Dirección'), 'No asignada')
+                sucesor_actual_info = clean_text(info_pos.get('Sucesor actual', info_pos.get('Sucesor actual ')), 'No definido')
                 
                 if direccion_permitida != "TODAS":
-                    st.info(f"📌 **Posición Crítica:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual}")
+                    st.info(f"📌 **Posición Crítica:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual} | 🎯 **Sucesor Actual:** {sucesor_actual_info}")
                 else:
-                    st.info(f"📌 **Posición Crítica:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual} | 🏢 **Dirección:** {direccion_pos}")
+                    st.info(f"📌 **Posición Crítica:** {pos_seleccionada} | 👤 **Ocupante Actual:** {ocupante_actual} | 🏢 **Dirección:** {direccion_pos} | 🎯 **Sucesor Actual:** {sucesor_actual_info}")
 
                 with st.expander("🤖 Mostrar Sugerencias de Sucesión (IA)"):
                     sugerencias = generar_sugerencias_ia(pos_seleccionada, info_pos)
@@ -1462,12 +1460,18 @@ def main():
                 
                 c_suc1 = clean_text(info_pos.get('Sucesor P.1', 'Pendiente')) or "Pendiente"
                 c_read1 = clean_text(info_pos.get('Tiempo de Readiness 1', 'Pendiente')) or "Pendiente"
+                c_pos1 = clean_text(info_pos.get('Positivo', info_pos.get('Positivo 1', '')))
+                c_opo1 = clean_text(info_pos.get('Oportunidad', info_pos.get('Oportunidad 1', '')))
                 
                 c_suc2 = clean_text(info_pos.get('Sucesor P.2', 'Pendiente')) or "Pendiente"
                 c_read2 = clean_text(info_pos.get('Tiempo de Readiness 2', 'Pendiente')) or "Pendiente"
+                c_pos2 = clean_text(info_pos.get('Positivo.1', info_pos.get('Positivo 2', '')))
+                c_opo2 = clean_text(info_pos.get('Oportunidad.1', info_pos.get('Oportunidad 2', '')))
                 
                 c_suc3 = clean_text(info_pos.get('Sucesor P.3', 'Pendiente')) or "Pendiente"
                 c_read3 = clean_text(info_pos.get('Tiempo de Readiness 3', 'Pendiente')) or "Pendiente"
+                c_pos3 = clean_text(info_pos.get('Positivo.2', info_pos.get('Positivo 3', '')))
+                c_opo3 = clean_text(info_pos.get('Oportunidad.2', info_pos.get('Oportunidad 3', '')))
                 
                 if c_suc1 not in opciones_sucesores: opciones_sucesores.append(c_suc1)
                 if c_suc2 not in opciones_sucesores: opciones_sucesores.append(c_suc2)
@@ -1495,6 +1499,8 @@ def main():
                             st.markdown(f"<div style='background:{pdi_diag1['bg_color']}; border-left:4px solid {pdi_diag1['color_borde']}; padding:10px; border-radius:6px; font-size:12px; color:#1e293b;'><b>🤖 Dictamen IA: {pdi_diag1['icono']} {pdi_diag1['titulo_estatus']}</b><br>🎯 <b>Objetivo PDI:</b> {pdi_diag1['objetivo']} (Avance: <b>{pdi_diag1['avance']}</b>)<br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag1['recomendacion']}</div>", unsafe_allow_html=True)
                             
                     n_read1 = st.selectbox("Readiness 1", opciones_tiempo, index=opciones_tiempo.index(c_read1), key="select_read1")
+                    n_pos1 = st.text_area("👍 Comentarios Positivos 1", value=c_pos1, height=68, key="t_pos1")
+                    n_opo1 = st.text_area("📈 Áreas de Oportunidad 1", value=c_opo1, height=68, key="t_opo1")
                     
                 with col2:
                     st.markdown("#### 🥈 Sucesor 2")
@@ -1512,6 +1518,8 @@ def main():
                             st.markdown(f"<div style='background:{pdi_diag2['bg_color']}; border-left:4px solid {pdi_diag2['color_borde']}; padding:10px; border-radius:6px; font-size:12px; color:#1e293b;'><b>🤖 Dictamen IA: {pdi_diag2['icono']} {pdi_diag2['titulo_estatus']}</b><br>🎯 <b>Objetivo PDI:</b> {pdi_diag2['objetivo']} (Avance: <b>{pdi_diag2['avance']}</b>)<br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag2['recomendacion']}</div>", unsafe_allow_html=True)
                             
                     n_read2 = st.selectbox("Readiness 2", opciones_tiempo, index=opciones_tiempo.index(c_read2), key="select_read2")
+                    n_pos2 = st.text_area("👍 Comentarios Positivos 2", value=c_pos2, height=68, key="t_pos2")
+                    n_opo2 = st.text_area("📈 Áreas de Oportunidad 2", value=c_opo2, height=68, key="t_opo2")
                     
                 with col3:
                     st.markdown("#### 🥉 Sucesor 3")
@@ -1529,6 +1537,8 @@ def main():
                             st.markdown(f"<div style='background:{pdi_diag3['bg_color']}; border-left:4px solid {pdi_diag3['color_borde']}; padding:10px; border-radius:6px; font-size:12px; color:#1e293b;'><b>🤖 Dictamen IA: {pdi_diag3['icono']} {pdi_diag3['titulo_estatus']}</b><br>🎯 <b>Objetivo PDI:</b> {pdi_diag3['objetivo']} (Avance: <b>{pdi_diag3['avance']}</b>)<br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag3['recomendacion']}</div>", unsafe_allow_html=True)
                             
                     n_read3 = st.selectbox("Readiness 3", opciones_tiempo, index=opciones_tiempo.index(c_read3), key="select_read3")
+                    n_pos3 = st.text_area("👍 Comentarios Positivos 3", value=c_pos3, height=68, key="t_pos3")
+                    n_opo3 = st.text_area("📈 Áreas de Oportunidad 3", value=c_opo3, height=68, key="t_opo3")
                 
                 st.write("")
                 submitted = st.button("💾 Guardar Cambios en Base de Datos", type="primary", use_container_width=True)
@@ -1549,17 +1559,24 @@ def main():
                             archivo = cliente.open_by_key(doc_id)
                             pestana = archivo.worksheet("Base de datos")
                             
-                            rango = f'I{idx_excel}:N{idx_excel}'
+                            # Actualización del rango de I hasta T (12 columnas)
+                            rango = f'I{idx_excel}:T{idx_excel}'
                             celdas = pestana.range(rango)
                             
                             celdas[0].value = "Pendiente" if n_suc1 == "Pendiente" else n_suc1
                             celdas[1].value = "Pendiente" if n_read1 == "Pendiente" else n_read1
+                            celdas[2].value = n_pos1
+                            celdas[3].value = n_opo1
                             
-                            celdas[2].value = "Pendiente" if n_suc2 == "Pendiente" else n_suc2
-                            celdas[3].value = "Pendiente" if n_read2 == "Pendiente" else n_read2
+                            celdas[4].value = "Pendiente" if n_suc2 == "Pendiente" else n_suc2
+                            celdas[5].value = "Pendiente" if n_read2 == "Pendiente" else n_read2
+                            celdas[6].value = n_pos2
+                            celdas[7].value = n_opo2
                             
-                            celdas[4].value = "Pendiente" if n_suc3 == "Pendiente" else n_suc3
-                            celdas[5].value = "Pendiente" if n_read3 == "Pendiente" else n_read3
+                            celdas[8].value = "Pendiente" if n_suc3 == "Pendiente" else n_suc3
+                            celdas[9].value = "Pendiente" if n_read3 == "Pendiente" else n_read3
+                            celdas[10].value = n_pos3
+                            celdas[11].value = n_opo3
                             
                             pestana.update_cells(celdas)
                             
