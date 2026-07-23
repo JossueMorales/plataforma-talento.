@@ -7,6 +7,7 @@ import streamlit.components.v1 as components
 import re
 import gspread
 from google.oauth2.service_account import Credentials
+import time
 
 # ==========================================
 # CONSTANTES DE PLANTILLAS (HTML / JS)
@@ -24,7 +25,6 @@ var options = {
   "interaction": {"hover": true, "tooltipDelay": 200}
 }
 """
-
 SCRIPT_ANILLOS = """
 <script>
 window.onionMode = true; 
@@ -52,7 +52,6 @@ network.on("beforeDrawing", function(ctx) {
 });
 </script>
 """
-
 BOTON_HTML = """
 <div id="fichaLateral" style="position: absolute; top: 0; left: -400px; width: 340px; height: 100vh; background: white; box-shadow: 2px 0 15px rgba(0,0,0,0.15); transition: left 0.3s ease; z-index: 10000; font-family: Arial, sans-serif; display: flex; flex-direction: column;">
     <div style="background: #1976d2; padding: 20px; color: white; position: relative; flex-shrink: 0;">
@@ -101,7 +100,6 @@ BOTON_HTML = """
         </div>
     </div>
 </div>
-
 <div style="position: absolute; bottom: 30px; right: 30px; z-index: 9999; background: white; border-radius: 8px; box-shadow: 0px 8px 20px rgba(0,0,0,0.25); border-left: 5px solid #1976d2; font-family: Arial, sans-serif; overflow: hidden; width: 280px;">
     <div style="padding: 12px 15px; background: #f8f9fa; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eaeaea;" onclick="toggleFiltrosPanel()">
         <h3 style="margin: 0; font-size: 15px; color: #333;">Opciones Visuales</h3><span id="iconoFiltro" style="font-size: 12px; color: #666;">▼ Ocultar</span>
@@ -132,7 +130,6 @@ BOTON_HTML = """
         </button>
     </div>
 </div>
-
 <script>
 // MOTOR DE DISPERSIÓN EN JAVASCRIPT
 function getDispersionOffset(nodeId, spacing) {
@@ -144,7 +141,6 @@ function getDispersionOffset(nodeId, spacing) {
     // Genera un valor pseudo-aleatorio estable entre -0.25 y +0.25 del espaciado
     return spacing * (((h % 9) / 8.0) * 0.5 - 0.25); 
 }
-
 function toggleLayoutMode() {
     var isOnion = document.getElementById('toggleOnion').checked;
     window.onionMode = isOnion;
@@ -152,7 +148,6 @@ function toggleLayoutMode() {
     if (isOnion) { slider.style.opacity = "1"; slider.style.pointerEvents = "auto"; network.setOptions({ physics: { enabled: false } }); updateSpacing(); 
     } else { slider.style.opacity = "0.4"; slider.style.pointerEvents = "none"; network.setOptions({ physics: { enabled: true } }); network.redraw(); }
 }
-
 function updateSpacing() {
     if(!window.onionMode) return; 
     var val = document.getElementById('sliderSeparacion').value;
@@ -179,7 +174,6 @@ function updateSpacing() {
     
     network.body.data.nodes.update(nodesToUpdate);
 }
-
 network.on("zoom", function() {
     var currentScale = network.getScale();
     var minScale = 0.1; 
@@ -191,7 +185,6 @@ network.on("zoom", function() {
         network.moveTo({ scale: maxScale });
     }
 });
-
 function getColorEnganche(val) {
     if (val >= 4) return {bg: "#dcfce7", text: "#166534"}; 
     if (val >= 3) return {bg: "#fef08a", text: "#854d0e"}; 
@@ -199,7 +192,6 @@ function getColorEnganche(val) {
     if (val >= 1) return {bg: "#fee2e2", text: "#991b1b"}; 
     return {bg: "#f8f9fa", text: "#64748b"}; 
 }
-
 network.on("click", function (params) {
     if (params.nodes.length > 0) {
         var nodeId = params.nodes[0]; var node = network.body.data.nodes.get(nodeId);
@@ -253,7 +245,6 @@ network.on("click", function (params) {
             document.getElementById('fSuc3').innerText = node.NomSuc3;
             document.getElementById('fRead3').innerText = node.Read3 || "Sin tiempo definido";
         } else { document.getElementById('divSucesor3').style.display = "none"; }
-
         var colorBg = typeof node.color === 'object' ? node.color.background : node.color;
         var boxResult = node.Resultado_9Box || "N/A";
         var f9Box = document.getElementById('f9Box'); f9Box.innerText = boxResult;
@@ -262,14 +253,12 @@ network.on("click", function (params) {
         document.getElementById('fichaLateral').style.left = "0px";
     } else { cerrarFicha(); }
 });
-
 function cerrarFicha() { document.getElementById('fichaLateral').style.left = "-400px"; }
 function toggleFiltrosPanel() {
     var cuerpo = document.getElementById('cuerpoFiltros'); var icono = document.getElementById('iconoFiltro');
     if (cuerpo.style.display === 'none') { cuerpo.style.display = 'flex'; icono.innerText = '▼ Ocultar';
     } else { cuerpo.style.display = 'none'; icono.innerText = '▲ Mostrar'; }
 }
-
 function applyVisualFilters() {
     var showNormal = document.getElementById('toggleNormal').checked;
     var showJumps = document.getElementById('toggleJumps').checked;
@@ -306,7 +295,6 @@ function applyVisualFilters() {
     }
     network.body.data.edges.update(edgesToUpdate);
 }
-
 function enfocarPantalla() { 
     if (window.targetNodeId && network.body.data.nodes.get(window.targetNodeId) && window.targetNodeId !== "None") {
         network.focus(window.targetNodeId, {
@@ -325,7 +313,6 @@ function enfocarPantalla() {
         }, 800);
     }
 }
-
 setTimeout(function() {
     updateSpacing();
     applyVisualFilters();
@@ -333,7 +320,6 @@ setTimeout(function() {
 }, 1000); 
 </script>
 """
-
 # ==========================================
 # FUNCIONES AUXILIARES DE DISEÑO
 # ==========================================
@@ -345,7 +331,6 @@ def crear_tarjeta_kpi(titulo, valor, color_borde, color_texto, color_fondo):
         <div style="font-size: 16px; color: {color_valor}; font-weight: bold;">{valor}</div>
     </div>
     """
-
 # ==========================================
 # SISTEMA DE SEGURIDAD Y LOGIN
 # ==========================================
@@ -358,13 +343,11 @@ def obtener_usuarios_autorizados():
             "d.comercial": {"nombre": "Director Comercial", "password": "123", "direccion": "DIRECCIÓN COMERCIAL"},
             "d.rh": {"nombre": "Director de Recursos Humanos", "password": "123", "direccion": "RECURSOS HUMANOS"}
         }
-
 def login():
     st.set_page_config(page_title="Portal de Talento Ayvi", layout="wide")
     
     if "usuario_logueado" not in st.session_state:
         st.session_state["usuario_logueado"] = False
-
     if not st.session_state["usuario_logueado"]:
         usuarios_autorizados = obtener_usuarios_autorizados()
         
@@ -389,10 +372,31 @@ def login():
     return True
 
 # ==========================================
-# DESCARGA DIRECTA Y SEGURA CON GSPREAD
+# SISTEMA DE CACHÉ INTELIGENTE Y DESCARGA
 # ==========================================
-@st.cache_data(ttl=600, show_spinner=False)
-def cargar_datos_csv(url_sheets, nombre_pestana):
+
+# 1. Función ultraligera para revisar si hubo cambios
+@st.cache_data(ttl=30, show_spinner=False)
+def obtener_timestamp_actualizacion(url_sheets):
+    try:
+        secretos = st.secrets["connections"]["gsheets"]
+        credenciales = Credentials.from_service_account_info(
+            secretos, scopes=["https://www.googleapis.com/auth/spreadsheets"]
+        )
+        cliente = gspread.authorize(credenciales)
+        match = re.search(r'/d/([a-zA-Z0-9-_]+)', url_sheets)
+        doc_id = match.group(1) if match else url_sheets
+        
+        archivo = cliente.open_by_key(doc_id)
+        pestana = archivo.worksheet("Metadata")
+        return pestana.acell('A1').value
+    except Exception:
+        # Fallback de seguridad: si no existe 'Metadata', cambiará el caché cada 10 min
+        return str(int(time.time() // 600))
+
+# 2. Descarga vinculada al timestamp
+@st.cache_data(show_spinner=False)
+def cargar_datos_csv(url_sheets, nombre_pestana, _timestamp):
     try:
         secretos = st.secrets["connections"]["gsheets"]
         credenciales = Credentials.from_service_account_info(
@@ -428,7 +432,7 @@ def cargar_datos_csv(url_sheets, nombre_pestana):
         return pd.DataFrame()
 
 # ==========================================
-# FIX: FUNCIÓN MEJORADA PARA IGNORAR COLUMNAS REPETIDAS
+# FUNCIÓN MEJORADA PARA IGNORAR COLUMNAS REPETIDAS
 # ==========================================
 def clean_text(val, default=''):
     if isinstance(val, pd.Series):
@@ -436,7 +440,6 @@ def clean_text(val, default=''):
     if pd.isna(val) or str(val).strip().lower() in ['nan', 'none', 'pendiente', '']:
         return default
     return str(val).strip()
-
 def clean_id(val):
     if isinstance(val, pd.Series):
         val = val.iloc[0] if not val.empty else ''
@@ -446,7 +449,6 @@ def clean_id(val):
     if v.endswith('.0'): 
         return v[:-2]
     return v
-
 def obtener_color_9box(valor):
     v = str(valor).strip().upper()
     if v in ['9', '7A', '7B', '7']: return '#dc2626' 
@@ -455,7 +457,6 @@ def obtener_color_9box(valor):
     if v in ['5', '2']: return '#16a34a' 
     if v in ['1', '3']: return '#14532d' 
     return '#94a3b8' 
-
 def acortar_nombre(nombre_completo):
     if not nombre_completo: return ""
     partes = str(nombre_completo).strip().split()
@@ -466,7 +467,6 @@ def acortar_nombre(nombre_completo):
         return f"{partes[0]} {partes[1]}"
     else:
         return f"{partes[0]} {partes[-2]}"
-
 def acortar_puesto(puesto):
     """Acorta los nombres de puestos largos para la etiqueta del mapa"""
     if not puesto: return ""
@@ -533,7 +533,6 @@ def acortar_puesto(puesto):
         p = p[:32] + "..."
         
     return p
-
 def get_readiness_val(rt_str):
     """Función para el estilo de las flechas punteadas"""
     rt = str(rt_str).strip().lower()
@@ -542,20 +541,17 @@ def get_readiness_val(rt_str):
     if '1' in rt or '2' in rt or 'medio' in rt: return 2
     if '3' in rt or '4' in rt or '5' in rt or 'más' in rt or 'mas' in rt or 'largo' in rt: return 3
     return 4
-
 # MOTOR DE DISPERSIÓN PYTHON
 def get_dispersion_offset(node_id):
     h = sum(ord(c) for c in str(node_id))
     # Genera un factor estable entre -0.25 y +0.25 para esparcir los nodos
     return ((h % 9) / 8.0) * 0.5 - 0.25
-
 # ==========================================
 # MOTOR PRINCIPAL
 # ==========================================
 def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_edr, f_riesgos):
     G = nx.MultiDiGraph()
     G_jerarquia = nx.DiGraph() 
-
     jefes_dict = {}
     empleados_validos = set()
     info_nodos = {}
@@ -573,7 +569,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         puesto = clean_text(row.get('Nombre de la Posición')).lower()
         if emp_id and puesto and puesto not in puesto_a_id:
             puesto_a_id[puesto] = emp_id
-
     def buscar_id_real(valor):
         if pd.isna(valor) or str(valor).strip().lower() in ['nan', 'none', 'pendiente', '']: 
             return ''
@@ -635,7 +630,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             if jefe:
                 jefes_dict[emp] = jefe
                 G_jerarquia.add_edge(jefe, emp)
-
     def obtener_jefe_nivel_arriba(emp_id, niveles):
         actual = emp_id
         for _ in range(niveles):
@@ -643,13 +637,11 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                 return None
             actual = jefes_dict[actual]
         return actual
-
     reportes_directos = {n: 0 for n in G_jerarquia.nodes()}
     for jefe, emp in G_jerarquia.edges(): 
         reportes_directos[jefe] += 1
         if jefe in info_nodos:
             info_nodos[jefe]['es_lider'] = True
-
     enganche_area_dict = {}
     for nodo in G_jerarquia.nodes():
         descendientes = nx.descendants(G_jerarquia, nodo)
@@ -670,10 +662,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
     
     for emp in info_nodos:
         info_nodos[emp]['enganche_area'] = enganche_area_dict.get(emp, 0.0)
-
     sucesores_de_9box = {n: 0 for n in G_jerarquia.nodes()}
     sucesores_oficiales_de = {n: 0 for n in G_jerarquia.nodes()} 
-
     for emp, info in info_nodos.items():
         box = info['box'].upper()
         if box in ['5', '2']: 
@@ -688,11 +678,9 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         for s_id in [info['suc1_id'], info['suc2_id'], info['suc3_id']]:
             if s_id in sucesores_oficiales_de:
                 sucesores_oficiales_de[s_id] += 1
-
     nombres_con_pdi = set()
     if not df_pdi.empty and 'Nombre' in df_pdi.columns:
         nombres_con_pdi = set(df_pdi['Nombre'].dropna().astype(str).str.strip().str.lower())
-
     for emp, info in info_nodos.items():
         r_list = []
         
@@ -725,19 +713,16 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                     r_list.append("🚨 Riesgo de Área: Equipo Desconectado")
                 elif 2.0 <= eng_area < 3.0:
                     r_list.append("⚠️ Alerta de Área: Bajo Enganche del Equipo")
-
             edr_txt = info['edr'].lower()
             if '1.resultado inaceptable' in edr_txt or 'inaceptable' in edr_txt:
                 r_list.append("🚨 EDR Crítico: Resultado Inaceptable")
             elif '2.resultado necesita mejorar' in edr_txt or 'necesita mejorar' in edr_txt:
                 r_list.append("⚠️ EDR Bajo: Necesita Mejorar")
-
             if info['nombre'].strip().lower() not in nombres_con_pdi:
                 r_list.append("⚠️ Sin PDI: No tiene Plan de Desarrollo Individual")
                 
         info_nodos[emp]['riesgos_lista'] = r_list
         info_nodos[emp]['riesgos'] = " | ".join(r_list) if r_list else "Ninguno"
-
     descendientes_validos = set()
     if f_lid != "Todos":
         lider_ids = [emp for emp, inf in info_nodos.items() if inf['nombre'] == f_lid]
@@ -748,7 +733,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                     descendientes_validos.update(nx.descendants(G_jerarquia, l_id))
             except nx.NetworkXError: 
                 pass
-
     nodos_visibles = set()
     for emp, info in info_nodos.items():
         if info['mla'] == '5':
@@ -768,7 +752,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         if f_riesgos and not info['riesgos_lista']: continue
         
         nodos_visibles.add(emp)
-
     nodos_rescatados = set(nodos_visibles)
     for emp in nodos_visibles:
         info = info_nodos[emp]
@@ -776,7 +759,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             if s_id and s_id in info_nodos:
                 nodos_rescatados.add(s_id)
     nodos_visibles = nodos_rescatados
-
     raiz_principal = None
     for emp, info in info_nodos.items():
         if info['mla'] == '5':
@@ -801,7 +783,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                 val = info_nodos[x]['mla']
                 return int(val) if val.isdigit() else 0
             nodo_central_id = max(candidatos, key=mla_val)
-
     nodos_activos = set(nodos_visibles)
     if raiz_principal and raiz_principal in G_jerarquia:
         for v in nodos_visibles:
@@ -810,9 +791,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                     nodos_activos.update(nx.ancestors(G_jerarquia, v))
                 except nx.NetworkXError:
                     pass
-
     Arbol = nx.bfs_tree(G_jerarquia, raiz_principal) if raiz_principal else G_jerarquia
-
     def obtener_anillo_estricto(emp_id, depth_arbol):
         mla = info_nodos.get(emp_id, {}).get('mla', '')
         mla = str(mla).replace('.0', '').strip() 
@@ -822,7 +801,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         if mla == '2': return 3 
         if mla == '1': return 4 
         return min(depth_arbol, 5)
-
     SEPARACION_ANILLOS = 348 
     conteo_hojas = {}
     
@@ -837,10 +815,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             total = 1
         conteo_hojas[n] = total
         return total
-
     if raiz_principal: 
         calcular_hojas(raiz_principal)
-
     coords = {}
     def asignar_coordenada_radial(nodo, angulo_inicio, angulo_fin, nivel_padre=0):
         hijos = [c for c in Arbol.successors(nodo) if c in nodos_activos]
@@ -879,11 +855,9 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             
             asignar_coordenada_radial(c, angulo_actual, angulo_actual + rebanada, nivel_calculado)
             angulo_actual += rebanada
-
     if raiz_principal:
         coords[raiz_principal] = {'x': 0, 'y': 0, 'angle': 0, 'anillo_real': 0, 'nivel_calculado': 0, 'dispersion': 0, 'profundidad': 0}
         asignar_coordenada_radial(raiz_principal, 0, 2 * math.pi, 0)
-
     nodos_sin_coords = [n for n in G_jerarquia.nodes() if n not in coords and n in nodos_visibles]
     if nodos_sin_coords:
         angulo_extra = (2 * math.pi) / len(nodos_sin_coords)
@@ -897,7 +871,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             
             coords[n] = {'x': radio * math.cos(angulo_actual), 'y': radio * math.sin(angulo_actual), 'angle': angulo_actual, 'anillo_real': anillo, 'nivel_calculado': nivel_calculado, 'dispersion': dispersion, 'profundidad': 5}
             angulo_actual += angulo_extra
-
     alertas_tabla = []
     data_total = []
     data_sucesores = []
@@ -964,10 +937,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                         "Dirección": info['direccion'],
                         "Alerta Detectada por IA": r
                     })
-
             if info['mla'] == '1':
                 data_operativos.append(nodo_data)
-
         prefijo = "🚨 " if info['riesgos_lista'] else ""
         coord_data = coords.get(emp, {'angle':0, 'nivel_calculado':5, 'profundidad':5, 'anillo_real': 5})
         
@@ -1011,7 +982,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             AnilloReal=coord_data.get('anillo_real', 5), 
             hidden=is_hidden
         )
-
     for jefe, emp in G_jerarquia.edges():
         is_hidden_edge = jefe not in nodos_visibles or emp not in nodos_visibles
         
@@ -1028,7 +998,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             color_edge_shadow = 'rgba(0, 0, 0, 0.0)' 
             
         G.add_edge(jefe, emp, color='#94a3b8', width=2, dashes=False, title='Estructura', hidden=is_hidden_edge, is_struct=True, is_9box=False, is_succ=False, smooth=False, shadow={'enabled': True, 'color': color_edge_shadow, 'size': 15, 'x': 0, 'y': 0})
-
     for emp, info in info_nodos.items():
         box = info['box'].upper()
         if box in ['5', '2']:
@@ -1057,7 +1026,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                     edge_width = 2
                     
                 G.add_edge(emp, s_id, color='#9c27b0', width=edge_width, dashes=dashes_style, title=f'🎯 Sucesor: {read_time}', hidden=is_hidden_edge, is_struct=False, is_9box=False, is_succ=True, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.6})
-
     data_alertas = [
         {
             "Nombre": a['Colaborador'], 
@@ -1134,18 +1102,21 @@ def main():
             st.rerun()
             
     st.divider()
-
     with st.spinner("Cargando mapa con conexiones lógicas y datos de PDI..."):
         
         link_archivo = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit"
         
-        df_completo = cargar_datos_csv(link_archivo, "Base de datos")
-        df_pdi = cargar_datos_csv(link_archivo, "PDI")
+        # 1. Obtener timestamp actual para invalidar caché inteligentemente
+        current_timestamp = obtener_timestamp_actualizacion(link_archivo)
+        
+        # 2. Descargar datos pasándole el timestamp como llave
+        df_completo = cargar_datos_csv(link_archivo, "Base de datos", current_timestamp)
+        df_pdi = cargar_datos_csv(link_archivo, "PDI", current_timestamp)
         
         if df_completo.empty:
             st.error("Error al conectar con la base de datos de Google Sheets principal. Revisa el mensaje técnico arriba.")
             st.stop()
-
+            
         usuarios_autorizados = obtener_usuarios_autorizados()
         direccion_permitida = usuarios_autorizados[st.session_state["id_usuario"]]["direccion"]
         
@@ -1153,7 +1124,7 @@ def main():
             df_seguro = df_completo[(df_completo['Dirección'].astype(str).str.upper().str.contains(direccion_permitida)) | (df_completo['Nivel MLA'].astype(str).str.strip() == '5')]
         else:
             df_seguro = df_completo.copy()
-
+            
         # --- BUSCADOR RÁPIDO DE COLABORADORES ---
         col_head1, col_head2 = st.columns([2, 1])
         with col_head1:
@@ -1162,7 +1133,6 @@ def main():
         with col_head2:
             lista_nombres_buscador = sorted([clean_text(n) for n in df_seguro['Nombre'].dropna().unique() if clean_text(n)])
             colab_buscado = st.selectbox("🔍 Búsqueda rápida de colaborador:", [""] + lista_nombres_buscador)
-
         if colab_buscado:
             datos_c = df_seguro[df_seguro['Nombre'].apply(lambda x: clean_text(x)) == colab_buscado].iloc[0]
             p_puesto = clean_text(datos_c.get('Nombre de la Posición', 'N/A'))
@@ -1204,7 +1174,6 @@ def main():
         
         f_riesgos = st.checkbox("🚨 Mostrar Solo Colaboradores con Riesgos Detectados (Incluye riesgo PDI y EDR)")
         st.write("") 
-
         html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_edr, f_riesgos)
         
         if kpis is not None:
@@ -1327,7 +1296,6 @@ def main():
                 eng_key = next((k for k in row_c.keys() if k and 'enganche' in str(k).lower()), None)
                 eng_c = clean_text(row_c.get(eng_key), 'N/A') if eng_key else 'N/A'
                 return {"puesto_actual": puesto_actual, "direccion": dir_candidato, "box": box_c, "enganche": eng_c, "edr": edr_c}
-
             DICCIONARIO_MERCADO = {
                 "sistemas_it": ["erp", "sistemas", "tecnologia", "informacion", "it", "software", "datos", "sap", "tecnico", "redes", "crm", "soporte", "programacion"],
                 "abogado": ["legal", "juridico", "contratos", "litigio", "derecho", "normativa", "corporativo", "abogado"],
@@ -1337,7 +1305,6 @@ def main():
                 "logistica": ["reparto", "distribucion", "almacen", "inventarios", "transporte", "cadena", "suministro", "logistica"],
                 "finanzas": ["contabilidad", "tesoreria", "auditoria", "fiscal", "credito", "costos", "financiero", "finanzas"]
             }
-
             def extraer_contexto(texto):
                 if not texto or pd.isna(texto): return set()
                 t = str(texto).lower()
@@ -1358,7 +1325,6 @@ def main():
                             contexto_ampliado.update(valores)
                             
                 return contexto_ampliado
-
             dict_pdi_textos = {}
             if not df_pdi.empty and 'Nombre' in df_pdi.columns:
                 col_obj = next((c for c in df_pdi.columns if 'objetivo' in str(c).lower()), None)
@@ -1368,7 +1334,6 @@ def main():
                     obj = clean_text(row_p.get(col_obj)) if col_obj else ""
                     acc = clean_text(row_p.get(col_acciones)) if col_acciones else ""
                     dict_pdi_textos[nom] = obj + " " + acc
-
             def generar_sugerencias_ia(pos_destino, info_pos_destino):
                 if not pos_destino or df_completo.empty: return []
                 
@@ -1436,7 +1401,6 @@ def main():
                         })
                         
                 return sorted(candidatos_sugeridos, key=lambda x: x['score'], reverse=True)[:3]
-
             def diagnosticar_pdi_ia(nombre_cand, puesto_destino, info_cand):
                 if not nombre_cand or nombre_cand == "Pendiente" or info_cand == "RESTRINGIDO" or not info_cand: return None
                 if df_pdi.empty: return {"estatus": "SIN_DATOS", "msg": "No hay base de datos de PDI cargada."}
@@ -1478,7 +1442,6 @@ def main():
                         "objetivo": obj_pdi, "avance": avance_pdi, "acciones": acciones_pdi,
                         "recomendacion": f"💡 **Recomendación IA:** El candidato actualmente es *{puesto_origen}*. Su PDI está orientado a '_{obj_pdi}_'. Para asegurar su éxito hacia *{puesto_destino}*, se recomienda **actualizar sus Acciones de Desarrollo** agregando competencias técnicas específicas del nuevo puesto."
                     }
-
             if pos_seleccionada:
                 idx_pandas = mapa_indices[pos_seleccionada]
                 info_pos = df_seguro.loc[idx_pandas]
@@ -1539,7 +1502,6 @@ def main():
                         <p style='margin: 6px 0 0 0; font-size: 13px; color: #4338ca;'><b>🥇 Sucesor 1:</b> {suc1 if suc1 else 'Pendiente'} <span style='font-size:11px; color:#64748b;'>{read1}</span></p>
                     </div>
                     """, unsafe_allow_html=True)
-
                 col_info1, col_info2 = st.columns(2)
                 with col_info1:
                     if hasattr(st, 'popover'):
@@ -1579,7 +1541,6 @@ def main():
                 
                 st.write("")
                 # ---------------------------------------------------------
-
                 with st.expander("🤖 Mostrar Sugerencias de Sucesión (IA)"):
                     sugerencias = generar_sugerencias_ia(pos_seleccionada, info_pos)
                     if sugerencias:
@@ -1728,13 +1689,22 @@ def main():
                             
                             pestana.update_cells(celdas)
                             
+                            # ========================================================
+                            # NUEVO: Escribir el Timestamp en 'Metadata' para invalidar la caché
+                            # de todos los usuarios de la plataforma
+                            # ========================================================
+                            try:
+                                pestana_meta = archivo.worksheet("Metadata")
+                                pestana_meta.update_acell('A1', str(time.time()))
+                            except Exception:
+                                pass # Si falla, igual se limpia localmente, no bloqueamos la app
+                            
                             st.success("✅ ¡Guardado exitosamente! El mapa se está actualizando...")
                             st.cache_data.clear()
                             st.rerun()
                             
                         except Exception as e:
                             st.error(f"❌ Error técnico al intentar escribir en el Excel: {e}")
-
             st.divider()
             
             # ==========================================
@@ -1800,7 +1770,6 @@ def main():
                     st.warning("⚠️ No se encontraron las columnas especificadas en la hoja PDI. Revisa los nombres en tu Excel.")
             else:
                 st.warning("⚠️ No se pudo cargar la información de la pestaña PDI (O está vacía).")
-
         else:
             components.html(html_mapa, height=400)
 
