@@ -9,11 +9,6 @@ import gspread
 from google.oauth2.service_account import Credentials
 import time
 
-# NUEVAS IMPORTACIONES PARA EL MOTOR DE IA SEMÁNTICA (EMBEDDINGS)
-from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
-
 # ==========================================
 # CONSTANTES DE PLANTILLAS (HTML / JS)
 # ==========================================
@@ -325,7 +320,7 @@ setTimeout(function() {
 """
 
 # ==========================================
-# FUNCIONES AUXILIARES DE DISEÑO
+# FUNCIONES AUXILIARES DE DISEÑO Y NLP
 # ==========================================
 def crear_tarjeta_kpi(titulo, valor, color_borde, color_texto, color_fondo):
     color_valor = color_texto if color_texto != "#64748b" else "#0f172a"
@@ -336,24 +331,36 @@ def crear_tarjeta_kpi(titulo, valor, color_borde, color_texto, color_fondo):
     </div>
     """
 
-# ==========================================
-# NUEVO MOTOR DE IA SEMÁNTICA (EMBEDDINGS)
-# ==========================================
-@st.cache_resource(show_spinner=False)
-def cargar_modelo_ia():
-    # Modelo pre-entrenado ultraligero y excelente para español
-    return SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+# --- ROLLBACK: DICCIONARIO DE IA NLP ORIGINAL ---
+DICCIONARIO_MERCADO = {
+    "sistemas_it": ["erp", "sistemas", "tecnologia", "informacion", "it", "software", "datos", "sap", "tecnico", "redes", "crm", "soporte", "programacion"],
+    "abogado": ["legal", "juridico", "contratos", "litigio", "derecho", "normativa", "corporativo", "abogado"],
+    "rh": ["talento", "recursos humanos", "cultura", "clima", "capacitacion", "atraccion", "beneficios", "compensaciones", "nomina", "laborales", "personal", "rh", "do"],
+    "comercial": ["ventas", "clientes", "cuentas", "kam", "negocios", "mercado", "retail", "mayoreo", "comercial"],
+    "operaciones": ["planta", "produccion", "mantenimiento", "calidad", "manufactura", "procesos", "industrial", "operacion"],
+    "logistica": ["reparto", "distribucion", "almacen", "inventarios", "transporte", "cadena", "suministro", "logistica"],
+    "finanzas": ["contabilidad", "tesoreria", "auditoria", "fiscal", "credito", "costos", "financiero", "finanzas"]
+}
 
-def calcular_similitud(texto_destino, texto_candidato):
-    """Convierte los textos en vectores y calcula su similitud porcentual (0 a 1)"""
-    if not texto_destino or not texto_candidato or pd.isna(texto_destino) or pd.isna(texto_candidato):
-        return 0.0
+def extraer_contexto(texto):
+    if not texto or pd.isna(texto): return set()
+    t = str(texto).lower()
+    stopwords = [' de ', ' del ', ' la ', ' las ', ' el ', ' los ', ' y ', ' en ', ' para ', ' con ', ' a ', ' al ']
+    for sw in stopwords: t = t.replace(sw, ' ')
     
-    modelo = cargar_modelo_ia()
-    vectores = modelo.encode([str(texto_destino), str(texto_candidato)])
-    similitud = cosine_similarity([vectores[0]], [vectores[1]])[0][0]
+    palabras = set(re.findall(r'\b\w{3,}\b', t)) 
+    jerarquias = {'gerente', 'jefe', 'coordinador', 'director', 'analista', 'auxiliar', 'especialista', 'encargado', 'asistente', 'control'}
+    palabras = palabras - jerarquias
     
-    return max(0.0, float(similitud))
+    contexto_ampliado = set(palabras)
+    for palabra in palabras:
+        for key, valores in DICCIONARIO_MERCADO.items():
+            if key in palabra or palabra in key:
+                contexto_ampliado.update(valores)
+            if palabra in valores:
+                contexto_ampliado.update(valores)
+                
+    return contexto_ampliado
 
 # ==========================================
 # SISTEMA DE SEGURIDAD Y LOGIN
@@ -1236,14 +1243,69 @@ def main():
             st.divider()
             
             # ==========================================
-            # PLANIFICADOR DE SUCESIONES + IA SEMÁNTICA (NLP)
+            # PLANIFICADOR DE SUCESIONES + IA (Rollback)
             # ==========================================
-            header_planificador = st.empty()
+            st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
             st.markdown("Usa este panel para asignar o modificar los sucesores. **Los cambios se guardarán automáticamente en tu Excel**.")
             
             df_posiciones_filtradas = df_seguro.copy()
             df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Posición Crítica'].apply(clean_text).str.lower() == 'si']
             
+            def tiene_sucesor(row):
+                suc = clean_text(row.get('Sucesor P.1', row.get('Sucesor 1', '')))
+                return 1 if suc and suc.lower() not in ['pendiente', 'nan', 'none', '', 'no definido'] else 0
+                
+            df_posiciones_filtradas['Tiene_Sucesor'] = df_posiciones_filtradas.apply(tiene_sucesor, axis=1)
+            total_criticas = len(df_posiciones_filtradas)
+            sucesores_definidos = df_posiciones_filtradas['Tiene_Sucesor'].sum() if total_criticas > 0 else 0
+            sucesores_pendientes = total_criticas - sucesores_definidos
+            
+            # --- NUEVA LÓGICA: KPIS INTERACTIVOS QUE CARGAN POSICIONES ---
+            col_k1, col_k2, col_k3 = st.columns(3)
+            with col_k1:
+                if st.button(f"📘 TOTAL CRÍTICAS: {total_criticas}", use_container_width=True):
+                    st.session_state['filtro_kpi_plan'] = 'todas'
+            with col_k2:
+                if st.button(f"✅ CON SUCESOR: {sucesores_definidos}", use_container_width=True):
+                    st.session_state['filtro_kpi_plan'] = 'con_sucesor'
+            with col_k3:
+                if st.button(f"🚨 PENDIENTES: {sucesores_pendientes}", use_container_width=True):
+                    st.session_state['filtro_kpi_plan'] = 'pendientes'
+            
+            # Desplegar la lista de botones basados en el filtro clickeado
+            if 'filtro_kpi_plan' in st.session_state and st.session_state['filtro_kpi_plan']:
+                modo = st.session_state['filtro_kpi_plan']
+                if modo == 'todas':
+                    df_mostrar = df_posiciones_filtradas
+                    titulo_lista = "Todas las Posiciones Críticas"
+                elif modo == 'con_sucesor':
+                    df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 1]
+                    titulo_lista = "Posiciones con Sucesor Asignado"
+                else:
+                    df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 0]
+                    titulo_lista = "Posiciones Pendientes de Sucesor"
+                
+                with st.container():
+                    st.markdown(f"#### 📋 {titulo_lista} (Haz clic para cargar)")
+                    if df_mostrar.empty:
+                        st.info("No hay posiciones en esta categoría.")
+                    else:
+                        cols_grid = st.columns(3)
+                        for i, (_, row) in enumerate(df_mostrar.iterrows()):
+                            p_name = clean_text(row.get('Nombre de la Posición'))
+                            if p_name:
+                                if cols_grid[i % 3].button(p_name, key=f"grid_btn_{i}_{modo}", use_container_width=True):
+                                    # Esto conecta el botón con el desplegable principal
+                                    st.session_state['plan_pos'] = p_name
+                                    st.session_state['filtro_kpi_plan'] = None
+                                    st.rerun()
+                    
+                    if st.button("❌ Cerrar lista", key="cerrar_lista_kpi"):
+                        st.session_state['filtro_kpi_plan'] = None
+                        st.rerun()
+            # -------------------------------------------------------------
+            
+            st.write("")
             col_plan1, col_plan2, col_plan3 = st.columns(3)
             
             dirs_plan = sorted(list(set([clean_text(x) for x in df_posiciones_filtradas['Dirección'].unique() if clean_text(x)])))
@@ -1261,38 +1323,6 @@ def main():
                 df_posiciones_filtradas['Nombre_Lider'] = df_posiciones_filtradas['ID Del Jefe'].apply(lambda x: dict_nom.get(clean_id(x), "Sin Líder"))
                 df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Nombre_Lider'] == f_lid_plan]
                 
-            total_criticas = len(df_posiciones_filtradas)
-            def tiene_sucesor(row):
-                suc = clean_text(row.get('Sucesor P.1', row.get('Sucesor 1', '')))
-                return 1 if suc and suc.lower() not in ['pendiente', 'nan', 'none', '', 'no definido'] else 0
-                
-            if total_criticas > 0:
-                sucesores_definidos = df_posiciones_filtradas.apply(tiene_sucesor, axis=1).sum()
-            else:
-                sucesores_definidos = 0
-                
-            sucesores_pendientes = total_criticas - sucesores_definidos
-            
-            header_planificador.markdown(f"""
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 5px;">
-                <h3 style="margin: 0; padding-bottom: 0;">🔀 Planificador de Sucesiones (Edición en Vivo)</h3>
-                <div style="display: flex; gap: 10px;">
-                    <div style="background-color: #f8f9fa; border: 1px solid #e2e8f0; border-left: 4px solid #3b82f6; padding: 4px 12px; border-radius: 5px; text-align: center;">
-                        <span style="font-size: 11px; color: #64748b; font-weight: bold;">TOTAL CRÍTICAS</span><br>
-                        <span style="font-size: 16px; color: #0f172a; font-weight: bold;">{total_criticas}</span>
-                    </div>
-                    <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-left: 4px solid #22c55e; padding: 4px 12px; border-radius: 5px; text-align: center;">
-                        <span style="font-size: 11px; color: #166534; font-weight: bold;">CON SUCESOR</span><br>
-                        <span style="font-size: 16px; color: #15803d; font-weight: bold;">{sucesores_definidos}</span>
-                    </div>
-                    <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-left: 4px solid #ef4444; padding: 4px 12px; border-radius: 5px; text-align: center;">
-                        <span style="font-size: 11px; color: #991b1b; font-weight: bold;">PENDIENTES</span><br>
-                        <span style="font-size: 16px; color: #b91c1c; font-weight: bold;">{sucesores_pendientes}</span>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
             posiciones_opciones = []
             mapa_indices = {}
             for idx, row in df_posiciones_filtradas.iterrows():
@@ -1302,6 +1332,11 @@ def main():
                     mapa_indices[puesto] = idx 
                     
             posiciones_opciones = sorted(list(set(posiciones_opciones)))
+            
+            # Mecanismo de seguridad para el autollenado si la sesión intenta cargar una posición fuera de los filtros
+            if 'plan_pos' in st.session_state and st.session_state['plan_pos'] not in [""] + posiciones_opciones:
+                st.session_state['plan_pos'] = ""
+
             pos_seleccionada = col_plan3.selectbox("🔍 Selecciona la Posición Crítica:", [""] + posiciones_opciones, key="plan_pos")
             
             def obtener_ficha_candidato(nombre_cand):
@@ -1336,6 +1371,7 @@ def main():
                 mla_destino = clean_text(info_pos_destino.get('Nivel MLA'), '')
                 ocupante_destino = clean_text(info_pos_destino.get('Nombre'), '').lower()
                 
+                contexto_destino = extraer_contexto(pos_destino)
                 candidatos_sugeridos = []
                 
                 for _, row in df_completo.iterrows():
@@ -1345,11 +1381,14 @@ def main():
                     puesto_act = clean_text(row.get('Nombre de la Posición'))
                     if puesto_act.lower() == pos_destino.lower(): continue
                     
+                    contexto_cand_puesto = extraer_contexto(puesto_act)
                     pdi_texto = dict_pdi_textos.get(nombre.lower(), "")
+                    contexto_cand_pdi = extraer_contexto(pdi_texto)
                     
-                    # MAGIA VECTORIAL: Evalúa semántica matemática en vez de palabras clave
-                    sim_puesto = calcular_similitud(pos_destino, puesto_act)
-                    sim_pdi = calcular_similitud(pos_destino, pdi_texto)
+                    perfil_tecnico_candidato = contexto_cand_puesto.union(contexto_cand_pdi)
+                    
+                    if not contexto_destino.intersection(perfil_tecnico_candidato):
+                        continue 
                     
                     box = clean_text(row.get('Resultado 9 box')).upper()
                     if box not in ['1', '2', '3', '4', '5', '6']: continue 
@@ -1358,12 +1397,12 @@ def main():
                     score = 0
                     razones = []
                     
-                    if sim_puesto >= 0.65:
+                    if contexto_destino.intersection(contexto_cand_puesto):
                         score += 5
-                        razones.append(f"Afinidad en puesto actual ({int(sim_puesto*100)}%)")
-                    elif sim_pdi >= 0.60:
+                        razones.append("Afinidad técnica en puesto actual")
+                    elif contexto_destino.intersection(contexto_cand_pdi):
                         score += 4
-                        razones.append(f"Desarrollando skills afines ({int(sim_pdi*100)}%)")
+                        razones.append("Desarrollando skills afines (PDI)")
                         
                     if box in ['1', '2', '3', '5']:
                         score += 4
@@ -1381,13 +1420,13 @@ def main():
                             score += 2
                             razones.append("Movimiento lateral orgánico")
                             
-                    if score >= 7 or max(sim_puesto, sim_pdi) > 0.80: 
+                    if score >= 7: 
                         candidatos_sugeridos.append({
                             'nombre': nombre,
                             'puesto': puesto_act,
                             'direccion': clean_text(row.get('Dirección')),
                             'box': box,
-                            'score': score + (sim_puesto * 2), 
+                            'score': score,
                             'razon': " | ".join(razones)
                         })
                         
@@ -1414,26 +1453,25 @@ def main():
                 avance_pdi = clean_text(row_p.get(col_avance), '0%') if col_avance else '0%'
                 acciones_pdi = clean_text(row_p.get(col_acciones), 'Sin acciones descritas') if col_acciones else 'Sin acciones'
                 
-                # INTEGRACIÓN VECTORIAL
-                texto_pdi_completo = obj_pdi + " " + acciones_pdi
-                similitud_score = calcular_similitud(puesto_destino, texto_pdi_completo)
-                porcentaje_similitud = int(similitud_score * 100)
+                contexto_destino = extraer_contexto(puesto_destino)
+                contexto_pdi = extraer_contexto(obj_pdi + " " + acciones_pdi)
                 
+                coincidencias = contexto_destino.intersection(contexto_pdi)
                 puesto_origen = info_cand['puesto_actual']
                 
-                if similitud_score >= 0.55: # Ajusta este número si quieres que sea más exigente
+                if len(coincidencias) > 0:
                     return {
-                        "estatus": "ALINEADO", "icono": "✅", "titulo_estatus": f"PDI Alineado a la Posición ({porcentaje_similitud}% Afinidad)",
+                        "estatus": "ALINEADO", "icono": "✅", "titulo_estatus": "PDI Alineado a la Posición",
                         "color_borde": "#16a34a", "bg_color": "#f0fdf4", "puesto_origen": puesto_origen,
                         "objetivo": obj_pdi, "avance": avance_pdi, "acciones": acciones_pdi,
-                        "recomendacion": f"El PDI actual tiene un alto grado de alineación semántica (**{porcentaje_similitud}%**) con el puesto de *{puesto_destino}*. Con un avance del **{avance_pdi}**, las acciones en curso cubren el perfil requerido. Mantenimiento del plan actual."
+                        "recomendacion": f"El PDI actual está **correctamente enfocado** en la posición de *{puesto_destino}*. Con un avance del **{avance_pdi}**, las acciones en curso cubren las competencias requeridas. Mantenimiento del plan actual."
                     }
                 else:
                     return {
-                        "estatus": "REQUIERE_AJUSTE", "icono": "🟡", "titulo_estatus": f"Ajuste Recomendado al PDI ({porcentaje_similitud}% Afinidad)",
+                        "estatus": "REQUIERE_AJUSTE", "icono": "🟡", "titulo_estatus": "Ajuste Recomendado al PDI",
                         "color_borde": "#ca8a04", "bg_color": "#fefce8", "puesto_origen": puesto_origen,
                         "objetivo": obj_pdi, "avance": avance_pdi, "acciones": acciones_pdi,
-                        "recomendacion": f"💡 **Recomendación IA:** El candidato actualmente es *{puesto_origen}*. Su PDI ('_{obj_pdi}_') tiene solo un **{porcentaje_similitud}%** de similitud matemática con el perfil destino. Para asegurar su éxito hacia *{puesto_destino}*, se recomienda **actualizar sus Acciones de Desarrollo** agregando competencias clave y técnicas de la nueva posición."
+                        "recomendacion": f"💡 **Recomendación IA:** El candidato actualmente es *{puesto_origen}*. Su PDI está orientado a '_{obj_pdi}_'. Para asegurar su éxito hacia *{puesto_destino}*, se recomienda **actualizar sus Acciones de Desarrollo** agregando competencias técnicas específicas del nuevo puesto."
                     }
 
             if pos_seleccionada:
@@ -1532,10 +1570,10 @@ def main():
                                 st.info("No hay historial registrado en el Excel")
                 
                 st.write("")
-                with st.expander("🤖 Mostrar Sugerencias de Sucesión (IA Vectorial)"):
-                    st.info("Haz clic en el botón para que la IA escanee toda la base de datos y cruce los PDI.")
+                with st.expander("🤖 Mostrar Sugerencias de Sucesión (IA de Diccionario)"):
+                    st.info("Haz clic en el botón para que la IA escané la base en busca de afinidad con el puesto.")
                     if st.button("✨ Generar Sugerencias con IA", use_container_width=True):
-                        with st.spinner("🧠 Analizando perfiles y calculando similitud semántica... esto tomará unos segundos."):
+                        with st.spinner("🧠 Buscando cruces de perfiles..."):
                             sugerencias = generar_sugerencias_ia(pos_seleccionada, info_pos)
                             
                             if sugerencias:
@@ -1556,7 +1594,7 @@ def main():
                                 </div>
                                 """, unsafe_allow_html=True)
                             else:
-                                st.warning("⚠️ **Dictamen IA:** No se detectaron candidatos con afinidad matemática o descriptiva suficiente para esta posición. **Se sugiere reclutamiento externo.**")
+                                st.warning("⚠️ **Dictamen IA:** No se detectaron candidatos en la plantilla actual que cumplan con los criterios estrictos para esta posición crítica. **Se sugiere reclutamiento externo.**")
                 
                 nombres_empleados = sorted([clean_text(n) for n in df_completo['Nombre'].dropna().unique() if clean_text(n)])
                 opciones_sucesores = ["Pendiente"] + nombres_empleados
