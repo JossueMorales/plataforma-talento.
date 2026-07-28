@@ -9,6 +9,11 @@ import gspread
 from google.oauth2.service_account import Credentials
 import time
 
+# NUEVAS IMPORTACIONES PARA EL MOTOR DE IA SEMÁNTICA (EMBEDDINGS)
+from sentence_transformers import SentenceTransformer
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
+
 # ==========================================
 # CONSTANTES DE PLANTILLAS (HTML / JS)
 # ==========================================
@@ -138,7 +143,6 @@ function getDispersionOffset(nodeId, spacing) {
     for (var k = 0; k < str.length; k++) {
         h += str.charCodeAt(k);
     }
-    // Genera un valor pseudo-aleatorio estable entre -0.25 y +0.25 del espaciado
     return spacing * (((h % 9) / 8.0) * 0.5 - 0.25); 
 }
 function toggleLayoutMode() {
@@ -165,7 +169,6 @@ function updateSpacing() {
         
         var nuevoRadio = 0;
         if (nivelBase !== 0) {
-            // Se calcula la nueva orbita con la dispersión para evitar empalmes
             nuevoRadio = (nivelBase * window.ringSpacing) + (dispersion * window.ringSpacing);
         }
         
@@ -320,6 +323,7 @@ setTimeout(function() {
 }, 1000); 
 </script>
 """
+
 # ==========================================
 # FUNCIONES AUXILIARES DE DISEÑO
 # ==========================================
@@ -331,6 +335,26 @@ def crear_tarjeta_kpi(titulo, valor, color_borde, color_texto, color_fondo):
         <div style="font-size: 16px; color: {color_valor}; font-weight: bold;">{valor}</div>
     </div>
     """
+
+# ==========================================
+# NUEVO MOTOR DE IA SEMÁNTICA (EMBEDDINGS)
+# ==========================================
+@st.cache_resource(show_spinner=False)
+def cargar_modelo_ia():
+    # Modelo pre-entrenado ultraligero y excelente para español
+    return SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+
+def calcular_similitud(texto_destino, texto_candidato):
+    """Convierte los textos en vectores y calcula su similitud porcentual (0 a 1)"""
+    if not texto_destino or not texto_candidato or pd.isna(texto_destino) or pd.isna(texto_candidato):
+        return 0.0
+    
+    modelo = cargar_modelo_ia()
+    vectores = modelo.encode([str(texto_destino), str(texto_candidato)])
+    similitud = cosine_similarity([vectores[0]], [vectores[1]])[0][0]
+    
+    return max(0.0, float(similitud))
+
 # ==========================================
 # SISTEMA DE SEGURIDAD Y LOGIN
 # ==========================================
@@ -343,6 +367,7 @@ def obtener_usuarios_autorizados():
             "d.comercial": {"nombre": "Director Comercial", "password": "123", "direccion": "DIRECCIÓN COMERCIAL"},
             "d.rh": {"nombre": "Director de Recursos Humanos", "password": "123", "direccion": "RECURSOS HUMANOS"}
         }
+
 def login():
     st.set_page_config(page_title="Portal de Talento Ayvi", layout="wide")
     
@@ -374,8 +399,6 @@ def login():
 # ==========================================
 # SISTEMA DE CACHÉ INTELIGENTE Y DESCARGA
 # ==========================================
-
-# 1. Función ultraligera para revisar si hubo cambios
 @st.cache_data(ttl=30, show_spinner=False)
 def obtener_timestamp_actualizacion(url_sheets):
     try:
@@ -391,10 +414,8 @@ def obtener_timestamp_actualizacion(url_sheets):
         pestana = archivo.worksheet("Metadata")
         return pestana.acell('A1').value
     except Exception:
-        # Fallback de seguridad: si no existe 'Metadata', cambiará el caché cada 10 min
         return str(int(time.time() // 600))
 
-# 2. Descarga vinculada al timestamp
 @st.cache_data(show_spinner=False)
 def cargar_datos_csv(url_sheets, nombre_pestana, _timestamp):
     try:
@@ -440,6 +461,7 @@ def clean_text(val, default=''):
     if pd.isna(val) or str(val).strip().lower() in ['nan', 'none', 'pendiente', '']:
         return default
     return str(val).strip()
+
 def clean_id(val):
     if isinstance(val, pd.Series):
         val = val.iloc[0] if not val.empty else ''
@@ -449,6 +471,7 @@ def clean_id(val):
     if v.endswith('.0'): 
         return v[:-2]
     return v
+
 def obtener_color_9box(valor):
     v = str(valor).strip().upper()
     if v in ['9', '7A', '7B', '7']: return '#dc2626' 
@@ -457,6 +480,7 @@ def obtener_color_9box(valor):
     if v in ['5', '2']: return '#16a34a' 
     if v in ['1', '3']: return '#14532d' 
     return '#94a3b8' 
+
 def acortar_nombre(nombre_completo):
     if not nombre_completo: return ""
     partes = str(nombre_completo).strip().split()
@@ -467,63 +491,30 @@ def acortar_nombre(nombre_completo):
         return f"{partes[0]} {partes[1]}"
     else:
         return f"{partes[0]} {partes[-2]}"
+
 def acortar_puesto(puesto):
     """Acorta los nombres de puestos largos para la etiqueta del mapa"""
     if not puesto: return ""
     p = str(puesto).strip().upper()
     
     reemplazos = {
-        "RECURSOS HUMANOS": "RH",
-        "TALENTO Y CULTURA": "TYC",
-        "DESARROLLO ORGANIZACIONAL": "D.O.",
-        "ADMINISTRATIVO": "ADM.",
-        "ADMINISTRATIVA": "ADM.",
-        "ADMINISTRADOR DE ": "ADMIN. ",
-        "ADMINISTRADOR ": "ADMIN. ",
-        "COORDINADOR DE ": "COORD. ",
-        "COORDINADORA DE ": "COORD. ",
-        "COORDINADOR ": "COORD. ",
-        "COORDINADORA ": "COORD. ",
-        "ESPECIALISTA EN ": "ESP. ",
-        "ESPECIALISTA ": "ESP. ",
-        "SUPERVISOR DE ": "SUP. ",
-        "SUPERVISORA DE ": "SUP. ",
-        "SUPERVISOR ": "SUP. ",
-        "SUPERVISORA ": "SUP. ",
-        "GERENTE DE ": "GTE. ",
-        "GERENTE ": "GTE. ",
-        "DIRECTOR DE ": "DIR. ",
-        "DIRECTORA DE ": "DIR. ",
-        "DIRECTOR ": "DIR. ",
-        "DIRECTORA ": "DIR. ",
-        "JEFE DE ": "JEFE ",
-        "ADQUISICIÓN": "ADQ.",
-        "ADQUISICION": "ADQ.",
-        "TRANSFORMACIÓN": "TRANSF.",
-        "TRANSFORMACION": "TRANSF.",
-        "SUCURSAL": "SUC.",
-        "OPERACIONES": "OP.",
-        "MANTENIMIENTO": "MANTTO.",
-        "PRODUCCIÓN": "PROD.",
-        "PRODUCCION": "PROD.",
-        "TECNOLOGÍA": "TECH",
-        "TECNOLOGIA": "TECH",
-        "INFORMACIÓN": "INFO.",
-        "INFORMACION": "INFO.",
-        "COMERCIAL": "COM.",
-        "DISTRIBUCIÓN": "DIST.",
-        "DISTRIBUCION": "DIST.",
-        "LOGÍSTICA": "LOG.",
-        "LOGISTICA": "LOG.",
-        "SISTEMAS": "SIST.",
-        "PROYECTOS": "PROY.",
-        "NACIONAL": "NAL.",
-        "REGIONAL": "REG.",
-        "EJECUTIVO": "EJEC.",
-        "EJECUTIVA": "EJEC.",
-        "REPRESENTANTE": "REP.",
-        "ASISTENTE": "ASIST.",
-        "AUXILIAR": "AUX."
+        "RECURSOS HUMANOS": "RH", "TALENTO Y CULTURA": "TYC", "DESARROLLO ORGANIZACIONAL": "D.O.",
+        "ADMINISTRATIVO": "ADM.", "ADMINISTRATIVA": "ADM.", "ADMINISTRADOR DE ": "ADMIN. ",
+        "ADMINISTRADOR ": "ADMIN. ", "COORDINADOR DE ": "COORD. ", "COORDINADORA DE ": "COORD. ",
+        "COORDINADOR ": "COORD. ", "COORDINADORA ": "COORD. ", "ESPECIALISTA EN ": "ESP. ",
+        "ESPECIALISTA ": "ESP. ", "SUPERVISOR DE ": "SUP. ", "SUPERVISORA DE ": "SUP. ",
+        "SUPERVISOR ": "SUP. ", "SUPERVISORA ": "SUP. ", "GERENTE DE ": "GTE. ",
+        "GERENTE ": "GTE. ", "DIRECTOR DE ": "DIR. ", "DIRECTORA DE ": "DIR. ",
+        "DIRECTOR ": "DIR. ", "DIRECTORA ": "DIR. ", "JEFE DE ": "JEFE ",
+        "ADQUISICIÓN": "ADQ.", "ADQUISICION": "ADQ.", "TRANSFORMACIÓN": "TRANSF.",
+        "TRANSFORMACION": "TRANSF.", "SUCURSAL": "SUC.", "OPERACIONES": "OP.",
+        "MANTENIMIENTO": "MANTTO.", "PRODUCCIÓN": "PROD.", "PRODUCCION": "PROD.",
+        "TECNOLOGÍA": "TECH", "TECNOLOGIA": "TECH", "INFORMACIÓN": "INFO.",
+        "INFORMACION": "INFO.", "COMERCIAL": "COM.", "DISTRIBUCIÓN": "DIST.",
+        "DISTRIBUCION": "DIST.", "LOGÍSTICA": "LOG.", "LOGISTICA": "LOG.",
+        "SISTEMAS": "SIST.", "PROYECTOS": "PROY.", "NACIONAL": "NAL.",
+        "REGIONAL": "REG.", "EJECUTIVO": "EJEC.", "EJECUTIVA": "EJEC.",
+        "REPRESENTANTE": "REP.", "ASISTENTE": "ASIST.", "AUXILIAR": "AUX."
     }
     
     for original, abrev in reemplazos.items():
@@ -533,6 +524,7 @@ def acortar_puesto(puesto):
         p = p[:32] + "..."
         
     return p
+
 def get_readiness_val(rt_str):
     """Función para el estilo de las flechas punteadas"""
     rt = str(rt_str).strip().lower()
@@ -541,11 +533,12 @@ def get_readiness_val(rt_str):
     if '1' in rt or '2' in rt or 'medio' in rt: return 2
     if '3' in rt or '4' in rt or '5' in rt or 'más' in rt or 'mas' in rt or 'largo' in rt: return 3
     return 4
+
 # MOTOR DE DISPERSIÓN PYTHON
 def get_dispersion_offset(node_id):
     h = sum(ord(c) for c in str(node_id))
-    # Genera un factor estable entre -0.25 y +0.25 para esparcir los nodos
     return ((h % 9) / 8.0) * 0.5 - 0.25
+
 # ==========================================
 # MOTOR PRINCIPAL
 # ==========================================
@@ -569,19 +562,17 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         puesto = clean_text(row.get('Nombre de la Posición')).lower()
         if emp_id and puesto and puesto not in puesto_a_id:
             puesto_a_id[puesto] = emp_id
+
     def buscar_id_real(valor):
         if pd.isna(valor) or str(valor).strip().lower() in ['nan', 'none', 'pendiente', '']: 
             return ''
         v = str(valor).strip()
         if v.endswith('.0'): 
             v = v[:-2]
-        
         if v in nombres_dict: return v  
-        
         v_lower = v.lower()
         if v_lower in nombre_a_id: return nombre_a_id[v_lower] 
         if v_lower in puesto_a_id: return puesto_a_id[v_lower]
-        
         return v 
             
     for row_dict in df_seguro.to_dict('records'):
@@ -630,6 +621,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             if jefe:
                 jefes_dict[emp] = jefe
                 G_jerarquia.add_edge(jefe, emp)
+                
     def obtener_jefe_nivel_arriba(emp_id, niveles):
         actual = emp_id
         for _ in range(niveles):
@@ -637,11 +629,13 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                 return None
             actual = jefes_dict[actual]
         return actual
+        
     reportes_directos = {n: 0 for n in G_jerarquia.nodes()}
     for jefe, emp in G_jerarquia.edges(): 
         reportes_directos[jefe] += 1
         if jefe in info_nodos:
             info_nodos[jefe]['es_lider'] = True
+            
     enganche_area_dict = {}
     for nodo in G_jerarquia.nodes():
         descendientes = nx.descendants(G_jerarquia, nodo)
@@ -662,6 +656,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
     
     for emp in info_nodos:
         info_nodos[emp]['enganche_area'] = enganche_area_dict.get(emp, 0.0)
+        
     sucesores_de_9box = {n: 0 for n in G_jerarquia.nodes()}
     sucesores_oficiales_de = {n: 0 for n in G_jerarquia.nodes()} 
     for emp, info in info_nodos.items():
@@ -678,9 +673,11 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         for s_id in [info['suc1_id'], info['suc2_id'], info['suc3_id']]:
             if s_id in sucesores_oficiales_de:
                 sucesores_oficiales_de[s_id] += 1
+                
     nombres_con_pdi = set()
     if not df_pdi.empty and 'Nombre' in df_pdi.columns:
         nombres_con_pdi = set(df_pdi['Nombre'].dropna().astype(str).str.strip().str.lower())
+        
     for emp, info in info_nodos.items():
         r_list = []
         
@@ -723,6 +720,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                 
         info_nodos[emp]['riesgos_lista'] = r_list
         info_nodos[emp]['riesgos'] = " | ".join(r_list) if r_list else "Ninguno"
+        
     descendientes_validos = set()
     if f_lid != "Todos":
         lider_ids = [emp for emp, inf in info_nodos.items() if inf['nombre'] == f_lid]
@@ -733,6 +731,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                     descendientes_validos.update(nx.descendants(G_jerarquia, l_id))
             except nx.NetworkXError: 
                 pass
+                
     nodos_visibles = set()
     for emp, info in info_nodos.items():
         if info['mla'] == '5':
@@ -752,6 +751,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         if f_riesgos and not info['riesgos_lista']: continue
         
         nodos_visibles.add(emp)
+        
     nodos_rescatados = set(nodos_visibles)
     for emp in nodos_visibles:
         info = info_nodos[emp]
@@ -759,6 +759,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             if s_id and s_id in info_nodos:
                 nodos_rescatados.add(s_id)
     nodos_visibles = nodos_rescatados
+    
     raiz_principal = None
     for emp, info in info_nodos.items():
         if info['mla'] == '5':
@@ -783,6 +784,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                 val = info_nodos[x]['mla']
                 return int(val) if val.isdigit() else 0
             nodo_central_id = max(candidatos, key=mla_val)
+            
     nodos_activos = set(nodos_visibles)
     if raiz_principal and raiz_principal in G_jerarquia:
         for v in nodos_visibles:
@@ -791,7 +793,9 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                     nodos_activos.update(nx.ancestors(G_jerarquia, v))
                 except nx.NetworkXError:
                     pass
+                    
     Arbol = nx.bfs_tree(G_jerarquia, raiz_principal) if raiz_principal else G_jerarquia
+    
     def obtener_anillo_estricto(emp_id, depth_arbol):
         mla = info_nodos.get(emp_id, {}).get('mla', '')
         mla = str(mla).replace('.0', '').strip() 
@@ -801,6 +805,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         if mla == '2': return 3 
         if mla == '1': return 4 
         return min(depth_arbol, 5)
+        
     SEPARACION_ANILLOS = 348 
     conteo_hojas = {}
     
@@ -815,8 +820,10 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             total = 1
         conteo_hojas[n] = total
         return total
+        
     if raiz_principal: 
         calcular_hojas(raiz_principal)
+        
     coords = {}
     def asignar_coordenada_radial(nodo, angulo_inicio, angulo_fin, nivel_padre=0):
         hijos = [c for c in Arbol.successors(nodo) if c in nodos_activos]
@@ -836,10 +843,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             profundidad = nx.shortest_path_length(Arbol, raiz_principal, c) if raiz_principal and c in Arbol else 5
             anillo_real = obtener_anillo_estricto(c, profundidad)
             
-            # REGLA DE JERARQUÍA PARA QUE NO SE CRUCEN HACIA ATRÁS
             nivel_calculado = max(float(anillo_real), float(nivel_padre) + 0.6)
-            
-            # DISPERSIÓN CONTROLADA PARA QUE NO SE AMONTONEN EN LA LÍNEA
             dispersion = get_dispersion_offset(c) if nivel_calculado != 0 else 0
             radio_final = (nivel_calculado + dispersion) * SEPARACION_ANILLOS if nivel_calculado != 0 else 0
             
@@ -855,9 +859,11 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             
             asignar_coordenada_radial(c, angulo_actual, angulo_actual + rebanada, nivel_calculado)
             angulo_actual += rebanada
+            
     if raiz_principal:
         coords[raiz_principal] = {'x': 0, 'y': 0, 'angle': 0, 'anillo_real': 0, 'nivel_calculado': 0, 'dispersion': 0, 'profundidad': 0}
         asignar_coordenada_radial(raiz_principal, 0, 2 * math.pi, 0)
+        
     nodos_sin_coords = [n for n in G_jerarquia.nodes() if n not in coords and n in nodos_visibles]
     if nodos_sin_coords:
         angulo_extra = (2 * math.pi) / len(nodos_sin_coords)
@@ -866,11 +872,11 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             anillo = obtener_anillo_estricto(n, 5)
             nivel_calculado = float(anillo) if anillo != 0 else 1.0
             dispersion = get_dispersion_offset(n)
-            
             radio = (nivel_calculado + dispersion) * SEPARACION_ANILLOS if nivel_calculado != 0 else 80
             
             coords[n] = {'x': radio * math.cos(angulo_actual), 'y': radio * math.sin(angulo_actual), 'angle': angulo_actual, 'anillo_real': anillo, 'nivel_calculado': nivel_calculado, 'dispersion': dispersion, 'profundidad': 5}
             angulo_actual += angulo_extra
+            
     alertas_tabla = []
     data_total = []
     data_sucesores = []
@@ -939,6 +945,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                     })
             if info['mla'] == '1':
                 data_operativos.append(nodo_data)
+                
         prefijo = "🚨 " if info['riesgos_lista'] else ""
         coord_data = coords.get(emp, {'angle':0, 'nivel_calculado':5, 'profundidad':5, 'anillo_real': 5})
         
@@ -959,7 +966,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             
         label_texto = f"{prefijo}{nombre_corto}\n({puesto_corto})"
         
-        # FIX DISPERSIÓN: Crear una fluctuación matemática estable basada en el ID del nodo para que no se amontonen
         h = sum(ord(ch) for ch in str(emp))
         dispersion_offset = (((h % 9) / 8.0) * 0.4) - 0.2 
         
@@ -982,10 +988,11 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             AnilloReal=coord_data.get('anillo_real', 5), 
             hidden=is_hidden
         )
+        
     for jefe, emp in G_jerarquia.edges():
         is_hidden_edge = jefe not in nodos_visibles or emp not in nodos_visibles
-        
         eng_emp = info_nodos[emp]['enganche_ind']
+        
         if eng_emp >= 4:
             color_edge_shadow = 'rgba(22, 163, 74, 0.8)'
         elif eng_emp >= 3:
@@ -998,6 +1005,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             color_edge_shadow = 'rgba(0, 0, 0, 0.0)' 
             
         G.add_edge(jefe, emp, color='#94a3b8', width=2, dashes=False, title='Estructura', hidden=is_hidden_edge, is_struct=True, is_9box=False, is_succ=False, smooth=False, shadow={'enabled': True, 'color': color_edge_shadow, 'size': 15, 'x': 0, 'y': 0})
+        
     for emp, info in info_nodos.items():
         box = info['box'].upper()
         if box in ['5', '2']:
@@ -1026,15 +1034,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                     edge_width = 2
                     
                 G.add_edge(emp, s_id, color='#9c27b0', width=edge_width, dashes=dashes_style, title=f'🎯 Sucesor: {read_time}', hidden=is_hidden_edge, is_struct=False, is_9box=False, is_succ=True, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.6})
-    data_alertas = [
-        {
-            "Nombre": a['Colaborador'], 
-            "Dirección": a['Dirección'], 
-            "Puesto": a['Puesto'],
-            "Alerta": a['Alerta Detectada por IA']
-        } 
-        for a in alertas_tabla
-    ]
+                
+    data_alertas = [{"Nombre": a['Colaborador'], "Dirección": a['Dirección'], "Puesto": a['Puesto'], "Alerta": a['Alerta Detectada por IA']} for a in alertas_tabla]
     
     eng_total_sum = sum(info_nodos[n]['enganche_ind'] for n in nodos_visibles if info_nodos[n]['enganche_ind'] > 0 and 'ANDRES EDUARDO VILLARREAL' not in info_nodos[n]['nombre'].upper())
     eng_total_count = sum(1 for n in nodos_visibles if info_nodos[n]['enganche_ind'] > 0 and 'ANDRES EDUARDO VILLARREAL' not in info_nodos[n]['nombre'].upper())
@@ -1105,11 +1106,8 @@ def main():
     with st.spinner("Cargando mapa con conexiones lógicas y datos de PDI..."):
         
         link_archivo = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit"
-        
-        # 1. Obtener timestamp actual para invalidar caché inteligentemente
         current_timestamp = obtener_timestamp_actualizacion(link_archivo)
         
-        # 2. Descargar datos pasándole el timestamp como llave
         df_completo = cargar_datos_csv(link_archivo, "Base de datos", current_timestamp)
         df_pdi = cargar_datos_csv(link_archivo, "PDI", current_timestamp)
         
@@ -1125,7 +1123,6 @@ def main():
         else:
             df_seguro = df_completo.copy()
             
-        # --- BUSCADOR RÁPIDO DE COLABORADORES ---
         col_head1, col_head2 = st.columns([2, 1])
         with col_head1:
             st.markdown("### 🎛️ Filtros Globales (Controlan Mapa, KPIs y Tablas)")
@@ -1143,7 +1140,6 @@ def main():
             p_mla = clean_text(datos_c.get('Nivel MLA', 'N/A'))
             
             st.success(f"👤 **{colab_buscado}** | 🏢 **Puesto:** {p_puesto} | 📍 **Dirección:** {p_dir} | 📊 **9-Box:** {p_box} | 📈 **EDR:** {p_edr} | 🥇 **Nivel MLA:** {p_mla}")
-        # -----------------------------------------------------------------
         
         dirs = sorted([clean_text(x) for x in df_seguro['Dirección'].unique() if clean_text(x)])
         mlas = sorted([clean_text(x) for x in df_seguro['Nivel MLA'].unique() if clean_text(x)])
@@ -1174,6 +1170,7 @@ def main():
         
         f_riesgos = st.checkbox("🚨 Mostrar Solo Colaboradores con Riesgos Detectados (Incluye riesgo PDI y EDR)")
         st.write("") 
+        
         html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_edr, f_riesgos)
         
         if kpis is not None:
@@ -1215,12 +1212,9 @@ def main():
                 if st.session_state["vista_kpi"]:
                     vista = st.session_state["vista_kpi"]
                     titulos_kpi = {
-                        "total": "Total de Colaboradores",
-                        "sucesores": "Sucesión de Posiciones Críticas",
-                        "edr": "Evaluación de Desempeño y Resultados (EDR)",
-                        "operativos": "Personal Operativo (MLA 1)",
-                        "alertas": "Colaboradores con Riesgos / Alertas",
-                        "enganche": "Nivel de Enganche de Líderes"
+                        "total": "Total de Colaboradores", "sucesores": "Sucesión de Posiciones Críticas",
+                        "edr": "Evaluación de Desempeño y Resultados (EDR)", "operativos": "Personal Operativo (MLA 1)",
+                        "alertas": "Colaboradores con Riesgos / Alertas", "enganche": "Nivel de Enganche de Líderes"
                     }
                     
                     st.markdown(f"#### 📋 {titulos_kpi[vista]}")
@@ -1229,10 +1223,8 @@ def main():
                     if not df_lista.empty:
                         if vista == "alertas":
                             df_lista = df_lista.drop_duplicates(subset=["Nombre", "Alerta"]).reset_index(drop=True)
-                            
                         if direccion_permitida != "TODAS" and "Dirección" in df_lista.columns:
                             df_lista = df_lista.drop(columns=["Dirección"])
-                            
                         st.dataframe(df_lista, use_container_width=True, hide_index=True)
                     else:
                         st.info("No hay registros en esta categoría.")
@@ -1246,10 +1238,8 @@ def main():
             # ==========================================
             # PLANIFICADOR DE SUCESIONES + IA SEMÁNTICA (NLP)
             # ==========================================
-            
-            # 1. Reservamos un "contenedor vacío" arriba para inyectar el título + métricas más tarde
             header_planificador = st.empty()
-            st.markdown("Usa este panel para asignar o modificar los sucesores. **Los cambios se guardarán automáticamente en tu Excel** y el mapa se actualizará al instante.")
+            st.markdown("Usa este panel para asignar o modificar los sucesores. **Los cambios se guardarán automáticamente en tu Excel**.")
             
             df_posiciones_filtradas = df_seguro.copy()
             df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Posición Crítica'].apply(clean_text).str.lower() == 'si']
@@ -1271,12 +1261,9 @@ def main():
                 df_posiciones_filtradas['Nombre_Lider'] = df_posiciones_filtradas['ID Del Jefe'].apply(lambda x: dict_nom.get(clean_id(x), "Sin Líder"))
                 df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Nombre_Lider'] == f_lid_plan]
                 
-            # --- NUEVA LÓGICA: CÁLCULO DE MÉTRICAS DINÁMICAS ---
             total_criticas = len(df_posiciones_filtradas)
-            
             def tiene_sucesor(row):
                 suc = clean_text(row.get('Sucesor P.1', row.get('Sucesor 1', '')))
-                # Consideramos que TIENE sucesor si la celda no está en la lista de palabras pendientes/vacías
                 return 1 if suc and suc.lower() not in ['pendiente', 'nan', 'none', '', 'no definido'] else 0
                 
             if total_criticas > 0:
@@ -1286,7 +1273,6 @@ def main():
                 
             sucesores_pendientes = total_criticas - sucesores_definidos
             
-            # 2. Inyectamos el Título y las Tarjetas KPi en el contenedor que habíamos reservado
             header_planificador.markdown(f"""
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 5px;">
                 <h3 style="margin: 0; padding-bottom: 0;">🔀 Planificador de Sucesiones (Edición en Vivo)</h3>
@@ -1306,11 +1292,9 @@ def main():
                 </div>
             </div>
             """, unsafe_allow_html=True)
-            # --------------------------------------------------------
             
             posiciones_opciones = []
             mapa_indices = {}
-            
             for idx, row in df_posiciones_filtradas.iterrows():
                 puesto = clean_text(row.get('Nombre de la Posición'))
                 if puesto:
@@ -1335,35 +1319,7 @@ def main():
                 eng_key = next((k for k in row_c.keys() if k and 'enganche' in str(k).lower()), None)
                 eng_c = clean_text(row_c.get(eng_key), 'N/A') if eng_key else 'N/A'
                 return {"puesto_actual": puesto_actual, "direccion": dir_candidato, "box": box_c, "enganche": eng_c, "edr": edr_c}
-            DICCIONARIO_MERCADO = {
-                "sistemas_it": ["erp", "sistemas", "tecnologia", "informacion", "it", "software", "datos", "sap", "tecnico", "redes", "crm", "soporte", "programacion"],
-                "abogado": ["legal", "juridico", "contratos", "litigio", "derecho", "normativa", "corporativo", "abogado"],
-                "rh": ["talento", "recursos humanos", "cultura", "clima", "capacitacion", "atraccion", "beneficios", "compensaciones", "nomina", "laborales", "personal", "rh", "do"],
-                "comercial": ["ventas", "clientes", "cuentas", "kam", "negocios", "mercado", "retail", "mayoreo", "comercial"],
-                "operaciones": ["planta", "produccion", "mantenimiento", "calidad", "manufactura", "procesos", "industrial", "operacion"],
-                "logistica": ["reparto", "distribucion", "almacen", "inventarios", "transporte", "cadena", "suministro", "logistica"],
-                "finanzas": ["contabilidad", "tesoreria", "auditoria", "fiscal", "credito", "costos", "financiero", "finanzas"]
-            }
-            def extraer_contexto(texto):
-                if not texto or pd.isna(texto): return set()
-                t = str(texto).lower()
-                stopwords = [' de ', ' del ', ' la ', ' las ', ' el ', ' los ', ' y ', ' en ', ' para ', ' con ', ' a ', ' al ']
-                for sw in stopwords: t = t.replace(sw, ' ')
-                
-                palabras = set(re.findall(r'\b\w{3,}\b', t)) 
-                
-                jerarquias = {'gerente', 'jefe', 'coordinador', 'director', 'analista', 'auxiliar', 'especialista', 'encargado', 'asistente', 'control'}
-                palabras = palabras - jerarquias
-                
-                contexto_ampliado = set(palabras)
-                for palabra in palabras:
-                    for key, valores in DICCIONARIO_MERCADO.items():
-                        if key in palabra or palabra in key:
-                            contexto_ampliado.update(valores)
-                        if palabra in valores:
-                            contexto_ampliado.update(valores)
-                            
-                return contexto_ampliado
+            
             dict_pdi_textos = {}
             if not df_pdi.empty and 'Nombre' in df_pdi.columns:
                 col_obj = next((c for c in df_pdi.columns if 'objetivo' in str(c).lower()), None)
@@ -1373,13 +1329,12 @@ def main():
                     obj = clean_text(row_p.get(col_obj)) if col_obj else ""
                     acc = clean_text(row_p.get(col_acciones)) if col_acciones else ""
                     dict_pdi_textos[nom] = obj + " " + acc
+                    
             def generar_sugerencias_ia(pos_destino, info_pos_destino):
                 if not pos_destino or df_completo.empty: return []
                 
                 mla_destino = clean_text(info_pos_destino.get('Nivel MLA'), '')
                 ocupante_destino = clean_text(info_pos_destino.get('Nombre'), '').lower()
-                
-                contexto_destino = extraer_contexto(pos_destino)
                 
                 candidatos_sugeridos = []
                 
@@ -1390,14 +1345,11 @@ def main():
                     puesto_act = clean_text(row.get('Nombre de la Posición'))
                     if puesto_act.lower() == pos_destino.lower(): continue
                     
-                    contexto_cand_puesto = extraer_contexto(puesto_act)
                     pdi_texto = dict_pdi_textos.get(nombre.lower(), "")
-                    contexto_cand_pdi = extraer_contexto(pdi_texto)
                     
-                    perfil_tecnico_candidato = contexto_cand_puesto.union(contexto_cand_pdi)
-                    
-                    if not contexto_destino.intersection(perfil_tecnico_candidato):
-                        continue 
+                    # MAGIA VECTORIAL: Evalúa semántica matemática en vez de palabras clave
+                    sim_puesto = calcular_similitud(pos_destino, puesto_act)
+                    sim_pdi = calcular_similitud(pos_destino, pdi_texto)
                     
                     box = clean_text(row.get('Resultado 9 box')).upper()
                     if box not in ['1', '2', '3', '4', '5', '6']: continue 
@@ -1406,12 +1358,12 @@ def main():
                     score = 0
                     razones = []
                     
-                    if contexto_destino.intersection(contexto_cand_puesto):
+                    if sim_puesto >= 0.65:
                         score += 5
-                        razones.append("Afinidad técnica en puesto actual")
-                    elif contexto_destino.intersection(contexto_cand_pdi):
+                        razones.append(f"Afinidad en puesto actual ({int(sim_puesto*100)}%)")
+                    elif sim_pdi >= 0.60:
                         score += 4
-                        razones.append("Desarrollando skills afines (PDI)")
+                        razones.append(f"Desarrollando skills afines ({int(sim_pdi*100)}%)")
                         
                     if box in ['1', '2', '3', '5']:
                         score += 4
@@ -1429,17 +1381,18 @@ def main():
                             score += 2
                             razones.append("Movimiento lateral orgánico")
                             
-                    if score >= 7: 
+                    if score >= 7 or max(sim_puesto, sim_pdi) > 0.80: 
                         candidatos_sugeridos.append({
                             'nombre': nombre,
                             'puesto': puesto_act,
                             'direccion': clean_text(row.get('Dirección')),
                             'box': box,
-                            'score': score,
+                            'score': score + (sim_puesto * 2), 
                             'razon': " | ".join(razones)
                         })
                         
                 return sorted(candidatos_sugeridos, key=lambda x: x['score'], reverse=True)[:3]
+
             def diagnosticar_pdi_ia(nombre_cand, puesto_destino, info_cand):
                 if not nombre_cand or nombre_cand == "Pendiente" or info_cand == "RESTRINGIDO" or not info_cand: return None
                 if df_pdi.empty: return {"estatus": "SIN_DATOS", "msg": "No hay base de datos de PDI cargada."}
@@ -1461,26 +1414,28 @@ def main():
                 avance_pdi = clean_text(row_p.get(col_avance), '0%') if col_avance else '0%'
                 acciones_pdi = clean_text(row_p.get(col_acciones), 'Sin acciones descritas') if col_acciones else 'Sin acciones'
                 
-                contexto_destino = extraer_contexto(puesto_destino)
-                contexto_pdi = extraer_contexto(obj_pdi + " " + acciones_pdi)
+                # INTEGRACIÓN VECTORIAL
+                texto_pdi_completo = obj_pdi + " " + acciones_pdi
+                similitud_score = calcular_similitud(puesto_destino, texto_pdi_completo)
+                porcentaje_similitud = int(similitud_score * 100)
                 
-                coincidencias = contexto_destino.intersection(contexto_pdi)
                 puesto_origen = info_cand['puesto_actual']
                 
-                if len(coincidencias) > 0:
+                if similitud_score >= 0.55: # Ajusta este número si quieres que sea más exigente
                     return {
-                        "estatus": "ALINEADO", "icono": "✅", "titulo_estatus": "PDI Alineado a la Posición",
+                        "estatus": "ALINEADO", "icono": "✅", "titulo_estatus": f"PDI Alineado a la Posición ({porcentaje_similitud}% Afinidad)",
                         "color_borde": "#16a34a", "bg_color": "#f0fdf4", "puesto_origen": puesto_origen,
                         "objetivo": obj_pdi, "avance": avance_pdi, "acciones": acciones_pdi,
-                        "recomendacion": f"El PDI actual está **correctamente enfocado** en la posición de *{puesto_destino}*. Con un avance del **{avance_pdi}**, las acciones en curso cubren las competencias requeridas. Mantenimiento del plan actual."
+                        "recomendacion": f"El PDI actual tiene un alto grado de alineación semántica (**{porcentaje_similitud}%**) con el puesto de *{puesto_destino}*. Con un avance del **{avance_pdi}**, las acciones en curso cubren el perfil requerido. Mantenimiento del plan actual."
                     }
                 else:
                     return {
-                        "estatus": "REQUIERE_AJUSTE", "icono": "🟡", "titulo_estatus": "Ajuste Recomendado al PDI",
+                        "estatus": "REQUIERE_AJUSTE", "icono": "🟡", "titulo_estatus": f"Ajuste Recomendado al PDI ({porcentaje_similitud}% Afinidad)",
                         "color_borde": "#ca8a04", "bg_color": "#fefce8", "puesto_origen": puesto_origen,
                         "objetivo": obj_pdi, "avance": avance_pdi, "acciones": acciones_pdi,
-                        "recomendacion": f"💡 **Recomendación IA:** El candidato actualmente es *{puesto_origen}*. Su PDI está orientado a '_{obj_pdi}_'. Para asegurar su éxito hacia *{puesto_destino}*, se recomienda **actualizar sus Acciones de Desarrollo** agregando competencias técnicas específicas del nuevo puesto."
+                        "recomendacion": f"💡 **Recomendación IA:** El candidato actualmente es *{puesto_origen}*. Su PDI ('_{obj_pdi}_') tiene solo un **{porcentaje_similitud}%** de similitud matemática con el perfil destino. Para asegurar su éxito hacia *{puesto_destino}*, se recomienda **actualizar sus Acciones de Desarrollo** agregando competencias clave y técnicas de la nueva posición."
                     }
+
             if pos_seleccionada:
                 idx_pandas = mapa_indices[pos_seleccionada]
                 info_pos = df_seguro.loc[idx_pandas]
@@ -1489,7 +1444,6 @@ def main():
                 direccion_pos = clean_text(info_pos.get('Dirección'), 'No asignada')
                 sucesor_actual_info = clean_text(info_pos.get('Sucesor actual', info_pos.get('Sucesor actual ')), 'No definido')
                 
-                # --- NUEVA LÓGICA: ETIQUETAS INTERACTIVAS (FICHAS) DE OCUPANTE Y SUCESOR ---
                 st.markdown(f"#### 📌 Posición Crítica: `{pos_seleccionada}`")
                 
                 def mostrar_ficha_mini(nombre_cand, df_db):
@@ -1503,7 +1457,6 @@ def main():
                         return
                         
                     row = match.iloc[0]
-                    
                     nombres_db = {clean_id(r.get('id Empleado')): clean_text(r.get('Nombre')) for _, r in df_db.iterrows()}
                     def get_nom(val):
                         v = clean_id(val)
@@ -1579,8 +1532,7 @@ def main():
                                 st.info("No hay historial registrado en el Excel")
                 
                 st.write("")
-                # ---------------------------------------------------------
-                with st.expander("🤖 Mostrar Sugerencias de Sucesión (IA)"):
+                with st.expander("🤖 Mostrar Sugerencias de Sucesión (IA Vectorial)"):
                     sugerencias = generar_sugerencias_ia(pos_seleccionada, info_pos)
                     if sugerencias:
                         items_html = ""
@@ -1600,7 +1552,7 @@ def main():
                         </div>
                         """, unsafe_allow_html=True)
                     else:
-                        st.warning("⚠️ **Dictamen IA:** No se detectaron candidatos en la plantilla actual que cumplan con los criterios estrictos de desempeño, nivel y afinidad técnica para esta posición crítica. **Se sugiere considerar reclutamiento externo o desarrollo a mediano plazo.**")
+                        st.warning("⚠️ **Dictamen IA:** No se detectaron candidatos con afinidad matemática o descriptiva suficiente para esta posición. **Se sugiere reclutamiento externo.**")
                 
                 nombres_empleados = sorted([clean_text(n) for n in df_completo['Nombre'].dropna().unique() if clean_text(n)])
                 opciones_sucesores = ["Pendiente"] + nombres_empleados
@@ -1707,7 +1659,6 @@ def main():
                             archivo = cliente.open_by_key(doc_id)
                             pestana = archivo.worksheet("Base de datos")
                             
-                            # Actualización del rango de I hasta T (12 columnas)
                             rango = f'I{idx_excel}:T{idx_excel}'
                             celdas = pestana.range(rango)
                             
@@ -1728,15 +1679,11 @@ def main():
                             
                             pestana.update_cells(celdas)
                             
-                            # ========================================================
-                            # NUEVO: Escribir el Timestamp en 'Metadata' para invalidar la caché
-                            # de todos los usuarios de la plataforma
-                            # ========================================================
                             try:
                                 pestana_meta = archivo.worksheet("Metadata")
                                 pestana_meta.update_acell('A1', str(time.time()))
                             except Exception:
-                                pass # Si falla, igual se limpia localmente, no bloqueamos la app
+                                pass 
                             
                             st.success("✅ ¡Guardado exitosamente! El mapa se está actualizando...")
                             st.cache_data.clear()
@@ -1758,15 +1705,10 @@ def main():
                 df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre_Cruce'].isin(nombres_visibles_limpios)]
                 
                 columnas_deseadas = {
-                    "Nombre": "Nombre",
-                    "Posicion": "Posicion", 
-                    "Dirección actual": "Dirección", 
-                    "Objetivo a Desar": "Objetivo", 
-                    "PDI": "PDI", 
-                    "Clasificacion de": "Clasificacion",
+                    "Nombre": "Nombre", "Posicion": "Posicion", "Dirección actual": "Dirección", 
+                    "Objetivo a Desar": "Objetivo", "PDI": "PDI", "Clasificacion de": "Clasificacion",
                     "Qué? / Acciones de Desarrollo": "Qué? / Acciones de Desarrollo", 
-                    "% de Avance": "% de Avance", 
-                    "Estatus": "Estatus"
+                    "% de Avance": "% de Avance", "Estatus": "Estatus"
                 }
                 
                 cols_reales = []
@@ -1811,6 +1753,6 @@ def main():
                 st.warning("⚠️ No se pudo cargar la información de la pestaña PDI (O está vacía).")
         else:
             components.html(html_mapa, height=400)
-
+            
 if __name__ == "__main__":
     main()
