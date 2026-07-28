@@ -1533,26 +1533,30 @@ def main():
                 
                 st.write("")
                 with st.expander("🤖 Mostrar Sugerencias de Sucesión (IA Vectorial)"):
-                    sugerencias = generar_sugerencias_ia(pos_seleccionada, info_pos)
-                    if sugerencias:
-                        items_html = ""
-                        for s in sugerencias:
-                            if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in s['direccion'].upper()):
-                                info_vis = "🔒 <i>Detalles confidenciales (Otra Dirección)</i>"
-                            else:
-                                info_vis = f"📌 Puesto Actual: <b>{s['puesto']}</b> | 📊 9-Box: <b>{s['box']}</b>"
-                                
-                            items_html += f"<li>👤 <b>{s['nombre']}</b> — {info_vis}<br><span style='color:#0369a1;'>💡 {s['razon']}</span></li>"
+                    st.info("Haz clic en el botón para que la IA escanee toda la base de datos y cruce los PDI.")
+                    if st.button("✨ Generar Sugerencias con IA", use_container_width=True):
+                        with st.spinner("🧠 Analizando perfiles y calculando similitud semántica... esto tomará unos segundos."):
+                            sugerencias = generar_sugerencias_ia(pos_seleccionada, info_pos)
                             
-                        st.markdown(f"""
-                        <div style="background:#e0f2fe; border-left:5px solid #0284c7; padding:12px; border-radius:8px; margin-bottom:5px; font-size:13px; color:#0f172a;">
-                            <ul style="margin:8px 0 0 0; padding-left:20px; line-height:1.5;">
-                                {items_html}
-                            </ul>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        st.warning("⚠️ **Dictamen IA:** No se detectaron candidatos con afinidad matemática o descriptiva suficiente para esta posición. **Se sugiere reclutamiento externo.**")
+                            if sugerencias:
+                                items_html = ""
+                                for s in sugerencias:
+                                    if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in s['direccion'].upper()):
+                                        info_vis = "🔒 <i>Detalles confidenciales (Otra Dirección)</i>"
+                                    else:
+                                        info_vis = f"📌 Puesto Actual: <b>{s['puesto']}</b> | 📊 9-Box: <b>{s['box']}</b>"
+                                        
+                                    items_html += f"<li>👤 <b>{s['nombre']}</b> — {info_vis}<br><span style='color:#0369a1;'>💡 {s['razon']}</span></li>"
+                                    
+                                st.markdown(f"""
+                                <div style="background:#e0f2fe; border-left:5px solid #0284c7; padding:12px; border-radius:8px; margin-bottom:5px; font-size:13px; color:#0f172a;">
+                                    <ul style="margin:8px 0 0 0; padding-left:20px; line-height:1.5;">
+                                        {items_html}
+                                    </ul>
+                                </div>
+                                """, unsafe_allow_html=True)
+                            else:
+                                st.warning("⚠️ **Dictamen IA:** No se detectaron candidatos con afinidad matemática o descriptiva suficiente para esta posición. **Se sugiere reclutamiento externo.**")
                 
                 nombres_empleados = sorted([clean_text(n) for n in df_completo['Nombre'].dropna().unique() if clean_text(n)])
                 opciones_sucesores = ["Pendiente"] + nombres_empleados
