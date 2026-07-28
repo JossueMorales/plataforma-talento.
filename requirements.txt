@@ -3,6 +3,3 @@ pandas
 networkx
 pyvis
 st-gsheets-connection
-sentence-transformers
-scikit-learn
-numpy
