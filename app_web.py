@@ -1248,7 +1248,6 @@ def main():
             st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
             st.markdown("Usa este panel para asignar o modificar los sucesores. **Los filtros globales de arriba ya controlan las posiciones que ves aquí**. Los cambios se guardarán automáticamente en tu Excel.")
             
-            # 1. Filtramos por posiciones críticas Y que estén visibles en el mapa actual
             nombres_visibles_limpios = [str(d['Nombre']).strip().lower() for d in kpis['data_total']]
             
             df_posiciones_filtradas = df_seguro.copy()
@@ -1267,7 +1266,6 @@ def main():
             sucesores_definidos = df_posiciones_filtradas['Tiene_Sucesor'].sum() if total_criticas > 0 else 0
             sucesores_pendientes = total_criticas - sucesores_definidos
             
-            # --- NUEVA LÓGICA: KPIS INTERACTIVOS QUE CARGAN POSICIONES ---
             col_k1, col_k2, col_k3 = st.columns(3)
             with col_k1:
                 if st.button(f"📘 TOTAL CRÍTICAS: {total_criticas}", use_container_width=True):
@@ -1279,7 +1277,6 @@ def main():
                 if st.button(f"🚨 PENDIENTES: {sucesores_pendientes}", use_container_width=True):
                     st.session_state['filtro_kpi_plan'] = 'pendientes'
             
-            # Desplegar la lista de botones basados en el filtro clickeado
             if 'filtro_kpi_plan' in st.session_state and st.session_state['filtro_kpi_plan']:
                 modo = st.session_state['filtro_kpi_plan']
                 if modo == 'todas':
@@ -1309,7 +1306,6 @@ def main():
                     if st.button("❌ Cerrar lista", key="cerrar_lista_kpi"):
                         st.session_state['filtro_kpi_plan'] = None
                         st.rerun()
-            # -------------------------------------------------------------
             
             st.write("")
             posiciones_opciones = []
@@ -1322,7 +1318,6 @@ def main():
                     
             posiciones_opciones = sorted(list(set(posiciones_opciones)))
             
-            # Mecanismo de seguridad para el autollenado si la sesión intenta cargar una posición fuera de los filtros
             if 'plan_pos' in st.session_state and st.session_state['plan_pos'] not in [""] + posiciones_opciones:
                 st.session_state['plan_pos'] = ""
 
@@ -1614,9 +1609,11 @@ def main():
                 st.write("") 
                 col1, col2, col3 = st.columns(3)
                 
+                # REPARACIÓN AQUÍ: Se agregaron variables dinámicas (pos_seleccionada) a los keys 
+                # para que Streamlit separe los formularios y no confunda los datos escritos con los de la base.
                 with col1:
                     st.markdown("#### 🥇 Sucesor 1")
-                    n_suc1 = st.selectbox("Candidato 1", opciones_sucesores, index=opciones_sucesores.index(c_suc1), key="select_suc1")
+                    n_suc1 = st.selectbox("Candidato 1", opciones_sucesores, index=opciones_sucesores.index(c_suc1), key=f"select_suc1_{pos_seleccionada}")
                     
                     ficha1 = obtener_ficha_candidato(n_suc1)
                     if ficha1 == "RESTRINGIDO":
@@ -1629,13 +1626,13 @@ def main():
                         elif pdi_diag1 and "color_borde" in pdi_diag1:
                             st.markdown(f"<details style='background:{pdi_diag1['bg_color']}; border-left:4px solid {pdi_diag1['color_borde']}; padding:12px; border-radius:6px; cursor:pointer;'><summary style='font-weight:bold; font-size:15px; color:#1e293b; outline:none;'>🤖 Dictamen IA: {pdi_diag1['icono']} {pdi_diag1['titulo_estatus']}</summary><div style='margin-top:10px; font-size:14px; color:#334155; line-height:1.5;'>🎯 <b>Objetivo PDI:</b> {pdi_diag1['objetivo']} (Avance: <b>{pdi_diag1['avance']}</b>)<br><br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag1['recomendacion']}</div></details>", unsafe_allow_html=True)
                             
-                    n_read1 = st.selectbox("Readiness 1", opciones_tiempo, index=opciones_tiempo.index(c_read1), key="select_read1")
-                    n_pos1 = st.text_area("👍 Comentarios Positivos 1", value=c_pos1, height=68, key="t_pos1")
-                    n_opo1 = st.text_area("📈 Áreas de Oportunidad 1", value=c_opo1, height=68, key="t_opo1")
+                    n_read1 = st.selectbox("Readiness 1", opciones_tiempo, index=opciones_tiempo.index(c_read1), key=f"select_read1_{pos_seleccionada}")
+                    n_pos1 = st.text_area("👍 Comentarios Positivos 1", value=c_pos1, height=68, key=f"t_pos1_{pos_seleccionada}")
+                    n_opo1 = st.text_area("📈 Áreas de Oportunidad 1", value=c_opo1, height=68, key=f"t_opo1_{pos_seleccionada}")
                     
                 with col2:
                     st.markdown("#### 🥈 Sucesor 2")
-                    n_suc2 = st.selectbox("Candidato 2", opciones_sucesores, index=opciones_sucesores.index(c_suc2), key="select_suc2")
+                    n_suc2 = st.selectbox("Candidato 2", opciones_sucesores, index=opciones_sucesores.index(c_suc2), key=f"select_suc2_{pos_seleccionada}")
                     
                     ficha2 = obtener_ficha_candidato(n_suc2)
                     if ficha2 == "RESTRINGIDO":
@@ -1648,13 +1645,13 @@ def main():
                         elif pdi_diag2 and "color_borde" in pdi_diag2:
                             st.markdown(f"<details style='background:{pdi_diag2['bg_color']}; border-left:4px solid {pdi_diag2['color_borde']}; padding:12px; border-radius:6px; cursor:pointer;'><summary style='font-weight:bold; font-size:15px; color:#1e293b; outline:none;'>🤖 Dictamen IA: {pdi_diag2['icono']} {pdi_diag2['titulo_estatus']}</summary><div style='margin-top:10px; font-size:14px; color:#334155; line-height:1.5;'>🎯 <b>Objetivo PDI:</b> {pdi_diag2['objetivo']} (Avance: <b>{pdi_diag2['avance']}</b>)<br><br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag2['recomendacion']}</div></details>", unsafe_allow_html=True)
                             
-                    n_read2 = st.selectbox("Readiness 2", opciones_tiempo, index=opciones_tiempo.index(c_read2), key="select_read2")
-                    n_pos2 = st.text_area("👍 Comentarios Positivos 2", value=c_pos2, height=68, key="t_pos2")
-                    n_opo2 = st.text_area("📈 Áreas de Oportunidad 2", value=c_opo2, height=68, key="t_opo2")
+                    n_read2 = st.selectbox("Readiness 2", opciones_tiempo, index=opciones_tiempo.index(c_read2), key=f"select_read2_{pos_seleccionada}")
+                    n_pos2 = st.text_area("👍 Comentarios Positivos 2", value=c_pos2, height=68, key=f"t_pos2_{pos_seleccionada}")
+                    n_opo2 = st.text_area("📈 Áreas de Oportunidad 2", value=c_opo2, height=68, key=f"t_opo2_{pos_seleccionada}")
                     
                 with col3:
                     st.markdown("#### 🥉 Sucesor 3")
-                    n_suc3 = st.selectbox("Candidato 3", opciones_sucesores, index=opciones_sucesores.index(c_suc3), key="select_suc3")
+                    n_suc3 = st.selectbox("Candidato 3", opciones_sucesores, index=opciones_sucesores.index(c_suc3), key=f"select_suc3_{pos_seleccionada}")
                     
                     ficha3 = obtener_ficha_candidato(n_suc3)
                     if ficha3 == "RESTRINGIDO":
@@ -1667,9 +1664,9 @@ def main():
                         elif pdi_diag3 and "color_borde" in pdi_diag3:
                             st.markdown(f"<details style='background:{pdi_diag3['bg_color']}; border-left:4px solid {pdi_diag3['color_borde']}; padding:12px; border-radius:6px; cursor:pointer;'><summary style='font-weight:bold; font-size:15px; color:#1e293b; outline:none;'>🤖 Dictamen IA: {pdi_diag3['icono']} {pdi_diag3['titulo_estatus']}</summary><div style='margin-top:10px; font-size:14px; color:#334155; line-height:1.5;'>🎯 <b>Objetivo PDI:</b> {pdi_diag3['objetivo']} (Avance: <b>{pdi_diag3['avance']}</b>)<br><br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag3['recomendacion']}</div></details>", unsafe_allow_html=True)
                             
-                    n_read3 = st.selectbox("Readiness 3", opciones_tiempo, index=opciones_tiempo.index(c_read3), key="select_read3")
-                    n_pos3 = st.text_area("👍 Comentarios Positivos 3", value=c_pos3, height=68, key="t_pos3")
-                    n_opo3 = st.text_area("📈 Áreas de Oportunidad 3", value=c_opo3, height=68, key="t_opo3")
+                    n_read3 = st.selectbox("Readiness 3", opciones_tiempo, index=opciones_tiempo.index(c_read3), key=f"select_read3_{pos_seleccionada}")
+                    n_pos3 = st.text_area("👍 Comentarios Positivos 3", value=c_pos3, height=68, key=f"t_pos3_{pos_seleccionada}")
+                    n_opo3 = st.text_area("📈 Áreas de Oportunidad 3", value=c_opo3, height=68, key=f"t_opo3_{pos_seleccionada}")
                 
                 st.write("")
                 submitted = st.button("💾 Guardar Cambios en Base de Datos", type="primary", use_container_width=True)
