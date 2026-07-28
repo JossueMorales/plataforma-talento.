@@ -1246,7 +1246,9 @@ def main():
             # ==========================================
             # PLANIFICADOR DE SUCESIONES + IA SEMÁNTICA (NLP)
             # ==========================================
-            st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
+            
+            # 1. Reservamos un "contenedor vacío" arriba para inyectar el título + métricas más tarde
+            header_planificador = st.empty()
             st.markdown("Usa este panel para asignar o modificar los sucesores. **Los cambios se guardarán automáticamente en tu Excel** y el mapa se actualizará al instante.")
             
             df_posiciones_filtradas = df_seguro.copy()
@@ -1269,6 +1271,43 @@ def main():
                 df_posiciones_filtradas['Nombre_Lider'] = df_posiciones_filtradas['ID Del Jefe'].apply(lambda x: dict_nom.get(clean_id(x), "Sin Líder"))
                 df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Nombre_Lider'] == f_lid_plan]
                 
+            # --- NUEVA LÓGICA: CÁLCULO DE MÉTRICAS DINÁMICAS ---
+            total_criticas = len(df_posiciones_filtradas)
+            
+            def tiene_sucesor(row):
+                suc = clean_text(row.get('Sucesor P.1', row.get('Sucesor 1', '')))
+                # Consideramos que TIENE sucesor si la celda no está en la lista de palabras pendientes/vacías
+                return 1 if suc and suc.lower() not in ['pendiente', 'nan', 'none', '', 'no definido'] else 0
+                
+            if total_criticas > 0:
+                sucesores_definidos = df_posiciones_filtradas.apply(tiene_sucesor, axis=1).sum()
+            else:
+                sucesores_definidos = 0
+                
+            sucesores_pendientes = total_criticas - sucesores_definidos
+            
+            # 2. Inyectamos el Título y las Tarjetas KPi en el contenedor que habíamos reservado
+            header_planificador.markdown(f"""
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 5px;">
+                <h3 style="margin: 0; padding-bottom: 0;">🔀 Planificador de Sucesiones (Edición en Vivo)</h3>
+                <div style="display: flex; gap: 10px;">
+                    <div style="background-color: #f8f9fa; border: 1px solid #e2e8f0; border-left: 4px solid #3b82f6; padding: 4px 12px; border-radius: 5px; text-align: center;">
+                        <span style="font-size: 11px; color: #64748b; font-weight: bold;">TOTAL CRÍTICAS</span><br>
+                        <span style="font-size: 16px; color: #0f172a; font-weight: bold;">{total_criticas}</span>
+                    </div>
+                    <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-left: 4px solid #22c55e; padding: 4px 12px; border-radius: 5px; text-align: center;">
+                        <span style="font-size: 11px; color: #166534; font-weight: bold;">CON SUCESOR</span><br>
+                        <span style="font-size: 16px; color: #15803d; font-weight: bold;">{sucesores_definidos}</span>
+                    </div>
+                    <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-left: 4px solid #ef4444; padding: 4px 12px; border-radius: 5px; text-align: center;">
+                        <span style="font-size: 11px; color: #991b1b; font-weight: bold;">PENDIENTES</span><br>
+                        <span style="font-size: 16px; color: #b91c1c; font-weight: bold;">{sucesores_pendientes}</span>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            # --------------------------------------------------------
+            
             posiciones_opciones = []
             mapa_indices = {}
             
