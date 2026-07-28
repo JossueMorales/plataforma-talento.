@@ -1246,10 +1246,17 @@ def main():
             # PLANIFICADOR DE SUCESIONES + IA (Rollback)
             # ==========================================
             st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
-            st.markdown("Usa este panel para asignar o modificar los sucesores. **Los cambios se guardarán automáticamente en tu Excel**.")
+            st.markdown("Usa este panel para asignar o modificar los sucesores. **Los filtros globales de arriba ya controlan las posiciones que ves aquí**. Los cambios se guardarán automáticamente en tu Excel.")
+            
+            # 1. Filtramos por posiciones críticas Y que estén visibles en el mapa actual
+            nombres_visibles_limpios = [str(d['Nombre']).strip().lower() for d in kpis['data_total']]
             
             df_posiciones_filtradas = df_seguro.copy()
-            df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Posición Crítica'].apply(clean_text).str.lower() == 'si']
+            df_posiciones_filtradas['Nombre_Cruce'] = df_posiciones_filtradas['Nombre'].astype(str).str.strip().str.lower()
+            df_posiciones_filtradas = df_posiciones_filtradas[
+                (df_posiciones_filtradas['Posición Crítica'].apply(clean_text).str.lower() == 'si') &
+                (df_posiciones_filtradas['Nombre_Cruce'].isin(nombres_visibles_limpios))
+            ]
             
             def tiene_sucesor(row):
                 suc = clean_text(row.get('Sucesor P.1', row.get('Sucesor 1', '')))
@@ -1295,7 +1302,6 @@ def main():
                             p_name = clean_text(row.get('Nombre de la Posición'))
                             if p_name:
                                 if cols_grid[i % 3].button(p_name, key=f"grid_btn_{i}_{modo}", use_container_width=True):
-                                    # Esto conecta el botón con el desplegable principal
                                     st.session_state['plan_pos'] = p_name
                                     st.session_state['filtro_kpi_plan'] = None
                                     st.rerun()
@@ -1306,23 +1312,6 @@ def main():
             # -------------------------------------------------------------
             
             st.write("")
-            col_plan1, col_plan2, col_plan3 = st.columns(3)
-            
-            dirs_plan = sorted(list(set([clean_text(x) for x in df_posiciones_filtradas['Dirección'].unique() if clean_text(x)])))
-            f_dir_plan = col_plan1.selectbox("🏢 Filtrar por Dirección:", ["Todas"] + dirs_plan, key="plan_dir")
-            
-            if f_dir_plan != "Todas":
-                df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Dirección'].apply(clean_text) == f_dir_plan]
-            
-            lideres_ids_plan = df_posiciones_filtradas['ID Del Jefe'].dropna().unique()
-            lideres_plan = sorted(list(set([dict_nom.get(clean_id(x), "Sin Líder") for x in lideres_ids_plan if clean_id(x)])))
-            
-            f_lid_plan = col_plan2.selectbox("👤 Filtrar por Líder:", ["Todos"] + lideres_plan, key="plan_lid")
-            
-            if f_lid_plan != "Todos":
-                df_posiciones_filtradas['Nombre_Lider'] = df_posiciones_filtradas['ID Del Jefe'].apply(lambda x: dict_nom.get(clean_id(x), "Sin Líder"))
-                df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Nombre_Lider'] == f_lid_plan]
-                
             posiciones_opciones = []
             mapa_indices = {}
             for idx, row in df_posiciones_filtradas.iterrows():
@@ -1337,7 +1326,7 @@ def main():
             if 'plan_pos' in st.session_state and st.session_state['plan_pos'] not in [""] + posiciones_opciones:
                 st.session_state['plan_pos'] = ""
 
-            pos_seleccionada = col_plan3.selectbox("🔍 Selecciona la Posición Crítica:", [""] + posiciones_opciones, key="plan_pos")
+            pos_seleccionada = st.selectbox("🔍 Selecciona la Posición Crítica para editar (Filtrada por tu selección global):", [""] + posiciones_opciones, key="plan_pos")
             
             def obtener_ficha_candidato(nombre_cand):
                 if not nombre_cand or nombre_cand == "Pendiente":
@@ -1571,7 +1560,7 @@ def main():
                 
                 st.write("")
                 with st.expander("🤖 Mostrar Sugerencias de Sucesión (IA de Diccionario)"):
-                    st.info("Haz clic en el botón para que la IA escané la base en busca de afinidad con el puesto.")
+                    st.info("Haz clic en el botón para que la IA escanee la base en busca de afinidad con el puesto.")
                     if st.button("✨ Generar Sugerencias con IA", use_container_width=True):
                         with st.spinner("🧠 Buscando cruces de perfiles..."):
                             sugerencias = generar_sugerencias_ia(pos_seleccionada, info_pos)
