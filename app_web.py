@@ -887,7 +887,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
     alertas_tabla = []
     data_total = []
     data_sucesores = []
-    data_operativos = []
+    data_nueve_box = [] # Sustituto de data_operativos
     data_enganche = []
     data_edr = []
     
@@ -950,8 +950,15 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                         "Dirección": info['direccion'],
                         "Alerta Detectada por IA": r
                     })
-            if info['mla'] == '1':
-                data_operativos.append(nodo_data)
+            
+            # --- NUEVA LÓGICA DE 9-BOX ---
+            if info['box'].lower() not in ['pendiente', 'n/a', 'nan', 'none', '']:
+                data_nueve_box.append({
+                    "Nombre": info['nombre'],
+                    "Puesto": info['puesto'],
+                    "Dirección": info['direccion'],
+                    "Resultado 9-Box": info['box']
+                })
                 
         prefijo = "🚨 " if info['riesgos_lista'] else ""
         coord_data = coords.get(emp, {'angle':0, 'nivel_calculado':5, 'profundidad':5, 'anillo_real': 5})
@@ -1051,13 +1058,13 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
     kpis = {
         'total': len(data_total),
         'sucesores': len(data_sucesores),
-        'operativos': len(data_operativos),
+        'nueve_box_count': len(data_nueve_box),
         'alertas': len(alertas_tabla),
         'enganche_promedio': avg_enganche,
         'edr_count': len(data_edr),
         'data_total': data_total,
         'data_sucesores': data_sucesores,
-        'data_operativos': data_operativos,
+        'data_nueve_box': data_nueve_box,
         'data_alertas': data_alertas,
         'data_enganche': data_enganche,
         'data_edr': data_edr
@@ -1204,9 +1211,10 @@ def main():
                     if st.button("🔍 Ver", key="b_edr", use_container_width=True):
                         st.session_state["vista_kpi"] = "edr"
                 with k4:
-                    st.markdown(crear_tarjeta_kpi("Operat.<br>(MLA 1)", kpis['operativos'], "#10b981", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
-                    if st.button("🔍 Ver", key="b_ope", use_container_width=True):
-                        st.session_state["vista_kpi"] = "operativos"
+                    # NUEVA TARJETA 9-BOX
+                    st.markdown(crear_tarjeta_kpi("Resultados<br>(9-Box)", kpis['nueve_box_count'], "#eab308", "#64748b", "#fefce8"), unsafe_allow_html=True)
+                    if st.button("🔍 Ver", key="b_9box", use_container_width=True):
+                        st.session_state["vista_kpi"] = "nueve_box"
                 with k5:
                     st.markdown(crear_tarjeta_kpi("Alertas<br>Detect.", kpis['alertas'], "#e11d48", "#9f1239", "#fff1f2"), unsafe_allow_html=True)
                     if st.button("🔍 Ver", key="b_ale", use_container_width=True):
@@ -1219,9 +1227,12 @@ def main():
                 if st.session_state["vista_kpi"]:
                     vista = st.session_state["vista_kpi"]
                     titulos_kpi = {
-                        "total": "Total de Colaboradores", "sucesores": "Sucesión de Posiciones Críticas",
-                        "edr": "Evaluación de Desempeño y Resultados (EDR)", "operativos": "Personal Operativo (MLA 1)",
-                        "alertas": "Colaboradores con Riesgos / Alertas", "enganche": "Nivel de Enganche de Líderes"
+                        "total": "Total de Colaboradores", 
+                        "sucesores": "Sucesión de Posiciones Críticas",
+                        "edr": "Evaluación de Desempeño y Resultados (EDR)", 
+                        "nueve_box": "Evaluaciones 9-Box",
+                        "alertas": "Colaboradores con Riesgos / Alertas", 
+                        "enganche": "Nivel de Enganche de Líderes"
                     }
                     
                     st.markdown(f"#### 📋 {titulos_kpi[vista]}")
@@ -1609,8 +1620,6 @@ def main():
                 st.write("") 
                 col1, col2, col3 = st.columns(3)
                 
-                # REPARACIÓN AQUÍ: Se agregaron variables dinámicas (pos_seleccionada) a los keys 
-                # para que Streamlit separe los formularios y no confunda los datos escritos con los de la base.
                 with col1:
                     st.markdown("#### 🥇 Sucesor 1")
                     n_suc1 = st.selectbox("Candidato 1", opciones_sucesores, index=opciones_sucesores.index(c_suc1), key=f"select_suc1_{pos_seleccionada}")
