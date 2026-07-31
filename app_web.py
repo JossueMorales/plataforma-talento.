@@ -887,7 +887,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
     alertas_tabla = []
     data_total = []
     data_sucesores = []
-    data_nueve_box = [] # Sustituto de data_operativos
+    data_nueve_box = [] 
     data_enganche = []
     data_edr = []
     
@@ -951,7 +951,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                         "Alerta Detectada por IA": r
                     })
             
-            # --- NUEVA LÓGICA DE 9-BOX ---
             if info['box'].lower() not in ['pendiente', 'n/a', 'nan', 'none', '']:
                 data_nueve_box.append({
                     "Nombre": info['nombre'],
@@ -1140,6 +1139,9 @@ def main():
         col_head1, col_head2 = st.columns([2, 1])
         with col_head1:
             st.markdown("### 🎛️ Filtros Globales (Controlan Mapa, KPIs y Tablas)")
+            if st.button("🔄 Forzar Sincronización con Excel", help="Usa este botón si hiciste cambios manuales directamente en el archivo de Google Sheets"):
+                st.cache_data.clear()
+                st.rerun()
             
         with col_head2:
             lista_nombres_buscador = sorted([clean_text(n) for n in df_seguro['Nombre'].dropna().unique() if clean_text(n)])
@@ -1211,7 +1213,6 @@ def main():
                     if st.button("🔍 Ver", key="b_edr", use_container_width=True):
                         st.session_state["vista_kpi"] = "edr"
                 with k4:
-                    # NUEVA TARJETA 9-BOX
                     st.markdown(crear_tarjeta_kpi("Resultados<br>(9-Box)", kpis['nueve_box_count'], "#eab308", "#64748b", "#fefce8"), unsafe_allow_html=True)
                     if st.button("🔍 Ver", key="b_9box", use_container_width=True):
                         st.session_state["vista_kpi"] = "nueve_box"
@@ -1319,15 +1320,7 @@ def main():
                         st.rerun()
             
             st.write("")
-            posiciones_opciones = []
-            mapa_indices = {}
-            for idx, row in df_posiciones_filtradas.iterrows():
-                puesto = clean_text(row.get('Nombre de la Posición'))
-                if puesto:
-                    posiciones_opciones.append(puesto)
-                    mapa_indices[puesto] = idx 
-                    
-            posiciones_opciones = sorted(list(set(posiciones_opciones)))
+            posiciones_opciones = sorted(list(set([clean_text(row.get('Nombre de la Posición')) for _, row in df_posiciones_filtradas.iterrows() if clean_text(row.get('Nombre de la Posición'))])))
             
             if 'plan_pos' in st.session_state and st.session_state['plan_pos'] not in [""] + posiciones_opciones:
                 st.session_state['plan_pos'] = ""
@@ -1470,18 +1463,16 @@ def main():
                     }
 
             if pos_seleccionada:
-                idx_pandas = mapa_indices[pos_seleccionada]
-                info_pos = df_seguro.loc[idx_pandas]
-                
-                ocupante_actual = clean_text(info_pos.get('Nombre'), 'Vacante / Sin asignar')
-                direccion_pos = clean_text(info_pos.get('Dirección'), 'No asignada')
-                sucesor_actual_info = clean_text(info_pos.get('Sucesor actual', info_pos.get('Sucesor actual ')), 'No definido')
+                # --- NUEVA LÓGICA DE MÚLTIPLES OCUPANTES ---
+                df_ocupantes = df_posiciones_filtradas[df_posiciones_filtradas['Nombre de la Posición'].apply(clean_text) == pos_seleccionada]
+                info_pos = df_ocupantes.iloc[0] 
+                nombres_ocupantes = [clean_text(n, 'Vacante / Sin asignar') for n in df_ocupantes['Nombre'].tolist()]
                 
                 st.markdown(f"#### 📌 Posición Crítica: `{pos_seleccionada}`")
                 
                 def mostrar_ficha_mini(nombre_cand, df_db):
                     if not nombre_cand or nombre_cand in ["Pendiente", "Vacante / Sin asignar", "No definido"]:
-                        st.info("Sin información")
+                        st.info("Sin información de ocupante")
                         return
                         
                     match = df_db[df_db['Nombre'].astype(str).str.strip().str.lower() == nombre_cand.strip().lower()]
@@ -1512,7 +1503,7 @@ def main():
                     read1 = clean_text(row.get('Tiempo de Readiness 1', ''))
                     
                     st.markdown(f"""
-                    <div style='padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; font-family: sans-serif; background: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);'>
+                    <div style='padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; font-family: sans-serif; background: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-bottom: 10px;'>
                         <h4 style='margin-top: 0; color: #1e3a8a; font-size: 18px;'>{nombre_cand}</h4>
                         <p style='margin: 2px 0; font-size: 13px; color: #475569;'><b>Puesto:</b> {puesto}</p>
                         <p style='margin: 2px 0; font-size: 13px; color: #475569;'><b>Líder:</b> {lider}</p>
@@ -1527,14 +1518,18 @@ def main():
                         <p style='margin: 6px 0 0 0; font-size: 13px; color: #4338ca;'><b>🥇 Sucesor 1:</b> {suc1 if suc1 else 'Pendiente'} <span style='font-size:11px; color:#64748b;'>{read1}</span></p>
                     </div>
                     """, unsafe_allow_html=True)
+                    
                 col_info1, col_info2 = st.columns(2)
                 with col_info1:
+                    titulo_ocupantes = f"👥 Ocupantes Actuales ({len(nombres_ocupantes)})"
                     if hasattr(st, 'popover'):
-                        with st.popover(f"👤 Ocupante Actual: {ocupante_actual}", use_container_width=True):
-                            mostrar_ficha_mini(ocupante_actual, df_completo)
+                        with st.popover(titulo_ocupantes, use_container_width=True):
+                            for ocupante in nombres_ocupantes:
+                                mostrar_ficha_mini(ocupante, df_completo)
                     else:
-                        with st.expander(f"👤 Ocupante Actual: {ocupante_actual}"):
-                            mostrar_ficha_mini(ocupante_actual, df_completo)
+                        with st.expander(titulo_ocupantes):
+                            for ocupante in nombres_ocupantes:
+                                mostrar_ficha_mini(ocupante, df_completo)
                             
                 with col_info2:
                     sucesores_pasados = []
@@ -1681,11 +1676,7 @@ def main():
                 submitted = st.button("💾 Guardar Cambios en Base de Datos", type="primary", use_container_width=True)
                 
                 if submitted:
-                    with st.spinner("🤖 El robot está escribiendo en tu Excel..."):
-                        idx_excel = idx_pandas + 2 
-                        match = re.search(r'/d/([a-zA-Z0-9-_]+)', link_archivo)
-                        doc_id = match.group(1) if match else link_archivo
-                        
+                    with st.spinner("🤖 El robot está escribiendo en tu Excel (Actualizando a todos los ocupantes de esta posición)..."):
                         try:
                             secretos = st.secrets["connections"]["gsheets"]
                             credenciales = Credentials.from_service_account_info(
@@ -1693,28 +1684,34 @@ def main():
                                 scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
                             )
                             cliente = gspread.authorize(credenciales)
+                            match = re.search(r'/d/([a-zA-Z0-9-_]+)', link_archivo)
+                            doc_id = match.group(1) if match else link_archivo
                             archivo = cliente.open_by_key(doc_id)
                             pestana = archivo.worksheet("Base de datos")
                             
-                            rango = f'I{idx_excel}:T{idx_excel}'
-                            celdas = pestana.range(rango)
-                            
-                            celdas[0].value = "Pendiente" if n_suc1 == "Pendiente" else n_suc1
-                            celdas[1].value = "Pendiente" if n_read1 == "Pendiente" else n_read1
-                            celdas[2].value = n_pos1
-                            celdas[3].value = n_opo1
-                            
-                            celdas[4].value = "Pendiente" if n_suc2 == "Pendiente" else n_suc2
-                            celdas[5].value = "Pendiente" if n_read2 == "Pendiente" else n_read2
-                            celdas[6].value = n_pos2
-                            celdas[7].value = n_opo2
-                            
-                            celdas[8].value = "Pendiente" if n_suc3 == "Pendiente" else n_suc3
-                            celdas[9].value = "Pendiente" if n_read3 == "Pendiente" else n_read3
-                            celdas[10].value = n_pos3
-                            celdas[11].value = n_opo3
-                            
-                            pestana.update_cells(celdas)
+                            # --- NUEVA LÓGICA DE GUARDADO MASIVO ---
+                            for idx_p in df_ocupantes.index:
+                                idx_excel = idx_p + 2 
+                                rango = f'I{idx_excel}:T{idx_excel}'
+                                celdas = pestana.range(rango)
+                                
+                                celdas[0].value = "Pendiente" if n_suc1 == "Pendiente" else n_suc1
+                                celdas[1].value = "Pendiente" if n_read1 == "Pendiente" else n_read1
+                                celdas[2].value = n_pos1
+                                celdas[3].value = n_opo1
+                                
+                                celdas[4].value = "Pendiente" if n_suc2 == "Pendiente" else n_suc2
+                                celdas[5].value = "Pendiente" if n_read2 == "Pendiente" else n_read2
+                                celdas[6].value = n_pos2
+                                celdas[7].value = n_opo2
+                                
+                                celdas[8].value = "Pendiente" if n_suc3 == "Pendiente" else n_suc3
+                                celdas[9].value = "Pendiente" if n_read3 == "Pendiente" else n_read3
+                                celdas[10].value = n_pos3
+                                celdas[11].value = n_opo3
+                                
+                                pestana.update_cells(celdas)
+                                time.sleep(0.5) 
                             
                             try:
                                 pestana_meta = archivo.worksheet("Metadata")
