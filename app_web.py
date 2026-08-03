@@ -1177,686 +1177,689 @@ def main():
         html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_edr, f_riesgos)
         
         if kpis is not None:
-            col_mapa, col_datos = st.columns([7, 3])
+            # --- NUEVA ARQUITECTURA DE PESTAÑAS (TABS) ---
+            tab_mapa, tab_sucesiones, tab_pdi = st.tabs([
+                "🗺️ Mapa Organizacional y KPIs", 
+                "🔀 Planificador de Sucesiones", 
+                "📈 Seguimiento de PDI"
+            ])
             
-            with col_mapa:
-                components.html(html_mapa, height=750, scrolling=False)
+            with tab_mapa:
+                col_mapa, col_datos = st.columns([7, 3])
                 
-            with col_datos:
-                st.markdown("### 📊 KPIs de Talento")
-                
-                k1, k2, k3, k4, k5, k6 = st.columns(6)
-                
-                with k1:
-                    st.markdown(crear_tarjeta_kpi("Total<br>Colab.", kpis['total'], "#3b82f6", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
-                    if st.button("🔍 Ver", key="b_tot", use_container_width=True):
-                        st.session_state["vista_kpi"] = "total"
-                with k2:
-                    st.markdown(crear_tarjeta_kpi("Sucesión<br>(Pos. Críticas)", kpis['sucesores'], "#8b5cf6", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
-                    if st.button("🔍 Ver", key="b_suc", use_container_width=True):
-                        st.session_state["vista_kpi"] = "sucesores"
-                with k3:
-                    st.markdown(crear_tarjeta_kpi("Desempeño<br>(EDR)", kpis['edr_count'], "#0284c7", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
-                    if st.button("🔍 Ver", key="b_edr", use_container_width=True):
-                        st.session_state["vista_kpi"] = "edr"
-                with k4:
-                    st.markdown(crear_tarjeta_kpi("Resultados<br>(9-Box)", kpis['nueve_box_count'], "#eab308", "#64748b", "#fefce8"), unsafe_allow_html=True)
-                    if st.button("🔍 Ver", key="b_9box", use_container_width=True):
-                        st.session_state["vista_kpi"] = "nueve_box"
-                with k5:
-                    st.markdown(crear_tarjeta_kpi("Alertas<br>Detect.", kpis['alertas'], "#e11d48", "#9f1239", "#fff1f2"), unsafe_allow_html=True)
-                    if st.button("🔍 Ver", key="b_ale", use_container_width=True):
-                        st.session_state["vista_kpi"] = "alertas"
-                with k6:
-                    st.markdown(crear_tarjeta_kpi("Promedio<br>Enganche", kpis['enganche_promedio'], "#14b8a6", "#0f766e", "#f0fdfa"), unsafe_allow_html=True)
-                    if st.button("🔍 Ver", key="b_eng", use_container_width=True):
-                        st.session_state["vista_kpi"] = "enganche"
-                
-                if st.session_state["vista_kpi"]:
-                    vista = st.session_state["vista_kpi"]
-                    titulos_kpi = {
-                        "total": "Total de Colaboradores", 
-                        "sucesores": "Sucesión de Posiciones Críticas",
-                        "edr": "Evaluación de Desempeño y Resultados (EDR)", 
-                        "nueve_box": "Evaluaciones 9-Box",
-                        "alertas": "Colaboradores con Riesgos / Alertas", 
-                        "enganche": "Nivel de Enganche de Líderes"
-                    }
+                with col_mapa:
+                    components.html(html_mapa, height=750, scrolling=False)
                     
-                    st.markdown(f"#### 📋 {titulos_kpi[vista]}")
-                    df_lista = pd.DataFrame(kpis[f"data_{vista}"])
+                with col_datos:
+                    st.markdown("### 📊 KPIs de Talento")
                     
-                    if not df_lista.empty:
-                        if vista == "alertas":
-                            df_lista = df_lista.drop_duplicates(subset=["Nombre", "Alerta"]).reset_index(drop=True)
-                        if direccion_permitida != "TODAS" and "Dirección" in df_lista.columns:
-                            df_lista = df_lista.drop(columns=["Dirección"])
-                        st.dataframe(df_lista, use_container_width=True, hide_index=True)
-                    else:
-                        st.info("No hay registros en esta categoría.")
+                    k1, k2, k3, k4, k5, k6 = st.columns(6)
+                    
+                    with k1:
+                        st.markdown(crear_tarjeta_kpi("Total<br>Colab.", kpis['total'], "#3b82f6", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
+                        if st.button("🔍 Ver", key="b_tot", use_container_width=True):
+                            st.session_state["vista_kpi"] = "total"
+                    with k2:
+                        st.markdown(crear_tarjeta_kpi("Sucesión<br>(Pos. Críticas)", kpis['sucesores'], "#8b5cf6", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
+                        if st.button("🔍 Ver", key="b_suc", use_container_width=True):
+                            st.session_state["vista_kpi"] = "sucesores"
+                    with k3:
+                        st.markdown(crear_tarjeta_kpi("Desempeño<br>(EDR)", kpis['edr_count'], "#0284c7", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
+                        if st.button("🔍 Ver", key="b_edr", use_container_width=True):
+                            st.session_state["vista_kpi"] = "edr"
+                    with k4:
+                        st.markdown(crear_tarjeta_kpi("Resultados<br>(9-Box)", kpis['nueve_box_count'], "#eab308", "#64748b", "#fefce8"), unsafe_allow_html=True)
+                        if st.button("🔍 Ver", key="b_9box", use_container_width=True):
+                            st.session_state["vista_kpi"] = "nueve_box"
+                    with k5:
+                        st.markdown(crear_tarjeta_kpi("Alertas<br>Detect.", kpis['alertas'], "#e11d48", "#9f1239", "#fff1f2"), unsafe_allow_html=True)
+                        if st.button("🔍 Ver", key="b_ale", use_container_width=True):
+                            st.session_state["vista_kpi"] = "alertas"
+                    with k6:
+                        st.markdown(crear_tarjeta_kpi("Promedio<br>Enganche", kpis['enganche_promedio'], "#14b8a6", "#0f766e", "#f0fdfa"), unsafe_allow_html=True)
+                        if st.button("🔍 Ver", key="b_eng", use_container_width=True):
+                            st.session_state["vista_kpi"] = "enganche"
+                    
+                    if st.session_state["vista_kpi"]:
+                        vista = st.session_state["vista_kpi"]
+                        titulos_kpi = {
+                            "total": "Total de Colaboradores", 
+                            "sucesores": "Sucesión de Posiciones Críticas",
+                            "edr": "Evaluación de Desempeño y Resultados (EDR)", 
+                            "nueve_box": "Evaluaciones 9-Box",
+                            "alertas": "Colaboradores con Riesgos / Alertas", 
+                            "enganche": "Nivel de Enganche de Líderes"
+                        }
                         
-                    if st.button("❌ Cerrar Lista", use_container_width=True):
-                        st.session_state["vista_kpi"] = None
-                        st.rerun()
-            
-            st.divider()
-            
-            # ==========================================
-            # PLANIFICADOR DE SUCESIONES + IA (Rollback)
-            # ==========================================
-            st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
-            
-            st.info("🔒 **Modo Presentación:** Selecciona a un líder aquí para limitar las posiciones críticas disponibles exclusivamente a su equipo. Útil para proyectar en pantalla durante reuniones para evitar fugas de información confidencial.")
-            
-            lideres_totales = sorted(list(set([dict_nom.get(clean_id(x), "Sin Líder") for x in df_seguro['ID Del Jefe'].dropna().unique() if clean_id(x)])))
-            f_lid_plan = st.selectbox("👤 Líder a revisar (Modo Privado):", ["Todos"] + lideres_totales, key="modo_pres_lider")
-            
-            def obtener_subordinados(lider_nombre):
-                lider_id = None
-                for i, n in dict_nom.items():
-                    if n == lider_nombre:
-                        lider_id = i
-                        break
-                if not lider_id: return set()
-                
-                subs = set()
-                cola = [lider_id]
-                while cola:
-                    actual = cola.pop(0)
-                    directos = df_seguro[df_seguro['ID Del Jefe'].apply(clean_id) == actual]['id Empleado'].apply(clean_id).tolist()
-                    for d in directos:
-                        if d and d not in subs:
-                            subs.add(d)
-                            cola.append(d)
-                return set([dict_nom.get(s) for s in subs if s in dict_nom])
-            
-            subordinados_permitidos = None
-            if f_lid_plan != "Todos":
-                subordinados_permitidos = obtener_subordinados(f_lid_plan)
-                subordinados_permitidos.add(f_lid_plan) 
-            
-            nombres_visibles_limpios = [str(d['Nombre']).strip().lower() for d in kpis['data_total']]
-            
-            df_posiciones_filtradas = df_seguro.copy()
-            df_posiciones_filtradas['Nombre_Cruce'] = df_posiciones_filtradas['Nombre'].astype(str).str.strip().str.lower()
-            
-            if f_lid_plan != "Todos":
-                sub_limpios = [str(x).strip().lower() for x in subordinados_permitidos]
-                df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Nombre_Cruce'].isin(sub_limpios)]
-            else:
-                df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Nombre_Cruce'].isin(nombres_visibles_limpios)]
-                
-            # Filtramos posiciones críticas y EXCLUIMOS AL DIRECTOR GENERAL (MLA 5)
-            df_posiciones_filtradas = df_posiciones_filtradas[
-                (df_posiciones_filtradas['Posición Crítica'].apply(clean_text).str.lower() == 'si') &
-                (df_posiciones_filtradas['Nivel MLA'].astype(str).str.strip() != '5') &
-                (~df_posiciones_filtradas['Nombre de la Posición'].astype(str).str.upper().str.contains('DIRECTOR GENERAL'))
-            ]
-            
-            def tiene_sucesor(row):
-                suc = clean_text(row.get('Sucesor P.1', row.get('Sucesor 1', '')))
-                return 1 if suc and suc.lower() not in ['pendiente', 'nan', 'none', '', 'no definido'] else 0
-                
-            df_posiciones_filtradas['Tiene_Sucesor'] = df_posiciones_filtradas.apply(tiene_sucesor, axis=1)
-            total_criticas = len(df_posiciones_filtradas)
-            sucesores_definidos = df_posiciones_filtradas['Tiene_Sucesor'].sum() if total_criticas > 0 else 0
-            sucesores_pendientes = total_criticas - sucesores_definidos
-            
-            col_k1, col_k2, col_k3 = st.columns(3)
-            with col_k1:
-                if st.button(f"📘 TOTAL CRÍTICAS: {total_criticas}", use_container_width=True):
-                    st.session_state['filtro_kpi_plan'] = 'todas'
-            with col_k2:
-                if st.button(f"✅ CON SUCESOR: {sucesores_definidos}", use_container_width=True):
-                    st.session_state['filtro_kpi_plan'] = 'con_sucesor'
-            with col_k3:
-                if st.button(f"🚨 PENDIENTES: {sucesores_pendientes}", use_container_width=True):
-                    st.session_state['filtro_kpi_plan'] = 'pendientes'
-            
-            if 'filtro_kpi_plan' in st.session_state and st.session_state['filtro_kpi_plan']:
-                modo = st.session_state['filtro_kpi_plan']
-                if modo == 'todas':
-                    df_mostrar = df_posiciones_filtradas
-                    titulo_lista = "Todas las Posiciones Críticas"
-                elif modo == 'con_sucesor':
-                    df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 1]
-                    titulo_lista = "Posiciones con Sucesor Asignado"
-                else:
-                    df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 0]
-                    titulo_lista = "Posiciones Pendientes de Sucesor"
-                
-                with st.container():
-                    st.markdown(f"#### 📋 {titulo_lista} (Haz clic para cargar)")
-                    if df_mostrar.empty:
-                        st.info("No hay posiciones en esta categoría.")
-                    else:
-                        cols_grid = st.columns(3)
-                        for i, (_, row) in enumerate(df_mostrar.iterrows()):
-                            p_name = clean_text(row.get('Nombre de la Posición'))
-                            if p_name:
-                                if cols_grid[i % 3].button(p_name, key=f"grid_btn_{i}_{modo}", use_container_width=True):
-                                    st.session_state['plan_pos'] = p_name
-                                    st.session_state['filtro_kpi_plan'] = None
-                                    st.rerun()
-                    
-                    if st.button("❌ Cerrar lista", key="cerrar_lista_kpi"):
-                        st.session_state['filtro_kpi_plan'] = None
-                        st.rerun()
-            
-            st.write("")
-            posiciones_opciones = sorted(list(set([clean_text(row.get('Nombre de la Posición')) for _, row in df_posiciones_filtradas.iterrows() if clean_text(row.get('Nombre de la Posición'))])))
-            
-            if 'plan_pos' in st.session_state and st.session_state['plan_pos'] not in [""] + posiciones_opciones:
-                st.session_state['plan_pos'] = ""
-
-            pos_seleccionada = st.selectbox("🔍 Selecciona la Posición Crítica para editar (Filtrada por tu selección global):", [""] + posiciones_opciones, key="plan_pos")
-            
-            def obtener_ficha_candidato(nombre_cand):
-                if not nombre_cand or nombre_cand == "Pendiente":
-                    return None
-                match_colab = df_completo[df_completo['Nombre'].astype(str).str.strip().str.lower() == nombre_cand.strip().lower()]
-                if match_colab.empty: return None
-                row_c = match_colab.iloc[0]
-                dir_candidato = clean_text(row_c.get('Dirección', row_c.get('Direccion')), 'No asignada')
-                
-                if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in dir_candidato.upper()):
-                    return "RESTRINGIDO_GLOBAL"
-                    
-                if f_lid_plan != "Todos":
-                    sub_limpios_lider = [str(x).strip().lower() for x in subordinados_permitidos]
-                    if nombre_cand.strip().lower() not in sub_limpios_lider:
-                        return "RESTRINGIDO_LIDER"
+                        st.markdown(f"#### 📋 {titulos_kpi[vista]}")
+                        df_lista = pd.DataFrame(kpis[f"data_{vista}"])
                         
-                puesto_actual = clean_text(row_c.get('Nombre de la Posición'), 'Puesto no asignado')
-                box_c = clean_text(row_c.get('Resultado 9 box'), 'Pendiente')
-                edr_c = clean_text(row_c.get('EDR', row_c.get('EDR ')), 'Pendiente')
-                eng_key = next((k for k in row_c.keys() if k and 'enganche' in str(k).lower()), None)
-                eng_c = clean_text(row_c.get(eng_key), 'N/A') if eng_key else 'N/A'
-                return {"puesto_actual": puesto_actual, "direccion": dir_candidato, "box": box_c, "enganche": eng_c, "edr": edr_c}
-            
-            dict_pdi_textos = {}
-            if not df_pdi.empty and 'Nombre' in df_pdi.columns:
-                col_obj = next((c for c in df_pdi.columns if 'objetivo' in str(c).lower()), None)
-                col_acciones = next((c for c in df_pdi.columns if 'acciones' in str(c).lower() or 'qué' in str(c).lower()), None)
-                for _, row_p in df_pdi.iterrows():
-                    nom = clean_text(row_p.get('Nombre')).lower()
-                    obj = clean_text(row_p.get(col_obj)) if col_obj else ""
-                    acc = clean_text(row_p.get(col_acciones)) if col_acciones else ""
-                    dict_pdi_textos[nom] = obj + " " + acc
-                    
-            def generar_sugerencias_ia(pos_destino, info_pos_destino):
-                if not pos_destino or df_completo.empty: return []
-                
-                mla_destino = clean_text(info_pos_destino.get('Nivel MLA'), '')
-                ocupante_destino = clean_text(info_pos_destino.get('Nombre'), '').lower()
-                
-                contexto_destino = extraer_contexto(pos_destino)
-                candidatos_sugeridos = []
-                
-                for _, row in df_completo.iterrows():
-                    nombre = clean_text(row.get('Nombre'))
-                    if not nombre or nombre.lower() == ocupante_destino: continue
-                        
-                    puesto_act = clean_text(row.get('Nombre de la Posición'))
-                    if puesto_act.lower() == pos_destino.lower(): continue
-                    
-                    contexto_cand_puesto = extraer_contexto(puesto_act)
-                    pdi_texto = dict_pdi_textos.get(nombre.lower(), "")
-                    contexto_cand_pdi = extraer_contexto(pdi_texto)
-                    
-                    perfil_tecnico_candidato = contexto_cand_puesto.union(contexto_cand_pdi)
-                    
-                    if not contexto_destino.intersection(perfil_tecnico_candidato):
-                        continue 
-                    
-                    box = clean_text(row.get('Resultado 9 box')).upper()
-                    if box not in ['1', '2', '3', '4', '5', '6']: continue 
-                    
-                    mla_cand = clean_text(row.get('Nivel MLA'))
-                    score = 0
-                    razones = []
-                    
-                    if contexto_destino.intersection(contexto_cand_puesto):
-                        score += 5
-                        razones.append("Afinidad técnica en puesto actual")
-                    elif contexto_destino.intersection(contexto_cand_pdi):
-                        score += 4
-                        razones.append("Desarrollando skills afines (PDI)")
-                        
-                    if box in ['1', '2', '3', '5']:
-                        score += 4
-                        razones.append("Alto Potencial (9-Box)")
-                    elif box in ['4', '6']:
-                        score += 2
-                        razones.append("Desempeño Sólido")
-                        
-                    if mla_destino.isdigit() and mla_cand.isdigit():
-                        diff = int(mla_destino) - int(mla_cand)
-                        if diff == 1:
-                            score += 3
-                            razones.append("Listo para ascenso (Nivel contiguo)")
-                        elif diff == 0:
-                            score += 2
-                            razones.append("Movimiento lateral orgánico")
+                        if not df_lista.empty:
+                            if vista == "alertas":
+                                df_lista = df_lista.drop_duplicates(subset=["Nombre", "Alerta"]).reset_index(drop=True)
+                            if direccion_permitida != "TODAS" and "Dirección" in df_lista.columns:
+                                df_lista = df_lista.drop(columns=["Dirección"])
+                            st.dataframe(df_lista, use_container_width=True, hide_index=True)
+                        else:
+                            st.info("No hay registros en esta categoría.")
                             
-                    if score >= 7: 
-                        candidatos_sugeridos.append({
-                            'nombre': nombre,
-                            'puesto': puesto_act,
-                            'direccion': clean_text(row.get('Dirección')),
-                            'box': box,
-                            'score': score,
-                            'razon': " | ".join(razones)
-                        })
-                        
-                return sorted(candidatos_sugeridos, key=lambda x: x['score'], reverse=True)[:3]
-
-            def diagnosticar_pdi_ia(nombre_cand, puesto_destino, info_cand):
-                if not nombre_cand or nombre_cand == "Pendiente" or isinstance(info_cand, str) or not info_cand: return None
-                if df_pdi.empty: return {"estatus": "SIN_DATOS", "msg": "No hay base de datos de PDI cargada."}
-                
-                match_pdi = df_pdi[df_pdi['Nombre'].astype(str).str.strip().str.lower() == nombre_cand.strip().lower()]
-                if match_pdi.empty:
-                    return {
-                        "estatus": "SIN_PDI", 
-                        "puesto_origen": info_cand['puesto_actual'],
-                        "recomendacion": f"🚨 **Acción Requerida:** El colaborador ocupa el puesto de *{info_cand['puesto_actual']}* pero NO tiene un PDI registrado. Se requiere crear un PDI enfocado en cerrar las brechas hacia la posición de *{puesto_destino}*."
-                    }
-                
-                col_obj = next((c for c in match_pdi.columns if 'objetivo' in str(c).lower()), None)
-                col_avance = next((c for c in match_pdi.columns if 'avance' in str(c).lower()), None)
-                col_acciones = next((c for c in match_pdi.columns if 'acciones' in str(c).lower() or 'qué' in str(c).lower()), None)
-                
-                row_p = match_pdi.iloc[0]
-                obj_pdi = clean_text(row_p.get(col_obj), 'Sin objetivo definido') if col_obj else 'Sin objetivo'
-                avance_pdi = clean_text(row_p.get(col_avance), '0%') if col_avance else '0%'
-                acciones_pdi = clean_text(row_p.get(col_acciones), 'Sin acciones descritas') if col_acciones else 'Sin acciones'
-                
-                contexto_destino = extraer_contexto(puesto_destino)
-                contexto_pdi = extraer_contexto(obj_pdi + " " + acciones_pdi)
-                
-                coincidencias = contexto_destino.intersection(contexto_pdi)
-                puesto_origen = info_cand['puesto_actual']
-                
-                if len(coincidencias) > 0:
-                    return {
-                        "estatus": "ALINEADO", "icono": "✅", "titulo_estatus": "PDI Alineado a la Posición",
-                        "color_borde": "#16a34a", "bg_color": "#f0fdf4", "puesto_origen": puesto_origen,
-                        "objetivo": obj_pdi, "avance": avance_pdi, "acciones": acciones_pdi,
-                        "recomendacion": f"El PDI actual está **correctamente enfocado** en la posición de *{puesto_destino}*. Con un avance del **{avance_pdi}**, las acciones en curso cubren las competencias requeridas. Mantenimiento del plan actual."
-                    }
-                else:
-                    return {
-                        "estatus": "REQUIERE_AJUSTE", "icono": "🟡", "titulo_estatus": "Ajuste Recomendado al PDI",
-                        "color_borde": "#ca8a04", "bg_color": "#fefce8", "puesto_origen": puesto_origen,
-                        "objetivo": obj_pdi, "avance": avance_pdi, "acciones": acciones_pdi,
-                        "recomendacion": f"💡 **Recomendación IA:** El candidato actualmente es *{puesto_origen}*. Su PDI está orientado a '_{obj_pdi}_'. Para asegurar su éxito hacia *{puesto_destino}*, se recomienda **actualizar sus Acciones de Desarrollo** agregando competencias técnicas específicas del nuevo puesto."
-                    }
-
-            if pos_seleccionada:
-                df_ocupantes = df_posiciones_filtradas[df_posiciones_filtradas['Nombre de la Posición'].apply(clean_text) == pos_seleccionada]
-                info_pos = df_ocupantes.iloc[0] 
-                nombres_ocupantes = [clean_text(n, 'Vacante / Sin asignar') for n in df_ocupantes['Nombre'].tolist()]
-                
-                st.markdown(f"#### 📌 Posición Crítica: `{pos_seleccionada}`")
-                
-                def mostrar_ficha_mini(nombre_cand, df_db):
-                    if not nombre_cand or nombre_cand in ["Pendiente", "Vacante / Sin asignar", "No definido"]:
-                        st.info("Sin información de ocupante")
-                        return
-                        
-                    match = df_db[df_db['Nombre'].astype(str).str.strip().str.lower() == nombre_cand.strip().lower()]
-                    if match.empty:
-                        st.warning("Colaborador no encontrado en la base.")
-                        return
-                        
-                    row = match.iloc[0]
-                    nombres_db = {clean_id(r.get('id Empleado')): clean_text(r.get('Nombre')) for _, r in df_db.iterrows()}
-                    def get_nom(val):
-                        v = clean_id(val)
-                        return nombres_db.get(v, val)
-                    
-                    puesto = clean_text(row.get('Nombre de la Posición', 'N/A'))
-                    lider = get_nom(row.get('ID Del Jefe', ''))
-                    dir_c = clean_text(row.get('Dirección', row.get('Direccion', 'N/A')))
-                    crit = clean_text(row.get('Posición Crítica', row.get('Posicion Critica', 'No')))
-                    mla = clean_text(row.get('Nivel MLA', 'N/A'))
-                    box = clean_text(row.get('Resultado 9 box', 'Pendiente'))
-                    
-                    edr_key = next((k for k in row.keys() if k and 'edr' in str(k).lower()), None)
-                    edr = clean_text(row.get(edr_key, 'Pendiente')) if edr_key else 'Pendiente'
-                    
-                    eng_key = next((k for k in row.keys() if k and 'enganche' in str(k).lower()), None)
-                    eng = clean_text(row.get(eng_key, 'N/A')) if eng_key else 'N/A'
-                    
-                    suc1 = get_nom(row.get('Sucesor P.1', row.get('Sucesor 1', '')))
-                    read1 = clean_text(row.get('Tiempo de Readiness 1', ''))
-                    
-                    st.markdown(f"""
-                    <div style='padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; font-family: sans-serif; background: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-bottom: 10px;'>
-                        <h4 style='margin-top: 0; color: #1e3a8a; font-size: 18px;'>{nombre_cand}</h4>
-                        <p style='margin: 2px 0; font-size: 13px; color: #475569;'><b>Puesto:</b> {puesto}</p>
-                        <p style='margin: 2px 0; font-size: 13px; color: #475569;'><b>Líder:</b> {lider}</p>
-                        <p style='margin: 2px 0; font-size: 13px; color: #475569;'><b>Dirección:</b> {dir_c}</p>
-                        <hr style='margin: 10px 0; border: 0; border-top: 1px dashed #cbd5e1;'>
-                        <div style='display: flex; gap: 8px; margin-bottom: 10px;'>
-                            <span style='background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>MLA: {mla}</span>
-                            <span style='background: #f1f5f9; color: #334155; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>9-BOX: {box}</span>
-                            <span style='background: #f1f5f9; color: #334155; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>EDR: {edr}</span>
-                        </div>
-                        <p style='margin: 0; font-size: 13px; color: #b91c1c;'><b>🔥 Enganche Individual:</b> {eng}</p>
-                        <p style='margin: 6px 0 0 0; font-size: 13px; color: #4338ca;'><b>🥇 Sucesor 1:</b> {suc1 if suc1 else 'Pendiente'} <span style='font-size:11px; color:#64748b;'>{read1}</span></p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                col_info1, col_info2 = st.columns(2)
-                with col_info1:
-                    titulo_ocupantes = f"👥 Ocupantes Actuales ({len(nombres_ocupantes)})"
-                    if hasattr(st, 'popover'):
-                        with st.popover(titulo_ocupantes, use_container_width=True):
-                            for ocupante in nombres_ocupantes:
-                                mostrar_ficha_mini(ocupante, df_completo)
-                    else:
-                        with st.expander(titulo_ocupantes):
-                            for ocupante in nombres_ocupantes:
-                                mostrar_ficha_mini(ocupante, df_completo)
-                            
-                with col_info2:
-                    sucesores_pasados = []
-                    try:
-                        columnas_historial = ["1. Sucesor 2025", "2. Sucesor 2025", "3. Sucesor 2025", "4. Sucesor 2025"]
-                        for col_name in info_pos.index:
-                            if isinstance(col_name, str) and (col_name in columnas_historial or bool(re.search(r'Sucesor 20\d\d', col_name, re.IGNORECASE))):
-                                val = clean_text(info_pos.get(col_name, ''))
-                                if val and val.lower() not in ['nan', 'none', 'pendiente', '', 'n/a', 'no definido']:
-                                    if val not in sucesores_pasados:
-                                        sucesores_pasados.append(val)
-                    except Exception:
-                        pass
-                    
-                    if hasattr(st, 'popover'):
-                        with st.popover("⏳ Sucesores del Año Pasado", use_container_width=True):
-                            if sucesores_pasados:
-                                for s_pasado in sucesores_pasados:
-                                    st.markdown(f"- {s_pasado}")
-                            else:
-                                st.info("No hay historial registrado en el Excel")
-                    else:
-                        with st.expander("⏳ Sucesores del Año Pasado"):
-                            if sucesores_pasados:
-                                for s_pasado in sucesores_pasados:
-                                    st.markdown(f"- {s_pasado}")
-                            else:
-                                st.info("No hay historial registrado en el Excel")
-                
-                st.write("")
-                with st.expander("🤖 Mostrar Sugerencias de Sucesión (IA de Diccionario)"):
-                    st.info("Haz clic en el botón para que la IA escanee la base en busca de afinidad con el puesto.")
-                    if st.button("✨ Generar Sugerencias con IA", use_container_width=True):
-                        with st.spinner("🧠 Buscando cruces de perfiles..."):
-                            sugerencias = generar_sugerencias_ia(pos_seleccionada, info_pos)
-                            
-                            if sugerencias:
-                                items_html = ""
-                                for s in sugerencias:
-                                    if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in s['direccion'].upper()):
-                                        info_vis = "🔒 <i>Detalles confidenciales (Otra Dirección)</i>"
-                                    elif f_lid_plan != "Todos" and s['nombre'].strip().lower() not in [str(x).strip().lower() for x in subordinados_permitidos]:
-                                        info_vis = "🔒 <i>Detalles confidenciales (Modo Presentación Activo)</i>"
-                                    else:
-                                        info_vis = f"📌 Puesto Actual: <b>{s['puesto']}</b> | 📊 9-Box: <b>{s['box']}</b>"
-                                        
-                                    items_html += f"<li>👤 <b>{s['nombre']}</b> — {info_vis}<br><span style='color:#0369a1;'>💡 {s['razon']}</span></li>"
-                                    
-                                st.markdown(f"""
-                                <div style="background:#e0f2fe; border-left:5px solid #0284c7; padding:12px; border-radius:8px; margin-bottom:5px; font-size:13px; color:#0f172a;">
-                                    <ul style="margin:8px 0 0 0; padding-left:20px; line-height:1.5;">
-                                        {items_html}
-                                    </ul>
-                                </div>
-                                """, unsafe_allow_html=True)
-                            else:
-                                st.warning("⚠️ **Dictamen IA:** No se detectaron candidatos en la plantilla actual que cumplan con los criterios estrictos para esta posición crítica. **Se sugiere reclutamiento externo.**")
-                
-                # LA LISTA DESPLEGABLE SIEMPRE MUESTRA A TODOS LOS COLABORADORES DE LA EMPRESA
-                nombres_empleados = sorted([clean_text(n) for n in df_completo['Nombre'].dropna().unique() if clean_text(n)])
-                
-                opciones_sucesores = ["Pendiente"] + nombres_empleados
-                opciones_tiempo = ["Pendiente", "Inmediato", "1 a 3 años", "Más de 3 años"]
-                
-                c_suc_emergencia = clean_text(info_pos.get('Sucesor de emergencia', 'Pendiente')) or "Pendiente"
-                c_suc1 = clean_text(info_pos.get('Sucesor P.1', 'Pendiente')) or "Pendiente"
-                c_read1 = clean_text(info_pos.get('Tiempo de Readiness 1', 'Pendiente')) or "Pendiente"
-                c_pos1 = clean_text(info_pos.get('Positivo', info_pos.get('Positivo 1', '')))
-                c_opo1 = clean_text(info_pos.get('Oportunidad', info_pos.get('Oportunidad 1', '')))
-                
-                c_suc2 = clean_text(info_pos.get('Sucesor P.2', 'Pendiente')) or "Pendiente"
-                c_read2 = clean_text(info_pos.get('Tiempo de Readiness 2', 'Pendiente')) or "Pendiente"
-                c_pos2 = clean_text(info_pos.get('Positivo.1', info_pos.get('Positivo 2', '')))
-                c_opo2 = clean_text(info_pos.get('Oportunidad.1', info_pos.get('Oportunidad 2', '')))
-                
-                c_suc3 = clean_text(info_pos.get('Sucesor P.3', 'Pendiente')) or "Pendiente"
-                c_read3 = clean_text(info_pos.get('Tiempo de Readiness 3', 'Pendiente')) or "Pendiente"
-                c_pos3 = clean_text(info_pos.get('Positivo.2', info_pos.get('Positivo 3', '')))
-                c_opo3 = clean_text(info_pos.get('Oportunidad.2', info_pos.get('Oportunidad 3', '')))
-                
-                if c_suc_emergencia not in opciones_sucesores: opciones_sucesores.append(c_suc_emergencia)
-                if c_suc1 not in opciones_sucesores: opciones_sucesores.append(c_suc1)
-                if c_suc2 not in opciones_sucesores: opciones_sucesores.append(c_suc2)
-                if c_suc3 not in opciones_sucesores: opciones_sucesores.append(c_suc3)
-                if c_read1 not in opciones_tiempo: opciones_tiempo.append(c_read1)
-                if c_read2 not in opciones_tiempo: opciones_tiempo.append(c_read2)
-                if c_read3 not in opciones_tiempo: opciones_tiempo.append(c_read3)
-                
-                st.write("")
-                st.markdown("#### 🚨 Cobertura de Emergencia")
-                n_suc_emergencia = st.selectbox("Candidato de Emergencia", opciones_sucesores, index=opciones_sucesores.index(c_suc_emergencia), key=f"select_emergencia_{pos_seleccionada}")
-                
-                ficha_emergencia = obtener_ficha_candidato(n_suc_emergencia)
-                if ficha_emergencia == "RESTRINGIDO_GLOBAL":
-                    st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
-                elif ficha_emergencia == "RESTRINGIDO_LIDER":
-                    st.error("🔒 Modo Presentación: Información confidencial oculta (Colaborador ajeno al equipo del líder actual).")
-                elif ficha_emergencia:
-                    st.success(f"📊 **9-Box:** {ficha_emergencia['box']} | 🔥 **Enganche:** {ficha_emergencia['enganche']} | 📈 **EDR:** {ficha_emergencia['edr']}")
-                
-                st.write("---")
-                
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    st.markdown("#### 🥇 Sucesor 1")
-                    n_suc1 = st.selectbox("Candidato 1", opciones_sucesores, index=opciones_sucesores.index(c_suc1), key=f"select_suc1_{pos_seleccionada}")
-                    
-                    ficha1 = obtener_ficha_candidato(n_suc1)
-                    if ficha1 == "RESTRINGIDO_GLOBAL":
-                        st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
-                    elif ficha1 == "RESTRINGIDO_LIDER":
-                        st.error("🔒 Modo Presentación: Información confidencial oculta (Colaborador ajeno al equipo del líder actual).")
-                    elif ficha1:
-                        st.success(f"📊 **9-Box:** {ficha1['box']} | 🔥 **Enganche:** {ficha1['enganche']} | 📈 **EDR:** {ficha1['edr']}")
-                        pdi_diag1 = diagnosticar_pdi_ia(n_suc1, pos_seleccionada, ficha1)
-                        if pdi_diag1 and pdi_diag1.get("estatus") == "SIN_PDI":
-                            st.warning(pdi_diag1['recomendacion'])
-                        elif pdi_diag1 and "color_borde" in pdi_diag1:
-                            st.markdown(f"<details style='background:{pdi_diag1['bg_color']}; border-left:4px solid {pdi_diag1['color_borde']}; padding:12px; border-radius:6px; cursor:pointer;'><summary style='font-weight:bold; font-size:15px; color:#1e293b; outline:none;'>🤖 Dictamen IA: {pdi_diag1['icono']} {pdi_diag1['titulo_estatus']}</summary><div style='margin-top:10px; font-size:14px; color:#334155; line-height:1.5;'>🎯 <b>Objetivo PDI:</b> {pdi_diag1['objetivo']} (Avance: <b>{pdi_diag1['avance']}</b>)<br><br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag1['recomendacion']}</div></details>", unsafe_allow_html=True)
-                            
-                    n_read1 = st.selectbox("Readiness 1", opciones_tiempo, index=opciones_tiempo.index(c_read1), key=f"select_read1_{pos_seleccionada}")
-                    n_pos1 = st.text_area("👍 Comentarios Positivos 1", value=c_pos1, height=68, key=f"t_pos1_{pos_seleccionada}")
-                    n_opo1 = st.text_area("📈 Áreas de Oportunidad 1", value=c_opo1, height=68, key=f"t_opo1_{pos_seleccionada}")
-                    
-                with col2:
-                    st.markdown("#### 🥈 Sucesor 2")
-                    n_suc2 = st.selectbox("Candidato 2", opciones_sucesores, index=opciones_sucesores.index(c_suc2), key=f"select_suc2_{pos_seleccionada}")
-                    
-                    ficha2 = obtener_ficha_candidato(n_suc2)
-                    if ficha2 == "RESTRINGIDO_GLOBAL":
-                        st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
-                    elif ficha2 == "RESTRINGIDO_LIDER":
-                        st.error("🔒 Modo Presentación: Información confidencial oculta (Colaborador ajeno al equipo del líder actual).")
-                    elif ficha2:
-                        st.success(f"📊 **9-Box:** {ficha2['box']} | 🔥 **Enganche:** {ficha2['enganche']} | 📈 **EDR:** {ficha2['edr']}")
-                        pdi_diag2 = diagnosticar_pdi_ia(n_suc2, pos_seleccionada, ficha2)
-                        if pdi_diag2 and pdi_diag2.get("estatus") == "SIN_PDI":
-                            st.warning(pdi_diag2['recomendacion'])
-                        elif pdi_diag2 and "color_borde" in pdi_diag2:
-                            st.markdown(f"<details style='background:{pdi_diag2['bg_color']}; border-left:4px solid {pdi_diag2['color_borde']}; padding:12px; border-radius:6px; cursor:pointer;'><summary style='font-weight:bold; font-size:15px; color:#1e293b; outline:none;'>🤖 Dictamen IA: {pdi_diag2['icono']} {pdi_diag2['titulo_estatus']}</summary><div style='margin-top:10px; font-size:14px; color:#334155; line-height:1.5;'>🎯 <b>Objetivo PDI:</b> {pdi_diag2['objetivo']} (Avance: <b>{pdi_diag2['avance']}</b>)<br><br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag2['recomendacion']}</div></details>", unsafe_allow_html=True)
-                            
-                    n_read2 = st.selectbox("Readiness 2", opciones_tiempo, index=opciones_tiempo.index(c_read2), key=f"select_read2_{pos_seleccionada}")
-                    n_pos2 = st.text_area("👍 Comentarios Positivos 2", value=c_pos2, height=68, key=f"t_pos2_{pos_seleccionada}")
-                    n_opo2 = st.text_area("📈 Áreas de Oportunidad 2", value=c_opo2, height=68, key=f"t_opo2_{pos_seleccionada}")
-                    
-                with col3:
-                    st.markdown("#### 🥉 Sucesor 3")
-                    n_suc3 = st.selectbox("Candidato 3", opciones_sucesores, index=opciones_sucesores.index(c_suc3), key=f"select_suc3_{pos_seleccionada}")
-                    
-                    ficha3 = obtener_ficha_candidato(n_suc3)
-                    if ficha3 == "RESTRINGIDO_GLOBAL":
-                        st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
-                    elif ficha3 == "RESTRINGIDO_LIDER":
-                        st.error("🔒 Modo Presentación: Información confidencial oculta (Colaborador ajeno al equipo del líder actual).")
-                    elif ficha3:
-                        st.success(f"📊 **9-Box:** {ficha3['box']} | 🔥 **Enganche:** {ficha3['enganche']} | 📈 **EDR:** {ficha3['edr']}")
-                        pdi_diag3 = diagnosticar_pdi_ia(n_suc3, pos_seleccionada, ficha3)
-                        if pdi_diag3 and pdi_diag3.get("estatus") == "SIN_PDI":
-                            st.warning(pdi_diag3['recomendacion'])
-                        elif pdi_diag3 and "color_borde" in pdi_diag3:
-                            st.markdown(f"<details style='background:{pdi_diag3['bg_color']}; border-left:4px solid {pdi_diag3['color_borde']}; padding:12px; border-radius:6px; cursor:pointer;'><summary style='font-weight:bold; font-size:15px; color:#1e293b; outline:none;'>🤖 Dictamen IA: {pdi_diag3['icono']} {pdi_diag3['titulo_estatus']}</summary><div style='margin-top:10px; font-size:14px; color:#334155; line-height:1.5;'>🎯 <b>Objetivo PDI:</b> {pdi_diag3['objetivo']} (Avance: <b>{pdi_diag3['avance']}</b>)<br><br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag3['recomendacion']}</div></details>", unsafe_allow_html=True)
-                            
-                    n_read3 = st.selectbox("Readiness 3", opciones_tiempo, index=opciones_tiempo.index(c_read3), key=f"select_read3_{pos_seleccionada}")
-                    n_pos3 = st.text_area("👍 Comentarios Positivos 3", value=c_pos3, height=68, key=f"t_pos3_{pos_seleccionada}")
-                    n_opo3 = st.text_area("📈 Áreas de Oportunidad 3", value=c_opo3, height=68, key=f"t_opo3_{pos_seleccionada}")
-                
-                st.write("---")
-                st.markdown("#### 📋 Plan de Acción / Comentarios Adicionales")
-                st.info("Utiliza este espacio para justificar si no hay sucesores o detallar el plan a seguir.")
-                
-                c_plan_accion = clean_text(info_pos.iloc[25]) if len(info_pos) > 25 else ""
-                n_plan_accion = st.text_area("Comentarios del Plan de Acción:", value=c_plan_accion, height=100, key=f"t_plan_accion_{pos_seleccionada}")
-                
-                st.write("")
-                submitted = st.button("💾 Guardar Cambios en Base de Datos", type="primary", use_container_width=True)
-                
-                if submitted:
-                    with st.spinner("🤖 El robot está escribiendo en tu Excel (Actualizando a todos los ocupantes de esta posición)..."):
-                        try:
-                            secretos = st.secrets["connections"]["gsheets"]
-                            credenciales = Credentials.from_service_account_info(
-                                secretos,
-                                scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-                            )
-                            cliente = gspread.authorize(credenciales)
-                            match = re.search(r'/d/([a-zA-Z0-9-_]+)', link_archivo)
-                            doc_id = match.group(1) if match else link_archivo
-                            archivo = cliente.open_by_key(doc_id)
-                            pestana = archivo.worksheet("Base de datos")
-                            
-                            for idx_p in df_ocupantes.index:
-                                idx_excel = idx_p + 2 
-                                rango = f'I{idx_excel}:Z{idx_excel}'
-                                celdas = pestana.range(rango)
-                                
-                                celdas[0].value = "Pendiente" if n_suc_emergencia == "Pendiente" else n_suc_emergencia
-                                celdas[1].value = "Pendiente" if n_suc1 == "Pendiente" else n_suc1
-                                celdas[2].value = "Pendiente" if n_read1 == "Pendiente" else n_read1
-                                celdas[3].value = n_pos1
-                                celdas[4].value = n_opo1
-                                
-                                celdas[5].value = "Pendiente" if n_suc2 == "Pendiente" else n_suc2
-                                celdas[6].value = "Pendiente" if n_read2 == "Pendiente" else n_read2
-                                celdas[7].value = n_pos2
-                                celdas[8].value = n_opo2
-                                
-                                celdas[9].value = "Pendiente" if n_suc3 == "Pendiente" else n_suc3
-                                celdas[10].value = "Pendiente" if n_read3 == "Pendiente" else n_read3
-                                celdas[11].value = n_pos3
-                                celdas[12].value = n_opo3
-                                
-                                if len(celdas) > 17:
-                                    celdas[17].value = n_plan_accion
-                                
-                                pestana.update_cells(celdas)
-                                time.sleep(0.5) 
-                            
-                            try:
-                                pestana_meta = archivo.worksheet("Metadata")
-                                pestana_meta.update_acell('A1', str(time.time()))
-                            except Exception:
-                                pass 
-                            
-                            st.success("✅ ¡Guardado exitosamente! El mapa se está actualizando...")
-                            st.cache_data.clear()
+                        if st.button("❌ Cerrar Lista", use_container_width=True):
+                            st.session_state["vista_kpi"] = None
                             st.rerun()
-                            
-                        except Exception as e:
-                            st.error(f"❌ Error técnico al intentar escribir en el Excel: {e}")
-            st.divider()
             
-            # ==========================================
-            # INTEGRACIÓN: TABLA AVANCE PDI
-            # ==========================================
-            st.markdown("### 📈 Avance de PDI (Integrado)")
-            
-            if not df_pdi.empty and 'Nombre' in df_pdi.columns:
+            with tab_sucesiones:
+                # ==========================================
+                # PLANIFICADOR DE SUCESIONES + IA (Rollback)
+                # ==========================================
+                st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
+                
+                st.info("🔒 **Modo Presentación:** Selecciona a un líder aquí para limitar las posiciones críticas disponibles exclusivamente a su equipo. Útil para proyectar en pantalla durante reuniones para evitar fugas de información confidencial.")
+                
+                lideres_totales = sorted(list(set([dict_nom.get(clean_id(x), "Sin Líder") for x in df_seguro['ID Del Jefe'].dropna().unique() if clean_id(x)])))
+                f_lid_plan = st.selectbox("👤 Líder a revisar (Modo Privado):", ["Todos"] + lideres_totales, key="modo_pres_lider")
+                
+                def obtener_subordinados(lider_nombre):
+                    lider_id = None
+                    for i, n in dict_nom.items():
+                        if n == lider_nombre:
+                            lider_id = i
+                            break
+                    if not lider_id: return set()
+                    
+                    subs = set()
+                    cola = [lider_id]
+                    while cola:
+                        actual = cola.pop(0)
+                        directos = df_seguro[df_seguro['ID Del Jefe'].apply(clean_id) == actual]['id Empleado'].apply(clean_id).tolist()
+                        for d in directos:
+                            if d and d not in subs:
+                                subs.add(d)
+                                cola.append(d)
+                    return set([dict_nom.get(s) for s in subs if s in dict_nom])
+                
+                subordinados_permitidos = None
+                if f_lid_plan != "Todos":
+                    subordinados_permitidos = obtener_subordinados(f_lid_plan)
+                    subordinados_permitidos.add(f_lid_plan) 
+                
                 nombres_visibles_limpios = [str(d['Nombre']).strip().lower() for d in kpis['data_total']]
-                df_pdi_filtrado = df_pdi.copy()
-                df_pdi_filtrado['Nombre_Cruce'] = df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower()
+                
+                df_posiciones_filtradas = df_seguro.copy()
+                df_posiciones_filtradas['Nombre_Cruce'] = df_posiciones_filtradas['Nombre'].astype(str).str.strip().str.lower()
                 
                 if f_lid_plan != "Todos":
-                    sub_limpios_pdi = [str(x).strip().lower() for x in subordinados_permitidos]
-                    df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre_Cruce'].isin(sub_limpios_pdi)]
+                    sub_limpios = [str(x).strip().lower() for x in subordinados_permitidos]
+                    df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Nombre_Cruce'].isin(sub_limpios)]
                 else:
-                    df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre_Cruce'].isin(nombres_visibles_limpios)]
-                
-                columnas_deseadas = {
-                    "Nombre": "Nombre", "Posicion": "Posicion", "Dirección actual": "Dirección", 
-                    "Objetivo a Desar": "Objetivo", "PDI": "PDI", "Clasificacion de": "Clasificacion",
-                    "Qué? / Acciones de Desarrollo": "Qué? / Acciones de Desarrollo", 
-                    "% de Avance": "% de Avance", "Estatus": "Estatus"
-                }
-                
-                cols_reales = []
-                nombres_finales = []
-                for col_orig, nombre_nuevo in columnas_deseadas.items():
-                    col_match = next((c for c in df_pdi_filtrado.columns if col_orig.lower() in str(c).lower()), None)
-                    if col_match:
-                        cols_reales.append(col_match)
-                        nombres_finales.append(nombre_nuevo)
-                
-                if cols_reales:
-                    df_pdi_mostrar = df_pdi_filtrado[cols_reales].copy()
-                    df_pdi_mostrar.columns = nombres_finales
+                    df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Nombre_Cruce'].isin(nombres_visibles_limpios)]
                     
-                    if direccion_permitida != "TODAS" and "Dirección" in df_pdi_mostrar.columns:
-                        df_pdi_mostrar = df_pdi_mostrar.drop(columns=["Dirección"])
+                df_posiciones_filtradas = df_posiciones_filtradas[
+                    (df_posiciones_filtradas['Posición Crítica'].apply(clean_text).str.lower() == 'si') &
+                    (df_posiciones_filtradas['Nivel MLA'].astype(str).str.strip() != '5') &
+                    (~df_posiciones_filtradas['Nombre de la Posición'].astype(str).str.upper().str.contains('DIRECTOR GENERAL'))
+                ]
+                
+                def tiene_sucesor(row):
+                    suc = clean_text(row.get('Sucesor P.1', row.get('Sucesor 1', '')))
+                    return 1 if suc and suc.lower() not in ['pendiente', 'nan', 'none', '', 'no definido'] else 0
                     
-                    col_p1, col_p2, col_p3 = st.columns(3)
+                df_posiciones_filtradas['Tiene_Sucesor'] = df_posiciones_filtradas.apply(tiene_sucesor, axis=1)
+                total_criticas = len(df_posiciones_filtradas)
+                sucesores_definidos = df_posiciones_filtradas['Tiene_Sucesor'].sum() if total_criticas > 0 else 0
+                sucesores_pendientes = total_criticas - sucesores_definidos
+                
+                col_k1, col_k2, col_k3 = st.columns(3)
+                with col_k1:
+                    if st.button(f"📘 TOTAL CRÍTICAS: {total_criticas}", use_container_width=True):
+                        st.session_state['filtro_kpi_plan'] = 'todas'
+                with col_k2:
+                    if st.button(f"✅ CON SUCESOR: {sucesores_definidos}", use_container_width=True):
+                        st.session_state['filtro_kpi_plan'] = 'con_sucesor'
+                with col_k3:
+                    if st.button(f"🚨 PENDIENTES: {sucesores_pendientes}", use_container_width=True):
+                        st.session_state['filtro_kpi_plan'] = 'pendientes'
+                
+                if 'filtro_kpi_plan' in st.session_state and st.session_state['filtro_kpi_plan']:
+                    modo = st.session_state['filtro_kpi_plan']
+                    if modo == 'todas':
+                        df_mostrar = df_posiciones_filtradas
+                        titulo_lista = "Todas las Posiciones Críticas"
+                    elif modo == 'con_sucesor':
+                        df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 1]
+                        titulo_lista = "Posiciones con Sucesor Asignado"
+                    else:
+                        df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 0]
+                        titulo_lista = "Posiciones Pendientes de Sucesor"
                     
-                    if "Nombre" in df_pdi_mostrar.columns:
-                        lista_nombres_pdi = sorted(df_pdi_mostrar['Nombre'].dropna().astype(str).unique().tolist())
-                        filtro_nombre = col_p1.multiselect("👤 Filtrar por Nombre:", options=lista_nombres_pdi)
-                        if filtro_nombre:
-                            df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Nombre'].isin(filtro_nombre)]
+                    with st.container():
+                        st.markdown(f"#### 📋 {titulo_lista} (Haz clic para cargar)")
+                        if df_mostrar.empty:
+                            st.info("No hay posiciones en esta categoría.")
+                        else:
+                            cols_grid = st.columns(3)
+                            for i, (_, row) in enumerate(df_mostrar.iterrows()):
+                                p_name = clean_text(row.get('Nombre de la Posición'))
+                                if p_name:
+                                    if cols_grid[i % 3].button(p_name, key=f"grid_btn_{i}_{modo}", use_container_width=True):
+                                        st.session_state['plan_pos'] = p_name
+                                        st.session_state['filtro_kpi_plan'] = None
+                                        st.rerun()
+                        
+                        if st.button("❌ Cerrar lista", key="cerrar_lista_kpi"):
+                            st.session_state['filtro_kpi_plan'] = None
+                            st.rerun()
+                
+                st.write("")
+                posiciones_opciones = sorted(list(set([clean_text(row.get('Nombre de la Posición')) for _, row in df_posiciones_filtradas.iterrows() if clean_text(row.get('Nombre de la Posición'))])))
+                
+                if 'plan_pos' in st.session_state and st.session_state['plan_pos'] not in [""] + posiciones_opciones:
+                    st.session_state['plan_pos'] = ""
+
+                pos_seleccionada = st.selectbox("🔍 Selecciona la Posición Crítica para editar (Filtrada por tu selección global):", [""] + posiciones_opciones, key="plan_pos")
+                
+                def obtener_ficha_candidato(nombre_cand):
+                    if not nombre_cand or nombre_cand == "Pendiente":
+                        return None
+                    match_colab = df_completo[df_completo['Nombre'].astype(str).str.strip().str.lower() == nombre_cand.strip().lower()]
+                    if match_colab.empty: return None
+                    row_c = match_colab.iloc[0]
+                    dir_candidato = clean_text(row_c.get('Dirección', row_c.get('Direccion')), 'No asignada')
+                    
+                    if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in dir_candidato.upper()):
+                        return "RESTRINGIDO_GLOBAL"
+                        
+                    if f_lid_plan != "Todos":
+                        sub_limpios_lider = [str(x).strip().lower() for x in subordinados_permitidos]
+                        if nombre_cand.strip().lower() not in sub_limpios_lider:
+                            return "RESTRINGIDO_LIDER"
                             
-                    if "Clasificacion" in df_pdi_mostrar.columns:
-                        lista_clasif_pdi = sorted(df_pdi_mostrar['Clasificacion'].dropna().astype(str).unique().tolist())
-                        filtro_clasif = col_p2.multiselect("🏷️ Filtrar por Clasificación:", options=lista_clasif_pdi)
-                        if filtro_clasif:
-                            df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Clasificacion'].isin(filtro_clasif)]
-                            
-                    if "Estatus" in df_pdi_mostrar.columns:
-                        lista_estatus_pdi = sorted(df_pdi_mostrar['Estatus'].dropna().astype(str).unique().tolist())
-                        filtro_estatus = col_p3.multiselect("🚦 Filtrar por Estatus:", options=lista_estatus_pdi)
-                        if filtro_estatus:
-                            df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Estatus'].isin(filtro_estatus)]
+                    puesto_actual = clean_text(row_c.get('Nombre de la Posición'), 'Puesto no asignado')
+                    box_c = clean_text(row_c.get('Resultado 9 box'), 'Pendiente')
+                    edr_c = clean_text(row_c.get('EDR', row_c.get('EDR ')), 'Pendiente')
+                    eng_key = next((k for k in row_c.keys() if k and 'enganche' in str(k).lower()), None)
+                    eng_c = clean_text(row_c.get(eng_key), 'N/A') if eng_key else 'N/A'
+                    return {"puesto_actual": puesto_actual, "direccion": dir_candidato, "box": box_c, "enganche": eng_c, "edr": edr_c}
+                
+                dict_pdi_textos = {}
+                if not df_pdi.empty and 'Nombre' in df_pdi.columns:
+                    col_obj = next((c for c in df_pdi.columns if 'objetivo' in str(c).lower()), None)
+                    col_acciones = next((c for c in df_pdi.columns if 'acciones' in str(c).lower() or 'qué' in str(c).lower()), None)
+                    for _, row_p in df_pdi.iterrows():
+                        nom = clean_text(row_p.get('Nombre')).lower()
+                        obj = clean_text(row_p.get(col_obj)) if col_obj else ""
+                        acc = clean_text(row_p.get(col_acciones)) if col_acciones else ""
+                        dict_pdi_textos[nom] = obj + " " + acc
+                        
+                def generar_sugerencias_ia(pos_destino, info_pos_destino):
+                    if not pos_destino or df_completo.empty: return []
                     
-                    st.dataframe(df_pdi_mostrar, use_container_width=True, hide_index=True)
-                else:
-                    st.warning("⚠️ No se encontraron las columnas especificadas en la hoja PDI. Revisa los nombres en tu Excel.")
-            else:
-                st.warning("⚠️ No se pudo cargar la información de la pestaña PDI (O está vacía).")
-        else:
-            components.html(html_mapa, height=400)
+                    mla_destino = clean_text(info_pos_destino.get('Nivel MLA'), '')
+                    ocupante_destino = clean_text(info_pos_destino.get('Nombre'), '').lower()
+                    
+                    contexto_destino = extraer_contexto(pos_destino)
+                    candidatos_sugeridos = []
+                    
+                    for _, row in df_completo.iterrows():
+                        nombre = clean_text(row.get('Nombre'))
+                        if not nombre or nombre.lower() == ocupante_destino: continue
+                            
+                        puesto_act = clean_text(row.get('Nombre de la Posición'))
+                        if puesto_act.lower() == pos_destino.lower(): continue
+                        
+                        contexto_cand_puesto = extraer_contexto(puesto_act)
+                        pdi_texto = dict_pdi_textos.get(nombre.lower(), "")
+                        contexto_cand_pdi = extraer_contexto(pdi_texto)
+                        
+                        perfil_tecnico_candidato = contexto_cand_puesto.union(contexto_cand_pdi)
+                        
+                        if not contexto_destino.intersection(perfil_tecnico_candidato):
+                            continue 
+                        
+                        box = clean_text(row.get('Resultado 9 box')).upper()
+                        if box not in ['1', '2', '3', '4', '5', '6']: continue 
+                        
+                        mla_cand = clean_text(row.get('Nivel MLA'))
+                        score = 0
+                        razones = []
+                        
+                        if contexto_destino.intersection(contexto_cand_puesto):
+                            score += 5
+                            razones.append("Afinidad técnica en puesto actual")
+                        elif contexto_destino.intersection(contexto_cand_pdi):
+                            score += 4
+                            razones.append("Desarrollando skills afines (PDI)")
+                            
+                        if box in ['1', '2', '3', '5']:
+                            score += 4
+                            razones.append("Alto Potencial (9-Box)")
+                        elif box in ['4', '6']:
+                            score += 2
+                            razones.append("Desempeño Sólido")
+                            
+                        if mla_destino.isdigit() and mla_cand.isdigit():
+                            diff = int(mla_destino) - int(mla_cand)
+                            if diff == 1:
+                                score += 3
+                                razones.append("Listo para ascenso (Nivel contiguo)")
+                            elif diff == 0:
+                                score += 2
+                                razones.append("Movimiento lateral orgánico")
+                                
+                        if score >= 7: 
+                            candidatos_sugeridos.append({
+                                'nombre': nombre,
+                                'puesto': puesto_act,
+                                'direccion': clean_text(row.get('Dirección')),
+                                'box': box,
+                                'score': score,
+                                'razon': " | ".join(razones)
+                            })
+                            
+                    return sorted(candidatos_sugeridos, key=lambda x: x['score'], reverse=True)[:3]
+
+                def diagnosticar_pdi_ia(nombre_cand, puesto_destino, info_cand):
+                    if not nombre_cand or nombre_cand == "Pendiente" or isinstance(info_cand, str) or not info_cand: return None
+                    if df_pdi.empty: return {"estatus": "SIN_DATOS", "msg": "No hay base de datos de PDI cargada."}
+                    
+                    match_pdi = df_pdi[df_pdi['Nombre'].astype(str).str.strip().str.lower() == nombre_cand.strip().lower()]
+                    if match_pdi.empty:
+                        return {
+                            "estatus": "SIN_PDI", 
+                            "puesto_origen": info_cand['puesto_actual'],
+                            "recomendacion": f"🚨 **Acción Requerida:** El colaborador ocupa el puesto de *{info_cand['puesto_actual']}* pero NO tiene un PDI registrado. Se requiere crear un PDI enfocado en cerrar las brechas hacia la posición de *{puesto_destino}*."
+                        }
+                    
+                    col_obj = next((c for c in match_pdi.columns if 'objetivo' in str(c).lower()), None)
+                    col_avance = next((c for c in match_pdi.columns if 'avance' in str(c).lower()), None)
+                    col_acciones = next((c for c in match_pdi.columns if 'acciones' in str(c).lower() or 'qué' in str(c).lower()), None)
+                    
+                    row_p = match_pdi.iloc[0]
+                    obj_pdi = clean_text(row_p.get(col_obj), 'Sin objetivo definido') if col_obj else 'Sin objetivo'
+                    avance_pdi = clean_text(row_p.get(col_avance), '0%') if col_avance else '0%'
+                    acciones_pdi = clean_text(row_p.get(col_acciones), 'Sin acciones descritas') if col_acciones else 'Sin acciones'
+                    
+                    contexto_destino = extraer_contexto(puesto_destino)
+                    contexto_pdi = extraer_contexto(obj_pdi + " " + acciones_pdi)
+                    
+                    coincidencias = contexto_destino.intersection(contexto_pdi)
+                    puesto_origen = info_cand['puesto_actual']
+                    
+                    if len(coincidencias) > 0:
+                        return {
+                            "estatus": "ALINEADO", "icono": "✅", "titulo_estatus": "PDI Alineado a la Posición",
+                            "color_borde": "#16a34a", "bg_color": "#f0fdf4", "puesto_origen": puesto_origen,
+                            "objetivo": obj_pdi, "avance": avance_pdi, "acciones": acciones_pdi,
+                            "recomendacion": f"El PDI actual está **correctamente enfocado** en la posición de *{puesto_destino}*. Con un avance del **{avance_pdi}**, las acciones en curso cubren las competencias requeridas. Mantenimiento del plan actual."
+                        }
+                    else:
+                        return {
+                            "estatus": "REQUIERE_AJUSTE", "icono": "🟡", "titulo_estatus": "Ajuste Recomendado al PDI",
+                            "color_borde": "#ca8a04", "bg_color": "#fefce8", "puesto_origen": puesto_origen,
+                            "objetivo": obj_pdi, "avance": avance_pdi, "acciones": acciones_pdi,
+                            "recomendacion": f"💡 **Recomendación IA:** El candidato actualmente es *{puesto_origen}*. Su PDI está orientado a '_{obj_pdi}_'. Para asegurar su éxito hacia *{puesto_destino}*, se recomienda **actualizar sus Acciones de Desarrollo** agregando competencias técnicas específicas del nuevo puesto."
+                        }
+
+                if pos_seleccionada:
+                    df_ocupantes = df_posiciones_filtradas[df_posiciones_filtradas['Nombre de la Posición'].apply(clean_text) == pos_seleccionada]
+                    info_pos = df_ocupantes.iloc[0] 
+                    nombres_ocupantes = [clean_text(n, 'Vacante / Sin asignar') for n in df_ocupantes['Nombre'].tolist()]
+                    
+                    st.markdown(f"#### 📌 Posición Crítica: `{pos_seleccionada}`")
+                    
+                    def mostrar_ficha_mini(nombre_cand, df_db):
+                        if not nombre_cand or nombre_cand in ["Pendiente", "Vacante / Sin asignar", "No definido"]:
+                            st.info("Sin información de ocupante")
+                            return
+                            
+                        match = df_db[df_db['Nombre'].astype(str).str.strip().str.lower() == nombre_cand.strip().lower()]
+                        if match.empty:
+                            st.warning("Colaborador no encontrado en la base.")
+                            return
+                            
+                        row = match.iloc[0]
+                        nombres_db = {clean_id(r.get('id Empleado')): clean_text(r.get('Nombre')) for _, r in df_db.iterrows()}
+                        def get_nom(val):
+                            v = clean_id(val)
+                            return nombres_db.get(v, val)
+                        
+                        puesto = clean_text(row.get('Nombre de la Posición', 'N/A'))
+                        lider = get_nom(row.get('ID Del Jefe', ''))
+                        dir_c = clean_text(row.get('Dirección', row.get('Direccion', 'N/A')))
+                        crit = clean_text(row.get('Posición Crítica', row.get('Posicion Critica', 'No')))
+                        mla = clean_text(row.get('Nivel MLA', 'N/A'))
+                        box = clean_text(row.get('Resultado 9 box', 'Pendiente'))
+                        
+                        edr_key = next((k for k in row.keys() if k and 'edr' in str(k).lower()), None)
+                        edr = clean_text(row.get(edr_key, 'Pendiente')) if edr_key else 'Pendiente'
+                        
+                        eng_key = next((k for k in row.keys() if k and 'enganche' in str(k).lower()), None)
+                        eng = clean_text(row.get(eng_key, 'N/A')) if eng_key else 'N/A'
+                        
+                        suc1 = get_nom(row.get('Sucesor P.1', row.get('Sucesor 1', '')))
+                        read1 = clean_text(row.get('Tiempo de Readiness 1', ''))
+                        
+                        st.markdown(f"""
+                        <div style='padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; font-family: sans-serif; background: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-bottom: 10px;'>
+                            <h4 style='margin-top: 0; color: #1e3a8a; font-size: 18px;'>{nombre_cand}</h4>
+                            <p style='margin: 2px 0; font-size: 13px; color: #475569;'><b>Puesto:</b> {puesto}</p>
+                            <p style='margin: 2px 0; font-size: 13px; color: #475569;'><b>Líder:</b> {lider}</p>
+                            <p style='margin: 2px 0; font-size: 13px; color: #475569;'><b>Dirección:</b> {dir_c}</p>
+                            <hr style='margin: 10px 0; border: 0; border-top: 1px dashed #cbd5e1;'>
+                            <div style='display: flex; gap: 8px; margin-bottom: 10px;'>
+                                <span style='background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>MLA: {mla}</span>
+                                <span style='background: #f1f5f9; color: #334155; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>9-BOX: {box}</span>
+                                <span style='background: #f1f5f9; color: #334155; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>EDR: {edr}</span>
+                            </div>
+                            <p style='margin: 0; font-size: 13px; color: #b91c1c;'><b>🔥 Enganche Individual:</b> {eng}</p>
+                            <p style='margin: 6px 0 0 0; font-size: 13px; color: #4338ca;'><b>🥇 Sucesor 1:</b> {suc1 if suc1 else 'Pendiente'} <span style='font-size:11px; color:#64748b;'>{read1}</span></p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                    col_info1, col_info2 = st.columns(2)
+                    with col_info1:
+                        titulo_ocupantes = f"👥 Ocupantes Actuales ({len(nombres_ocupantes)})"
+                        if hasattr(st, 'popover'):
+                            with st.popover(titulo_ocupantes, use_container_width=True):
+                                for ocupante in nombres_ocupantes:
+                                    mostrar_ficha_mini(ocupante, df_completo)
+                        else:
+                            with st.expander(titulo_ocupantes):
+                                for ocupante in nombres_ocupantes:
+                                    mostrar_ficha_mini(ocupante, df_completo)
+                                
+                    with col_info2:
+                        sucesores_pasados = []
+                        try:
+                            columnas_historial = ["1. Sucesor 2025", "2. Sucesor 2025", "3. Sucesor 2025", "4. Sucesor 2025"]
+                            for col_name in info_pos.index:
+                                if isinstance(col_name, str) and (col_name in columnas_historial or bool(re.search(r'Sucesor 20\d\d', col_name, re.IGNORECASE))):
+                                    val = clean_text(info_pos.get(col_name, ''))
+                                    if val and val.lower() not in ['nan', 'none', 'pendiente', '', 'n/a', 'no definido']:
+                                        if val not in sucesores_pasados:
+                                            sucesores_pasados.append(val)
+                        except Exception:
+                            pass
+                        
+                        if hasattr(st, 'popover'):
+                            with st.popover("⏳ Sucesores del Año Pasado", use_container_width=True):
+                                if sucesores_pasados:
+                                    for s_pasado in sucesores_pasados:
+                                        st.markdown(f"- {s_pasado}")
+                                else:
+                                    st.info("No hay historial registrado en el Excel")
+                        else:
+                            with st.expander("⏳ Sucesores del Año Pasado"):
+                                if sucesores_pasados:
+                                    for s_pasado in sucesores_pasados:
+                                        st.markdown(f"- {s_pasado}")
+                                else:
+                                    st.info("No hay historial registrado en el Excel")
+                    
+                    st.write("")
+                    with st.expander("🤖 Mostrar Sugerencias de Sucesión (IA de Diccionario)"):
+                        st.info("Haz clic en el botón para que la IA escanee la base en busca de afinidad con el puesto.")
+                        if st.button("✨ Generar Sugerencias con IA", use_container_width=True):
+                            with st.spinner("🧠 Buscando cruces de perfiles..."):
+                                sugerencias = generar_sugerencias_ia(pos_seleccionada, info_pos)
+                                
+                                if sugerencias:
+                                    items_html = ""
+                                    for s in sugerencias:
+                                        if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in s['direccion'].upper()):
+                                            info_vis = "🔒 <i>Detalles confidenciales (Otra Dirección)</i>"
+                                        elif f_lid_plan != "Todos" and s['nombre'].strip().lower() not in [str(x).strip().lower() for x in subordinados_permitidos]:
+                                            info_vis = "🔒 <i>Detalles confidenciales (Modo Presentación Activo)</i>"
+                                        else:
+                                            info_vis = f"📌 Puesto Actual: <b>{s['puesto']}</b> | 📊 9-Box: <b>{s['box']}</b>"
+                                            
+                                        items_html += f"<li>👤 <b>{s['nombre']}</b> — {info_vis}<br><span style='color:#0369a1;'>💡 {s['razon']}</span></li>"
+                                        
+                                    st.markdown(f"""
+                                    <div style="background:#e0f2fe; border-left:5px solid #0284c7; padding:12px; border-radius:8px; margin-bottom:5px; font-size:13px; color:#0f172a;">
+                                        <ul style="margin:8px 0 0 0; padding-left:20px; line-height:1.5;">
+                                            {items_html}
+                                        </ul>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                else:
+                                    st.warning("⚠️ **Dictamen IA:** No se detectaron candidatos en la plantilla actual que cumplan con los criterios estrictos para esta posición crítica. **Se sugiere reclutamiento externo.**")
+                    
+                    nombres_empleados = sorted([clean_text(n) for n in df_completo['Nombre'].dropna().unique() if clean_text(n)])
+                    
+                    opciones_sucesores = ["Pendiente"] + nombres_empleados
+                    opciones_tiempo = ["Pendiente", "Inmediato", "1 a 3 años", "Más de 3 años"]
+                    
+                    c_suc_emergencia = clean_text(info_pos.get('Sucesor de emergencia', 'Pendiente')) or "Pendiente"
+                    c_suc1 = clean_text(info_pos.get('Sucesor P.1', 'Pendiente')) or "Pendiente"
+                    c_read1 = clean_text(info_pos.get('Tiempo de Readiness 1', 'Pendiente')) or "Pendiente"
+                    c_pos1 = clean_text(info_pos.get('Positivo', info_pos.get('Positivo 1', '')))
+                    c_opo1 = clean_text(info_pos.get('Oportunidad', info_pos.get('Oportunidad 1', '')))
+                    
+                    c_suc2 = clean_text(info_pos.get('Sucesor P.2', 'Pendiente')) or "Pendiente"
+                    c_read2 = clean_text(info_pos.get('Tiempo de Readiness 2', 'Pendiente')) or "Pendiente"
+                    c_pos2 = clean_text(info_pos.get('Positivo.1', info_pos.get('Positivo 2', '')))
+                    c_opo2 = clean_text(info_pos.get('Oportunidad.1', info_pos.get('Oportunidad 2', '')))
+                    
+                    c_suc3 = clean_text(info_pos.get('Sucesor P.3', 'Pendiente')) or "Pendiente"
+                    c_read3 = clean_text(info_pos.get('Tiempo de Readiness 3', 'Pendiente')) or "Pendiente"
+                    c_pos3 = clean_text(info_pos.get('Positivo.2', info_pos.get('Positivo 3', '')))
+                    c_opo3 = clean_text(info_pos.get('Oportunidad.2', info_pos.get('Oportunidad 3', '')))
+                    
+                    if c_suc_emergencia not in opciones_sucesores: opciones_sucesores.append(c_suc_emergencia)
+                    if c_suc1 not in opciones_sucesores: opciones_sucesores.append(c_suc1)
+                    if c_suc2 not in opciones_sucesores: opciones_sucesores.append(c_suc2)
+                    if c_suc3 not in opciones_sucesores: opciones_sucesores.append(c_suc3)
+                    if c_read1 not in opciones_tiempo: opciones_tiempo.append(c_read1)
+                    if c_read2 not in opciones_tiempo: opciones_tiempo.append(c_read2)
+                    if c_read3 not in opciones_tiempo: opciones_tiempo.append(c_read3)
+                    
+                    st.write("")
+                    st.markdown("#### 🚨 Cobertura de Emergencia")
+                    n_suc_emergencia = st.selectbox("Candidato de Emergencia", opciones_sucesores, index=opciones_sucesores.index(c_suc_emergencia), key=f"select_emergencia_{pos_seleccionada}")
+                    
+                    ficha_emergencia = obtener_ficha_candidato(n_suc_emergencia)
+                    if ficha_emergencia == "RESTRINGIDO_GLOBAL":
+                        st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
+                    elif ficha_emergencia == "RESTRINGIDO_LIDER":
+                        st.error("🔒 Modo Presentación: Información confidencial oculta (Colaborador ajeno al equipo del líder actual).")
+                    elif ficha_emergencia:
+                        st.success(f"📊 **9-Box:** {ficha_emergencia['box']} | 🔥 **Enganche:** {ficha_emergencia['enganche']} | 📈 **EDR:** {ficha_emergencia['edr']}")
+                    
+                    st.write("---")
+                    
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        st.markdown("#### 🥇 Sucesor 1")
+                        n_suc1 = st.selectbox("Candidato 1", opciones_sucesores, index=opciones_sucesores.index(c_suc1), key=f"select_suc1_{pos_seleccionada}")
+                        
+                        ficha1 = obtener_ficha_candidato(n_suc1)
+                        if ficha1 == "RESTRINGIDO_GLOBAL":
+                            st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
+                        elif ficha1 == "RESTRINGIDO_LIDER":
+                            st.error("🔒 Modo Presentación: Información confidencial oculta (Colaborador ajeno al equipo del líder actual).")
+                        elif ficha1:
+                            st.success(f"📊 **9-Box:** {ficha1['box']} | 🔥 **Enganche:** {ficha1['enganche']} | 📈 **EDR:** {ficha1['edr']}")
+                            pdi_diag1 = diagnosticar_pdi_ia(n_suc1, pos_seleccionada, ficha1)
+                            if pdi_diag1 and pdi_diag1.get("estatus") == "SIN_PDI":
+                                st.warning(pdi_diag1['recomendacion'])
+                            elif pdi_diag1 and "color_borde" in pdi_diag1:
+                                st.markdown(f"<details style='background:{pdi_diag1['bg_color']}; border-left:4px solid {pdi_diag1['color_borde']}; padding:12px; border-radius:6px; cursor:pointer;'><summary style='font-weight:bold; font-size:15px; color:#1e293b; outline:none;'>🤖 Dictamen IA: {pdi_diag1['icono']} {pdi_diag1['titulo_estatus']}</summary><div style='margin-top:10px; font-size:14px; color:#334155; line-height:1.5;'>🎯 <b>Objetivo PDI:</b> {pdi_diag1['objetivo']} (Avance: <b>{pdi_diag1['avance']}</b>)<br><br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag1['recomendacion']}</div></details>", unsafe_allow_html=True)
+                                
+                        n_read1 = st.selectbox("Readiness 1", opciones_tiempo, index=opciones_tiempo.index(c_read1), key=f"select_read1_{pos_seleccionada}")
+                        n_pos1 = st.text_area("👍 Comentarios Positivos 1", value=c_pos1, height=68, key=f"t_pos1_{pos_seleccionada}")
+                        n_opo1 = st.text_area("📈 Áreas de Oportunidad 1", value=c_opo1, height=68, key=f"t_opo1_{pos_seleccionada}")
+                        
+                    with col2:
+                        st.markdown("#### 🥈 Sucesor 2")
+                        n_suc2 = st.selectbox("Candidato 2", opciones_sucesores, index=opciones_sucesores.index(c_suc2), key=f"select_suc2_{pos_seleccionada}")
+                        
+                        ficha2 = obtener_ficha_candidato(n_suc2)
+                        if ficha2 == "RESTRINGIDO_GLOBAL":
+                            st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
+                        elif ficha2 == "RESTRINGIDO_LIDER":
+                            st.error("🔒 Modo Presentación: Información confidencial oculta (Colaborador ajeno al equipo del líder actual).")
+                        elif ficha2:
+                            st.success(f"📊 **9-Box:** {ficha2['box']} | 🔥 **Enganche:** {ficha2['enganche']} | 📈 **EDR:** {ficha2['edr']}")
+                            pdi_diag2 = diagnosticar_pdi_ia(n_suc2, pos_seleccionada, ficha2)
+                            if pdi_diag2 and pdi_diag2.get("estatus") == "SIN_PDI":
+                                st.warning(pdi_diag2['recomendacion'])
+                            elif pdi_diag2 and "color_borde" in pdi_diag2:
+                                st.markdown(f"<details style='background:{pdi_diag2['bg_color']}; border-left:4px solid {pdi_diag2['color_borde']}; padding:12px; border-radius:6px; cursor:pointer;'><summary style='font-weight:bold; font-size:15px; color:#1e293b; outline:none;'>🤖 Dictamen IA: {pdi_diag2['icono']} {pdi_diag2['titulo_estatus']}</summary><div style='margin-top:10px; font-size:14px; color:#334155; line-height:1.5;'>🎯 <b>Objetivo PDI:</b> {pdi_diag2['objetivo']} (Avance: <b>{pdi_diag2['avance']}</b>)<br><br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag2['recomendacion']}</div></details>", unsafe_allow_html=True)
+                                
+                        n_read2 = st.selectbox("Readiness 2", opciones_tiempo, index=opciones_tiempo.index(c_read2), key=f"select_read2_{pos_seleccionada}")
+                        n_pos2 = st.text_area("👍 Comentarios Positivos 2", value=c_pos2, height=68, key=f"t_pos2_{pos_seleccionada}")
+                        n_opo2 = st.text_area("📈 Áreas de Oportunidad 2", value=c_opo2, height=68, key=f"t_opo2_{pos_seleccionada}")
+                        
+                    with col3:
+                        st.markdown("#### 🥉 Sucesor 3")
+                        n_suc3 = st.selectbox("Candidato 3", opciones_sucesores, index=opciones_sucesores.index(c_suc3), key=f"select_suc3_{pos_seleccionada}")
+                        
+                        ficha3 = obtener_ficha_candidato(n_suc3)
+                        if ficha3 == "RESTRINGIDO_GLOBAL":
+                            st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
+                        elif ficha3 == "RESTRINGIDO_LIDER":
+                            st.error("🔒 Modo Presentación: Información confidencial oculta (Colaborador ajeno al equipo del líder actual).")
+                        elif ficha3:
+                            st.success(f"📊 **9-Box:** {ficha3['box']} | 🔥 **Enganche:** {ficha3['enganche']} | 📈 **EDR:** {ficha3['edr']}")
+                            pdi_diag3 = diagnosticar_pdi_ia(n_suc3, pos_seleccionada, ficha3)
+                            if pdi_diag3 and pdi_diag3.get("estatus") == "SIN_PDI":
+                                st.warning(pdi_diag3['recomendacion'])
+                            elif pdi_diag3 and "color_borde" in pdi_diag3:
+                                st.markdown(f"<details style='background:{pdi_diag3['bg_color']}; border-left:4px solid {pdi_diag3['color_borde']}; padding:12px; border-radius:6px; cursor:pointer;'><summary style='font-weight:bold; font-size:15px; color:#1e293b; outline:none;'>🤖 Dictamen IA: {pdi_diag3['icono']} {pdi_diag3['titulo_estatus']}</summary><div style='margin-top:10px; font-size:14px; color:#334155; line-height:1.5;'>🎯 <b>Objetivo PDI:</b> {pdi_diag3['objetivo']} (Avance: <b>{pdi_diag3['avance']}</b>)<br><br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag3['recomendacion']}</div></details>", unsafe_allow_html=True)
+                                
+                        n_read3 = st.selectbox("Readiness 3", opciones_tiempo, index=opciones_tiempo.index(c_read3), key=f"select_read3_{pos_seleccionada}")
+                        n_pos3 = st.text_area("👍 Comentarios Positivos 3", value=c_pos3, height=68, key=f"t_pos3_{pos_seleccionada}")
+                        n_opo3 = st.text_area("📈 Áreas de Oportunidad 3", value=c_opo3, height=68, key=f"t_opo3_{pos_seleccionada}")
+                    
+                    st.write("---")
+                    st.markdown("#### 📋 Plan de Acción / Comentarios Adicionales")
+                    st.info("Utiliza este espacio para justificar si no hay sucesores o detallar el plan a seguir.")
+                    
+                    c_plan_accion = clean_text(info_pos.iloc[25]) if len(info_pos) > 25 else ""
+                    n_plan_accion = st.text_area("Comentarios del Plan de Acción:", value=c_plan_accion, height=100, key=f"t_plan_accion_{pos_seleccionada}")
+                    
+                    st.write("")
+                    submitted = st.button("💾 Guardar Cambios en Base de Datos", type="primary", use_container_width=True)
+                    
+                    if submitted:
+                        with st.spinner("🤖 El robot está escribiendo en tu Excel (Actualizando a todos los ocupantes de esta posición)..."):
+                            try:
+                                secretos = st.secrets["connections"]["gsheets"]
+                                credenciales = Credentials.from_service_account_info(
+                                    secretos,
+                                    scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+                                )
+                                cliente = gspread.authorize(credenciales)
+                                match = re.search(r'/d/([a-zA-Z0-9-_]+)', link_archivo)
+                                doc_id = match.group(1) if match else link_archivo
+                                archivo = cliente.open_by_key(doc_id)
+                                pestana = archivo.worksheet("Base de datos")
+                                
+                                for idx_p in df_ocupantes.index:
+                                    idx_excel = idx_p + 2 
+                                    rango = f'I{idx_excel}:Z{idx_excel}'
+                                    celdas = pestana.range(rango)
+                                    
+                                    celdas[0].value = "Pendiente" if n_suc_emergencia == "Pendiente" else n_suc_emergencia
+                                    celdas[1].value = "Pendiente" if n_suc1 == "Pendiente" else n_suc1
+                                    celdas[2].value = "Pendiente" if n_read1 == "Pendiente" else n_read1
+                                    celdas[3].value = n_pos1
+                                    celdas[4].value = n_opo1
+                                    
+                                    celdas[5].value = "Pendiente" if n_suc2 == "Pendiente" else n_suc2
+                                    celdas[6].value = "Pendiente" if n_read2 == "Pendiente" else n_read2
+                                    celdas[7].value = n_pos2
+                                    celdas[8].value = n_opo2
+                                    
+                                    celdas[9].value = "Pendiente" if n_suc3 == "Pendiente" else n_suc3
+                                    celdas[10].value = "Pendiente" if n_read3 == "Pendiente" else n_read3
+                                    celdas[11].value = n_pos3
+                                    celdas[12].value = n_opo3
+                                    
+                                    if len(celdas) > 17:
+                                        celdas[17].value = n_plan_accion
+                                    
+                                    pestana.update_cells(celdas)
+                                    time.sleep(0.5) 
+                                
+                                try:
+                                    pestana_meta = archivo.worksheet("Metadata")
+                                    pestana_meta.update_acell('A1', str(time.time()))
+                                except Exception:
+                                    pass 
+                                
+                                st.success("✅ ¡Guardado exitosamente! El mapa se está actualizando...")
+                                st.cache_data.clear()
+                                st.rerun()
+                                
+                            except Exception as e:
+                                st.error(f"❌ Error técnico al intentar escribir en el Excel: {e}")
             
+            with tab_pdi:
+                # ==========================================
+                # INTEGRACIÓN: TABLA AVANCE PDI
+                # ==========================================
+                st.markdown("### 📈 Avance de PDI (Integrado)")
+                
+                if not df_pdi.empty and 'Nombre' in df_pdi.columns:
+                    nombres_visibles_limpios = [str(d['Nombre']).strip().lower() for d in kpis['data_total']]
+                    df_pdi_filtrado = df_pdi.copy()
+                    df_pdi_filtrado['Nombre_Cruce'] = df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower()
+                    
+                    if f_lid_plan != "Todos":
+                        sub_limpios_pdi = [str(x).strip().lower() for x in subordinados_permitidos]
+                        df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre_Cruce'].isin(sub_limpios_pdi)]
+                    else:
+                        df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre_Cruce'].isin(nombres_visibles_limpios)]
+                    
+                    columnas_deseadas = {
+                        "Nombre": "Nombre", "Posicion": "Posicion", "Dirección actual": "Dirección", 
+                        "Objetivo a Desar": "Objetivo", "PDI": "PDI", "Clasificacion de": "Clasificacion",
+                        "Qué? / Acciones de Desarrollo": "Qué? / Acciones de Desarrollo", 
+                        "% de Avance": "% de Avance", "Estatus": "Estatus"
+                    }
+                    
+                    cols_reales = []
+                    nombres_finales = []
+                    for col_orig, nombre_nuevo in columnas_deseadas.items():
+                        col_match = next((c for c in df_pdi_filtrado.columns if col_orig.lower() in str(c).lower()), None)
+                        if col_match:
+                            cols_reales.append(col_match)
+                            nombres_finales.append(nombre_nuevo)
+                    
+                    if cols_reales:
+                        df_pdi_mostrar = df_pdi_filtrado[cols_reales].copy()
+                        df_pdi_mostrar.columns = nombres_finales
+                        
+                        if direccion_permitida != "TODAS" and "Dirección" in df_pdi_mostrar.columns:
+                            df_pdi_mostrar = df_pdi_mostrar.drop(columns=["Dirección"])
+                        
+                        col_p1, col_p2, col_p3 = st.columns(3)
+                        
+                        if "Nombre" in df_pdi_mostrar.columns:
+                            lista_nombres_pdi = sorted(df_pdi_mostrar['Nombre'].dropna().astype(str).unique().tolist())
+                            filtro_nombre = col_p1.multiselect("👤 Filtrar por Nombre:", options=lista_nombres_pdi)
+                            if filtro_nombre:
+                                df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Nombre'].isin(filtro_nombre)]
+                                
+                        if "Clasificacion" in df_pdi_mostrar.columns:
+                            lista_clasif_pdi = sorted(df_pdi_mostrar['Clasificacion'].dropna().astype(str).unique().tolist())
+                            filtro_clasif = col_p2.multiselect("🏷️ Filtrar por Clasificación:", options=lista_clasif_pdi)
+                            if filtro_clasif:
+                                df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Clasificacion'].isin(filtro_clasif)]
+                                
+                        if "Estatus" in df_pdi_mostrar.columns:
+                            lista_estatus_pdi = sorted(df_pdi_mostrar['Estatus'].dropna().astype(str).unique().tolist())
+                            filtro_estatus = col_p3.multiselect("🚦 Filtrar por Estatus:", options=lista_estatus_pdi)
+                            if filtro_estatus:
+                                df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Estatus'].isin(filtro_estatus)]
+                        
+                        st.dataframe(df_pdi_mostrar, use_container_width=True, hide_index=True)
+                    else:
+                        st.warning("⚠️ No se encontraron las columnas especificadas en la hoja PDI. Revisa los nombres en tu Excel.")
+                else:
+                    st.warning("⚠️ No se pudo cargar la información de la pestaña PDI (O está vacía).")
+                    
 if __name__ == "__main__":
     main()
