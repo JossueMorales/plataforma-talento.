@@ -72,14 +72,12 @@ BOTON_HTML = """
             <div><span style="font-size: 11px; color: #777; font-weight: bold;">9-BOX</span><br><span id="f9Box" style="display: inline-block; padding: 2px 8px; border-radius: 12px; background: #eee; font-size: 13px; font-weight: bold; color: #333;">-</span></div>
             <div><span style="font-size: 11px; color: #777; font-weight: bold;">EDR</span><br><span id="fEDR" style="display: inline-block; padding: 2px 8px; border-radius: 12px; background: #e0f2fe; font-size: 12px; font-weight: bold; color: #0369a1;">-</span></div>
         </div>
-        
         <hr style="border: 0; border-top: 2px dashed #ddd; margin: 5px 0;">
         <div style="font-size: 14px; color: #1565c0; font-weight: bold; text-transform: uppercase; margin-bottom: -5px;">🔥 Nivel de Enganche:</div>
         <div style="display: flex; gap: 10px;">
             <div style="flex: 1;"><span style="font-size: 11px; color: #777; font-weight: bold;">INDIVIDUAL</span><br><span id="fEngInd" style="display: inline-block; padding: 4px 10px; border-radius: 6px; background: #eee; font-size: 16px; font-weight: bold; color: #333; margin-top: 2px; width: 100%; text-align: center;">-</span></div>
             <div style="flex: 1;"><span style="font-size: 11px; color: #777; font-weight: bold;">DEL ÁREA (EQUIPO)</span><br><span id="fEngArea" style="display: inline-block; padding: 4px 10px; border-radius: 6px; background: #eee; font-size: 16px; font-weight: bold; color: #333; margin-top: 2px; width: 100%; text-align: center;">-</span></div>
         </div>
-        
         <hr style="border: 0; border-top: 2px dashed #ddd; margin: 10px 0;">
         <div style="font-size: 14px; color: #1565c0; font-weight: bold; text-transform: uppercase; margin-bottom: -5px;">📈 Se perfila para:</div>
         <div><span style="font-size: 11px; color: #777; font-weight: bold;">INTERÉS DEL COLABORADOR</span><br><span id="fInteres" style="font-size: 14px; color: #333; font-weight:bold;">-</span></div>
@@ -491,19 +489,14 @@ def obtener_color_9box(valor):
 def acortar_nombre(nombre_completo):
     if not nombre_completo: return ""
     partes = str(nombre_completo).strip().split()
-    
-    if len(partes) <= 2:
-        return nombre_completo
-    elif len(partes) == 3:
-        return f"{partes[0]} {partes[1]}"
-    else:
-        return f"{partes[0]} {partes[-2]}"
+    if len(partes) <= 2: return nombre_completo
+    elif len(partes) == 3: return f"{partes[0]} {partes[1]}"
+    else: return f"{partes[0]} {partes[-2]}"
 
 def acortar_puesto(puesto):
     """Acorta los nombres de puestos largos para la etiqueta del mapa"""
     if not puesto: return ""
     p = str(puesto).strip().upper()
-    
     reemplazos = {
         "RECURSOS HUMANOS": "RH", "TALENTO Y CULTURA": "TYC", "DESARROLLO ORGANIZACIONAL": "D.O.",
         "ADMINISTRATIVO": "ADM.", "ADMINISTRATIVA": "ADM.", "ADMINISTRADOR DE ": "ADMIN. ",
@@ -523,13 +516,9 @@ def acortar_puesto(puesto):
         "REGIONAL": "REG.", "EJECUTIVO": "EJEC.", "EJECUTIVA": "EJEC.",
         "REPRESENTANTE": "REP.", "ASISTENTE": "ASIST.", "AUXILIAR": "AUX."
     }
-    
     for original, abrev in reemplazos.items():
         p = p.replace(original, abrev)
-    
-    if len(p) > 35:
-        p = p[:32] + "..."
-        
+    if len(p) > 35: p = p[:32] + "..."
     return p
 
 def get_readiness_val(rt_str):
@@ -588,10 +577,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         
         enganche_key = next((k for k in row_dict.keys() if k and 'enganche' in str(k).lower()), None)
         if enganche_key:
-            try:
-                eng_val = float(row_dict[enganche_key])
-            except:
-                eng_val = 0.0
+            try: eng_val = float(row_dict[enganche_key])
+            except: eng_val = 0.0
         else:
             eng_val = 0.0
         
@@ -1259,13 +1246,11 @@ def main():
             # ==========================================
             st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
             
-            # --- NUEVA SECCIÓN DE MODO PRESENTACIÓN (PRIVACIDAD) ---
-            st.info("🔒 **Modo Presentación:** Selecciona a un líder aquí para limitar las posiciones críticas y los candidatos disponibles exclusivamente a su equipo. Útil para proyectar en pantalla durante reuniones para evitar fugas de información confidencial.")
+            st.info("🔒 **Modo Presentación:** Selecciona a un líder aquí para limitar las posiciones críticas disponibles exclusivamente a su equipo. Útil para proyectar en pantalla durante reuniones para evitar fugas de información confidencial.")
             
             lideres_totales = sorted(list(set([dict_nom.get(clean_id(x), "Sin Líder") for x in df_seguro['ID Del Jefe'].dropna().unique() if clean_id(x)])))
             f_lid_plan = st.selectbox("👤 Líder a revisar (Modo Privado):", ["Todos"] + lideres_totales, key="modo_pres_lider")
             
-            # Función auxiliar para encontrar todos los subordinados de un líder
             def obtener_subordinados(lider_nombre):
                 lider_id = None
                 for i, n in dict_nom.items():
@@ -1288,23 +1273,25 @@ def main():
             subordinados_permitidos = None
             if f_lid_plan != "Todos":
                 subordinados_permitidos = obtener_subordinados(f_lid_plan)
-                subordinados_permitidos.add(f_lid_plan) # Incluimos al propio líder por si acaso
-            
-            # --------------------------------------------------------
+                subordinados_permitidos.add(f_lid_plan) 
             
             nombres_visibles_limpios = [str(d['Nombre']).strip().lower() for d in kpis['data_total']]
             
             df_posiciones_filtradas = df_seguro.copy()
             df_posiciones_filtradas['Nombre_Cruce'] = df_posiciones_filtradas['Nombre'].astype(str).str.strip().str.lower()
             
-            # Aplicar filtro de Modo Presentación si está activo
             if f_lid_plan != "Todos":
                 sub_limpios = [str(x).strip().lower() for x in subordinados_permitidos]
                 df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Nombre_Cruce'].isin(sub_limpios)]
             else:
                 df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Nombre_Cruce'].isin(nombres_visibles_limpios)]
                 
-            df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Posición Crítica'].apply(clean_text).str.lower() == 'si']
+            # Filtramos posiciones críticas y EXCLUIMOS AL DIRECTOR GENERAL (MLA 5)
+            df_posiciones_filtradas = df_posiciones_filtradas[
+                (df_posiciones_filtradas['Posición Crítica'].apply(clean_text).str.lower() == 'si') &
+                (df_posiciones_filtradas['Nivel MLA'].astype(str).str.strip() != '5') &
+                (~df_posiciones_filtradas['Nombre de la Posición'].astype(str).str.upper().str.contains('DIRECTOR GENERAL'))
+            ]
             
             def tiene_sucesor(row):
                 suc = clean_text(row.get('Sucesor P.1', row.get('Sucesor 1', '')))
@@ -1371,8 +1358,15 @@ def main():
                 if match_colab.empty: return None
                 row_c = match_colab.iloc[0]
                 dir_candidato = clean_text(row_c.get('Dirección', row_c.get('Direccion')), 'No asignada')
+                
                 if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in dir_candidato.upper()):
-                    return "RESTRINGIDO"
+                    return "RESTRINGIDO_GLOBAL"
+                    
+                if f_lid_plan != "Todos":
+                    sub_limpios_lider = [str(x).strip().lower() for x in subordinados_permitidos]
+                    if nombre_cand.strip().lower() not in sub_limpios_lider:
+                        return "RESTRINGIDO_LIDER"
+                        
                 puesto_actual = clean_text(row_c.get('Nombre de la Posición'), 'Puesto no asignado')
                 box_c = clean_text(row_c.get('Resultado 9 box'), 'Pendiente')
                 edr_c = clean_text(row_c.get('EDR', row_c.get('EDR ')), 'Pendiente')
@@ -1458,7 +1452,7 @@ def main():
                 return sorted(candidatos_sugeridos, key=lambda x: x['score'], reverse=True)[:3]
 
             def diagnosticar_pdi_ia(nombre_cand, puesto_destino, info_cand):
-                if not nombre_cand or nombre_cand == "Pendiente" or info_cand == "RESTRINGIDO" or not info_cand: return None
+                if not nombre_cand or nombre_cand == "Pendiente" or isinstance(info_cand, str) or not info_cand: return None
                 if df_pdi.empty: return {"estatus": "SIN_DATOS", "msg": "No hay base de datos de PDI cargada."}
                 
                 match_pdi = df_pdi[df_pdi['Nombre'].astype(str).str.strip().str.lower() == nombre_cand.strip().lower()]
@@ -1607,6 +1601,8 @@ def main():
                                 for s in sugerencias:
                                     if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in s['direccion'].upper()):
                                         info_vis = "🔒 <i>Detalles confidenciales (Otra Dirección)</i>"
+                                    elif f_lid_plan != "Todos" and s['nombre'].strip().lower() not in [str(x).strip().lower() for x in subordinados_permitidos]:
+                                        info_vis = "🔒 <i>Detalles confidenciales (Modo Presentación Activo)</i>"
                                     else:
                                         info_vis = f"📌 Puesto Actual: <b>{s['puesto']}</b> | 📊 9-Box: <b>{s['box']}</b>"
                                         
@@ -1622,17 +1618,13 @@ def main():
                             else:
                                 st.warning("⚠️ **Dictamen IA:** No se detectaron candidatos en la plantilla actual que cumplan con los criterios estrictos para esta posición crítica. **Se sugiere reclutamiento externo.**")
                 
-                # --- RESTRICCIÓN DE CANDIDATOS POR MODO PRESENTACIÓN ---
-                if f_lid_plan != "Todos":
-                    nombres_empleados = sorted([clean_text(n) for n in subordinados_permitidos if clean_text(n)])
-                else:
-                    nombres_empleados = sorted([clean_text(n) for n in df_completo['Nombre'].dropna().unique() if clean_text(n)])
+                # LA LISTA DESPLEGABLE SIEMPRE MUESTRA A TODOS LOS COLABORADORES DE LA EMPRESA
+                nombres_empleados = sorted([clean_text(n) for n in df_completo['Nombre'].dropna().unique() if clean_text(n)])
                 
                 opciones_sucesores = ["Pendiente"] + nombres_empleados
                 opciones_tiempo = ["Pendiente", "Inmediato", "1 a 3 años", "Más de 3 años"]
                 
                 c_suc_emergencia = clean_text(info_pos.get('Sucesor de emergencia', 'Pendiente')) or "Pendiente"
-                
                 c_suc1 = clean_text(info_pos.get('Sucesor P.1', 'Pendiente')) or "Pendiente"
                 c_read1 = clean_text(info_pos.get('Tiempo de Readiness 1', 'Pendiente')) or "Pendiente"
                 c_pos1 = clean_text(info_pos.get('Positivo', info_pos.get('Positivo 1', '')))
@@ -1656,14 +1648,15 @@ def main():
                 if c_read2 not in opciones_tiempo: opciones_tiempo.append(c_read2)
                 if c_read3 not in opciones_tiempo: opciones_tiempo.append(c_read3)
                 
-                # --- RENDERIZADO DEL SUCESOR DE EMERGENCIA ---
                 st.write("")
                 st.markdown("#### 🚨 Cobertura de Emergencia")
                 n_suc_emergencia = st.selectbox("Candidato de Emergencia", opciones_sucesores, index=opciones_sucesores.index(c_suc_emergencia), key=f"select_emergencia_{pos_seleccionada}")
                 
                 ficha_emergencia = obtener_ficha_candidato(n_suc_emergencia)
-                if ficha_emergencia == "RESTRINGIDO":
+                if ficha_emergencia == "RESTRINGIDO_GLOBAL":
                     st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
+                elif ficha_emergencia == "RESTRINGIDO_LIDER":
+                    st.error("🔒 Modo Presentación: Información confidencial oculta (Colaborador ajeno al equipo del líder actual).")
                 elif ficha_emergencia:
                     st.success(f"📊 **9-Box:** {ficha_emergencia['box']} | 🔥 **Enganche:** {ficha_emergencia['enganche']} | 📈 **EDR:** {ficha_emergencia['edr']}")
                 
@@ -1676,8 +1669,10 @@ def main():
                     n_suc1 = st.selectbox("Candidato 1", opciones_sucesores, index=opciones_sucesores.index(c_suc1), key=f"select_suc1_{pos_seleccionada}")
                     
                     ficha1 = obtener_ficha_candidato(n_suc1)
-                    if ficha1 == "RESTRINGIDO":
+                    if ficha1 == "RESTRINGIDO_GLOBAL":
                         st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
+                    elif ficha1 == "RESTRINGIDO_LIDER":
+                        st.error("🔒 Modo Presentación: Información confidencial oculta (Colaborador ajeno al equipo del líder actual).")
                     elif ficha1:
                         st.success(f"📊 **9-Box:** {ficha1['box']} | 🔥 **Enganche:** {ficha1['enganche']} | 📈 **EDR:** {ficha1['edr']}")
                         pdi_diag1 = diagnosticar_pdi_ia(n_suc1, pos_seleccionada, ficha1)
@@ -1695,8 +1690,10 @@ def main():
                     n_suc2 = st.selectbox("Candidato 2", opciones_sucesores, index=opciones_sucesores.index(c_suc2), key=f"select_suc2_{pos_seleccionada}")
                     
                     ficha2 = obtener_ficha_candidato(n_suc2)
-                    if ficha2 == "RESTRINGIDO":
+                    if ficha2 == "RESTRINGIDO_GLOBAL":
                         st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
+                    elif ficha2 == "RESTRINGIDO_LIDER":
+                        st.error("🔒 Modo Presentación: Información confidencial oculta (Colaborador ajeno al equipo del líder actual).")
                     elif ficha2:
                         st.success(f"📊 **9-Box:** {ficha2['box']} | 🔥 **Enganche:** {ficha2['enganche']} | 📈 **EDR:** {ficha2['edr']}")
                         pdi_diag2 = diagnosticar_pdi_ia(n_suc2, pos_seleccionada, ficha2)
@@ -1714,8 +1711,10 @@ def main():
                     n_suc3 = st.selectbox("Candidato 3", opciones_sucesores, index=opciones_sucesores.index(c_suc3), key=f"select_suc3_{pos_seleccionada}")
                     
                     ficha3 = obtener_ficha_candidato(n_suc3)
-                    if ficha3 == "RESTRINGIDO":
+                    if ficha3 == "RESTRINGIDO_GLOBAL":
                         st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
+                    elif ficha3 == "RESTRINGIDO_LIDER":
+                        st.error("🔒 Modo Presentación: Información confidencial oculta (Colaborador ajeno al equipo del líder actual).")
                     elif ficha3:
                         st.success(f"📊 **9-Box:** {ficha3['box']} | 🔥 **Enganche:** {ficha3['enganche']} | 📈 **EDR:** {ficha3['edr']}")
                         pdi_diag3 = diagnosticar_pdi_ia(n_suc3, pos_seleccionada, ficha3)
@@ -1803,7 +1802,6 @@ def main():
                 df_pdi_filtrado = df_pdi.copy()
                 df_pdi_filtrado['Nombre_Cruce'] = df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower()
                 
-                # --- RESTRICCIÓN DE PDI POR MODO PRESENTACIÓN ---
                 if f_lid_plan != "Todos":
                     sub_limpios_pdi = [str(x).strip().lower() for x in subordinados_permitidos]
                     df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre_Cruce'].isin(sub_limpios_pdi)]
