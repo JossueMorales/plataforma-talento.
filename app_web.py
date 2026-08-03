@@ -1258,16 +1258,53 @@ def main():
             # PLANIFICADOR DE SUCESIONES + IA (Rollback)
             # ==========================================
             st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
-            st.markdown("Usa este panel para asignar o modificar los sucesores. **Los filtros globales de arriba ya controlan las posiciones que ves aquí**. Los cambios se guardarán automáticamente en tu Excel.")
+            
+            # --- NUEVA SECCIÓN DE MODO PRESENTACIÓN (PRIVACIDAD) ---
+            st.info("🔒 **Modo Presentación:** Selecciona a un líder aquí para limitar las posiciones críticas y los candidatos disponibles exclusivamente a su equipo. Útil para proyectar en pantalla durante reuniones para evitar fugas de información confidencial.")
+            
+            lideres_totales = sorted(list(set([dict_nom.get(clean_id(x), "Sin Líder") for x in df_seguro['ID Del Jefe'].dropna().unique() if clean_id(x)])))
+            f_lid_plan = st.selectbox("👤 Líder a revisar (Modo Privado):", ["Todos"] + lideres_totales, key="modo_pres_lider")
+            
+            # Función auxiliar para encontrar todos los subordinados de un líder
+            def obtener_subordinados(lider_nombre):
+                lider_id = None
+                for i, n in dict_nom.items():
+                    if n == lider_nombre:
+                        lider_id = i
+                        break
+                if not lider_id: return set()
+                
+                subs = set()
+                cola = [lider_id]
+                while cola:
+                    actual = cola.pop(0)
+                    directos = df_seguro[df_seguro['ID Del Jefe'].apply(clean_id) == actual]['id Empleado'].apply(clean_id).tolist()
+                    for d in directos:
+                        if d and d not in subs:
+                            subs.add(d)
+                            cola.append(d)
+                return set([dict_nom.get(s) for s in subs if s in dict_nom])
+            
+            subordinados_permitidos = None
+            if f_lid_plan != "Todos":
+                subordinados_permitidos = obtener_subordinados(f_lid_plan)
+                subordinados_permitidos.add(f_lid_plan) # Incluimos al propio líder por si acaso
+            
+            # --------------------------------------------------------
             
             nombres_visibles_limpios = [str(d['Nombre']).strip().lower() for d in kpis['data_total']]
             
             df_posiciones_filtradas = df_seguro.copy()
             df_posiciones_filtradas['Nombre_Cruce'] = df_posiciones_filtradas['Nombre'].astype(str).str.strip().str.lower()
-            df_posiciones_filtradas = df_posiciones_filtradas[
-                (df_posiciones_filtradas['Posición Crítica'].apply(clean_text).str.lower() == 'si') &
-                (df_posiciones_filtradas['Nombre_Cruce'].isin(nombres_visibles_limpios))
-            ]
+            
+            # Aplicar filtro de Modo Presentación si está activo
+            if f_lid_plan != "Todos":
+                sub_limpios = [str(x).strip().lower() for x in subordinados_permitidos]
+                df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Nombre_Cruce'].isin(sub_limpios)]
+            else:
+                df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Nombre_Cruce'].isin(nombres_visibles_limpios)]
+                
+            df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Posición Crítica'].apply(clean_text).str.lower() == 'si']
             
             def tiene_sucesor(row):
                 suc = clean_text(row.get('Sucesor P.1', row.get('Sucesor 1', '')))
@@ -1585,11 +1622,15 @@ def main():
                             else:
                                 st.warning("⚠️ **Dictamen IA:** No se detectaron candidatos en la plantilla actual que cumplan con los criterios estrictos para esta posición crítica. **Se sugiere reclutamiento externo.**")
                 
-                nombres_empleados = sorted([clean_text(n) for n in df_completo['Nombre'].dropna().unique() if clean_text(n)])
+                # --- RESTRICCIÓN DE CANDIDATOS POR MODO PRESENTACIÓN ---
+                if f_lid_plan != "Todos":
+                    nombres_empleados = sorted([clean_text(n) for n in subordinados_permitidos if clean_text(n)])
+                else:
+                    nombres_empleados = sorted([clean_text(n) for n in df_completo['Nombre'].dropna().unique() if clean_text(n)])
+                
                 opciones_sucesores = ["Pendiente"] + nombres_empleados
                 opciones_tiempo = ["Pendiente", "Inmediato", "1 a 3 años", "Más de 3 años"]
                 
-                # --- NUEVA LÓGICA DE EXTRACCIÓN CON SUCESOR DE EMERGENCIA ---
                 c_suc_emergencia = clean_text(info_pos.get('Sucesor de emergencia', 'Pendiente')) or "Pendiente"
                 
                 c_suc1 = clean_text(info_pos.get('Sucesor P.1', 'Pendiente')) or "Pendiente"
@@ -1687,7 +1728,6 @@ def main():
                     n_pos3 = st.text_area("👍 Comentarios Positivos 3", value=c_pos3, height=68, key=f"t_pos3_{pos_seleccionada}")
                     n_opo3 = st.text_area("📈 Áreas de Oportunidad 3", value=c_opo3, height=68, key=f"t_opo3_{pos_seleccionada}")
                 
-                # --- NUEVA SECCIÓN: PLAN DE ACCIÓN (COLUMNA Z) ---
                 st.write("---")
                 st.markdown("#### 📋 Plan de Acción / Comentarios Adicionales")
                 st.info("Utiliza este espacio para justificar si no hay sucesores o detallar el plan a seguir.")
@@ -1712,7 +1752,6 @@ def main():
                             archivo = cliente.open_by_key(doc_id)
                             pestana = archivo.worksheet("Base de datos")
                             
-                            # --- NUEVA LÓGICA DE ESCRITURA EXTENDIDA HASTA LA 'Z' ---
                             for idx_p in df_ocupantes.index:
                                 idx_excel = idx_p + 2 
                                 rango = f'I{idx_excel}:Z{idx_excel}'
@@ -1734,7 +1773,6 @@ def main():
                                 celdas[11].value = n_pos3
                                 celdas[12].value = n_opo3
                                 
-                                # La columna Z está a 17 posiciones de distancia de la I (I=0, Z=17)
                                 if len(celdas) > 17:
                                     celdas[17].value = n_plan_accion
                                 
@@ -1764,7 +1802,13 @@ def main():
                 nombres_visibles_limpios = [str(d['Nombre']).strip().lower() for d in kpis['data_total']]
                 df_pdi_filtrado = df_pdi.copy()
                 df_pdi_filtrado['Nombre_Cruce'] = df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower()
-                df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre_Cruce'].isin(nombres_visibles_limpios)]
+                
+                # --- RESTRICCIÓN DE PDI POR MODO PRESENTACIÓN ---
+                if f_lid_plan != "Todos":
+                    sub_limpios_pdi = [str(x).strip().lower() for x in subordinados_permitidos]
+                    df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre_Cruce'].isin(sub_limpios_pdi)]
+                else:
+                    df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre_Cruce'].isin(nombres_visibles_limpios)]
                 
                 columnas_deseadas = {
                     "Nombre": "Nombre", "Posicion": "Posicion", "Dirección actual": "Dirección", 
