@@ -1463,7 +1463,6 @@ def main():
                     }
 
             if pos_seleccionada:
-                # --- NUEVA LÓGICA DE MÚLTIPLES OCUPANTES ---
                 df_ocupantes = df_posiciones_filtradas[df_posiciones_filtradas['Nombre de la Posición'].apply(clean_text) == pos_seleccionada]
                 info_pos = df_ocupantes.iloc[0] 
                 nombres_ocupantes = [clean_text(n, 'Vacante / Sin asignar') for n in df_ocupantes['Nombre'].tolist()]
@@ -1590,6 +1589,9 @@ def main():
                 opciones_sucesores = ["Pendiente"] + nombres_empleados
                 opciones_tiempo = ["Pendiente", "Inmediato", "1 a 3 años", "Más de 3 años"]
                 
+                # --- NUEVA LÓGICA DE EXTRACCIÓN CON SUCESOR DE EMERGENCIA ---
+                c_suc_emergencia = clean_text(info_pos.get('Sucesor de emergencia', 'Pendiente')) or "Pendiente"
+                
                 c_suc1 = clean_text(info_pos.get('Sucesor P.1', 'Pendiente')) or "Pendiente"
                 c_read1 = clean_text(info_pos.get('Tiempo de Readiness 1', 'Pendiente')) or "Pendiente"
                 c_pos1 = clean_text(info_pos.get('Positivo', info_pos.get('Positivo 1', '')))
@@ -1605,6 +1607,7 @@ def main():
                 c_pos3 = clean_text(info_pos.get('Positivo.2', info_pos.get('Positivo 3', '')))
                 c_opo3 = clean_text(info_pos.get('Oportunidad.2', info_pos.get('Oportunidad 3', '')))
                 
+                if c_suc_emergencia not in opciones_sucesores: opciones_sucesores.append(c_suc_emergencia)
                 if c_suc1 not in opciones_sucesores: opciones_sucesores.append(c_suc1)
                 if c_suc2 not in opciones_sucesores: opciones_sucesores.append(c_suc2)
                 if c_suc3 not in opciones_sucesores: opciones_sucesores.append(c_suc3)
@@ -1612,7 +1615,19 @@ def main():
                 if c_read2 not in opciones_tiempo: opciones_tiempo.append(c_read2)
                 if c_read3 not in opciones_tiempo: opciones_tiempo.append(c_read3)
                 
-                st.write("") 
+                # --- RENDERIZADO DEL SUCESOR DE EMERGENCIA ---
+                st.write("")
+                st.markdown("#### 🚨 Cobertura de Emergencia")
+                n_suc_emergencia = st.selectbox("Candidato de Emergencia", opciones_sucesores, index=opciones_sucesores.index(c_suc_emergencia), key=f"select_emergencia_{pos_seleccionada}")
+                
+                ficha_emergencia = obtener_ficha_candidato(n_suc_emergencia)
+                if ficha_emergencia == "RESTRINGIDO":
+                    st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
+                elif ficha_emergencia:
+                    st.success(f"📊 **9-Box:** {ficha_emergencia['box']} | 🔥 **Enganche:** {ficha_emergencia['enganche']} | 📈 **EDR:** {ficha_emergencia['edr']}")
+                
+                st.write("---")
+                
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
@@ -1689,26 +1704,27 @@ def main():
                             archivo = cliente.open_by_key(doc_id)
                             pestana = archivo.worksheet("Base de datos")
                             
-                            # --- NUEVA LÓGICA DE GUARDADO MASIVO ---
+                            # --- NUEVA LÓGICA DE ESCRITURA EXTENDIDA HASTA LA 'U' ---
                             for idx_p in df_ocupantes.index:
                                 idx_excel = idx_p + 2 
-                                rango = f'I{idx_excel}:T{idx_excel}'
+                                rango = f'I{idx_excel}:U{idx_excel}'
                                 celdas = pestana.range(rango)
                                 
-                                celdas[0].value = "Pendiente" if n_suc1 == "Pendiente" else n_suc1
-                                celdas[1].value = "Pendiente" if n_read1 == "Pendiente" else n_read1
-                                celdas[2].value = n_pos1
-                                celdas[3].value = n_opo1
+                                celdas[0].value = "Pendiente" if n_suc_emergencia == "Pendiente" else n_suc_emergencia
+                                celdas[1].value = "Pendiente" if n_suc1 == "Pendiente" else n_suc1
+                                celdas[2].value = "Pendiente" if n_read1 == "Pendiente" else n_read1
+                                celdas[3].value = n_pos1
+                                celdas[4].value = n_opo1
                                 
-                                celdas[4].value = "Pendiente" if n_suc2 == "Pendiente" else n_suc2
-                                celdas[5].value = "Pendiente" if n_read2 == "Pendiente" else n_read2
-                                celdas[6].value = n_pos2
-                                celdas[7].value = n_opo2
+                                celdas[5].value = "Pendiente" if n_suc2 == "Pendiente" else n_suc2
+                                celdas[6].value = "Pendiente" if n_read2 == "Pendiente" else n_read2
+                                celdas[7].value = n_pos2
+                                celdas[8].value = n_opo2
                                 
-                                celdas[8].value = "Pendiente" if n_suc3 == "Pendiente" else n_suc3
-                                celdas[9].value = "Pendiente" if n_read3 == "Pendiente" else n_read3
-                                celdas[10].value = n_pos3
-                                celdas[11].value = n_opo3
+                                celdas[9].value = "Pendiente" if n_suc3 == "Pendiente" else n_suc3
+                                celdas[10].value = "Pendiente" if n_read3 == "Pendiente" else n_read3
+                                celdas[11].value = n_pos3
+                                celdas[12].value = n_opo3
                                 
                                 pestana.update_cells(celdas)
                                 time.sleep(0.5) 
