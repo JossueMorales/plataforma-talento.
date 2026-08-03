@@ -442,7 +442,11 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         jefe = clean_id(row_dict.get('ID Del Jefe'))
         
         enganche_key = next((k for k in row_dict.keys() if k and 'enganche' in str(k).lower()), None)
-        eng_val = float(row_dict[enganche_key]) if enganche_key else 0.0
+        if enganche_key:
+            try: eng_val = float(row_dict[enganche_key])
+            except ValueError: eng_val = 0.0
+        else:
+            eng_val = 0.0
         
         if emp:
             empleados_validos.add(emp)
