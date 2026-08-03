@@ -129,13 +129,10 @@ BOTON_HTML = """
     </div>
 </div>
 <script>
-// MOTOR DE DISPERSIÓN EN JAVASCRIPT
 function getDispersionOffset(nodeId, spacing) {
     var str = String(nodeId);
     var h = 0;
-    for (var k = 0; k < str.length; k++) {
-        h += str.charCodeAt(k);
-    }
+    for (var k = 0; k < str.length; k++) { h += str.charCodeAt(k); }
     return spacing * (((h % 9) / 8.0) * 0.5 - 0.25); 
 }
 function toggleLayoutMode() {
@@ -150,36 +147,23 @@ function updateSpacing() {
     var val = document.getElementById('sliderSeparacion').value;
     window.ringSpacing = parseInt(val);
     document.getElementById('valorSeparacion').innerText = val + "px";
-    
     var allNodes = network.body.data.nodes.get();
     var nodesToUpdate = [];
-    
     for (var i = 0; i < allNodes.length; i++) {
         var n = allNodes[i];
         var angle = n.Angle !== undefined ? n.Angle : 0;
         var dispersion = n.Dispersion !== undefined ? n.Dispersion : 0;
         var nivelBase = n.NivelCalculado !== undefined ? n.NivelCalculado : (n.AnilloReal !== undefined ? n.AnilloReal : 5);
-        
         var nuevoRadio = 0;
-        if (nivelBase !== 0) {
-            nuevoRadio = (nivelBase * window.ringSpacing) + (dispersion * window.ringSpacing);
-        }
-        
+        if (nivelBase !== 0) { nuevoRadio = (nivelBase * window.ringSpacing) + (dispersion * window.ringSpacing); }
         nodesToUpdate.push({ id: n.id, x: nuevoRadio * Math.cos(angle), y: nuevoRadio * Math.sin(angle) });
     }
-    
     network.body.data.nodes.update(nodesToUpdate);
 }
 network.on("zoom", function() {
     var currentScale = network.getScale();
-    var minScale = 0.1; 
-    var maxScale = 2.5; 
-    
-    if (currentScale < minScale) {
-        network.moveTo({ scale: minScale });
-    } else if (currentScale > maxScale) {
-        network.moveTo({ scale: maxScale });
-    }
+    var minScale = 0.1; var maxScale = 2.5; 
+    if (currentScale < minScale) { network.moveTo({ scale: minScale }); } else if (currentScale > maxScale) { network.moveTo({ scale: maxScale }); }
 });
 function getColorEnganche(val) {
     if (val >= 4) return {bg: "#dcfce7", text: "#166534"}; 
@@ -201,50 +185,30 @@ network.on("click", function (params) {
         document.getElementById('fEDR').innerText = node.EDR || "Pendiente";
         document.getElementById('fRiesgos').innerText = node.Riesgos || "Ninguno";
         document.getElementById('fInteres').innerText = node.Interes || "Pendiente";
-        
         var engInd = node.Eng_Ind !== undefined ? parseFloat(node.Eng_Ind) : 0;
         var fEngInd = document.getElementById('fEngInd');
         if (engInd > 0) {
-            fEngInd.innerText = engInd.toFixed(1);
-            var colorInd = getColorEnganche(engInd);
-            fEngInd.style.backgroundColor = colorInd.bg;
-            fEngInd.style.color = colorInd.text;
-        } else {
-            fEngInd.innerText = "N/A";
-            fEngInd.style.backgroundColor = "#eee"; fEngInd.style.color = "#333";
-        }
-        
+            fEngInd.innerText = engInd.toFixed(1); var colorInd = getColorEnganche(engInd);
+            fEngInd.style.backgroundColor = colorInd.bg; fEngInd.style.color = colorInd.text;
+        } else { fEngInd.innerText = "N/A"; fEngInd.style.backgroundColor = "#eee"; fEngInd.style.color = "#333"; }
         var isLeader = node.Es_Lider === true || node.Es_Lider === "True";
         var engArea = node.Eng_Area !== undefined ? parseFloat(node.Eng_Area) : 0;
         var fEngArea = document.getElementById('fEngArea');
         if (isLeader && engArea > 0) {
-            fEngArea.innerText = engArea.toFixed(1);
-            var colorArea = getColorEnganche(engArea);
-            fEngArea.style.backgroundColor = colorArea.bg;
-            fEngArea.style.color = colorArea.text;
-        } else {
-            fEngArea.innerText = "N/A";
-            fEngArea.style.backgroundColor = "#eee"; fEngArea.style.color = "#333";
-        }
-        
+            fEngArea.innerText = engArea.toFixed(1); var colorArea = getColorEnganche(engArea);
+            fEngArea.style.backgroundColor = colorArea.bg; fEngArea.style.color = colorArea.text;
+        } else { fEngArea.innerText = "N/A"; fEngArea.style.backgroundColor = "#eee"; fEngArea.style.color = "#333"; }
         document.getElementById('fSuc1').innerText = node.NomSuc1 || "Pendiente";
         document.getElementById('fRead1').innerText = node.Read1 && node.Read1 !== 'Pendiente' ? node.Read1 : "Sin tiempo definido";
-        
         if(node.NomSuc2 && node.NomSuc2 !== "") {
-            document.getElementById('divSucesor2').style.display = "block";
-            document.getElementById('fSuc2').innerText = node.NomSuc2;
-            document.getElementById('fRead2').innerText = node.Read2 || "Sin tiempo definido";
+            document.getElementById('divSucesor2').style.display = "block"; document.getElementById('fSuc2').innerText = node.NomSuc2; document.getElementById('fRead2').innerText = node.Read2 || "Sin tiempo definido";
         } else { document.getElementById('divSucesor2').style.display = "none"; }
-        
         if(node.NomSuc3 && node.NomSuc3 !== "") {
-            document.getElementById('divSucesor3').style.display = "block";
-            document.getElementById('fSuc3').innerText = node.NomSuc3;
-            document.getElementById('fRead3').innerText = node.Read3 || "Sin tiempo definido";
+            document.getElementById('divSucesor3').style.display = "block"; document.getElementById('fSuc3').innerText = node.NomSuc3; document.getElementById('fRead3').innerText = node.Read3 || "Sin tiempo definido";
         } else { document.getElementById('divSucesor3').style.display = "none"; }
         var colorBg = typeof node.color === 'object' ? node.color.background : node.color;
         var boxResult = node.Resultado_9Box || "N/A";
-        var f9Box = document.getElementById('f9Box'); f9Box.innerText = boxResult;
-        f9Box.style.backgroundColor = colorBg || "#eee";
+        var f9Box = document.getElementById('f9Box'); f9Box.innerText = boxResult; f9Box.style.backgroundColor = colorBg || "#eee";
         f9Box.style.color = (boxResult === "4" || boxResult === "9" || boxResult === "7A" || boxResult === "7B") ? "white" : "#333";
         document.getElementById('fichaLateral').style.left = "0px";
     } else { cerrarFicha(); }
@@ -259,66 +223,36 @@ function applyVisualFilters() {
     var showNormal = document.getElementById('toggleNormal').checked;
     var showJumps = document.getElementById('toggleJumps').checked;
     var showSucc = document.getElementById('toggleSucc').checked;
-    
     var allEdges = network.body.data.edges.get();
     var edgesToUpdate = [];
-    
     for (var i = 0; i < allEdges.length; i++) {
         var edge = allEdges[i];
-        
-        var fromNode = network.body.data.nodes.get(edge.from);
-        var toNode = network.body.data.nodes.get(edge.to);
-        if (!fromNode || !toNode || fromNode.hidden === true || toNode.hidden === true) {
-            edgesToUpdate.push({id: edge.id, hidden: true});
-            continue;
-        }
-        
+        var fromNode = network.body.data.nodes.get(edge.from); var toNode = network.body.data.nodes.get(edge.to);
+        if (!fromNode || !toNode || fromNode.hidden === true || toNode.hidden === true) { edgesToUpdate.push({id: edge.id, hidden: true}); continue; }
         var colorValue = edge.color;
-        if (typeof colorValue === 'object' && colorValue !== null) {
-            colorValue = colorValue.color || colorValue.inherit;
-        }
-        
+        if (typeof colorValue === 'object' && colorValue !== null) { colorValue = colorValue.color || colorValue.inherit; }
         var isSucc = (edge.is_succ === true || edge.is_succ === "True" || edge.is_succ === "true" || colorValue === '#9c27b0');
         var is9Box = (edge.is_9box === true || edge.is_9box === "True" || edge.is_9box === "true" || colorValue === '#22c55e' || colorValue === '#166534');
-        
-        if (isSucc) {
-            edgesToUpdate.push({id: edge.id, hidden: !showSucc});
-        } else if (is9Box) {
-            edgesToUpdate.push({id: edge.id, hidden: !showJumps});
-        } else {
-            edgesToUpdate.push({id: edge.id, hidden: !showNormal});
-        }
+        if (isSucc) { edgesToUpdate.push({id: edge.id, hidden: !showSucc});
+        } else if (is9Box) { edgesToUpdate.push({id: edge.id, hidden: !showJumps});
+        } else { edgesToUpdate.push({id: edge.id, hidden: !showNormal}); }
     }
     network.body.data.edges.update(edgesToUpdate);
 }
 function enfocarPantalla() { 
     if (window.targetNodeId && network.body.data.nodes.get(window.targetNodeId) && window.targetNodeId !== "None") {
-        network.focus(window.targetNodeId, {
-            scale: 0.85,
-            animation: { duration: 800, easingFunction: 'easeInOutQuad' }
-        });
+        network.focus(window.targetNodeId, { scale: 0.85, animation: { duration: 800, easingFunction: 'easeInOutQuad' } });
     } else {
         network.fit();
-        setTimeout(function() {
-            var currentScale = network.getScale();
-            network.moveTo({
-                position: {x: 0, y: -80}, 
-                scale: currentScale * 0.85, 
-                animation: { duration: 800, easingFunction: 'easeInOutQuad' }
-            });
-        }, 800);
+        setTimeout(function() { var currentScale = network.getScale(); network.moveTo({ position: {x: 0, y: -80}, scale: currentScale * 0.85, animation: { duration: 800, easingFunction: 'easeInOutQuad' } }); }, 800);
     }
 }
-setTimeout(function() {
-    updateSpacing();
-    applyVisualFilters();
-    enfocarPantalla();
-}, 1000); 
+setTimeout(function() { updateSpacing(); applyVisualFilters(); enfocarPantalla(); }, 1000); 
 </script>
 """
 
 # ==========================================
-# FUNCIONES AUXILIARES DE DISEÑO Y NLP
+# FUNCIONES AUXILIARES Y DICCIONARIO
 # ==========================================
 def crear_tarjeta_kpi(titulo, valor, color_borde, color_texto, color_fondo):
     color_valor = color_texto if color_texto != "#64748b" else "#0f172a"
@@ -329,7 +263,6 @@ def crear_tarjeta_kpi(titulo, valor, color_borde, color_texto, color_fondo):
     </div>
     """
 
-# --- ROLLBACK: DICCIONARIO DE IA NLP ORIGINAL ---
 DICCIONARIO_MERCADO = {
     "sistemas_it": ["erp", "sistemas", "tecnologia", "informacion", "it", "software", "datos", "sap", "tecnico", "redes", "crm", "soporte", "programacion"],
     "abogado": ["legal", "juridico", "contratos", "litigio", "derecho", "normativa", "corporativo", "abogado"],
@@ -345,27 +278,21 @@ def extraer_contexto(texto):
     t = str(texto).lower()
     stopwords = [' de ', ' del ', ' la ', ' las ', ' el ', ' los ', ' y ', ' en ', ' para ', ' con ', ' a ', ' al ']
     for sw in stopwords: t = t.replace(sw, ' ')
-    
     palabras = set(re.findall(r'\b\w{3,}\b', t)) 
     jerarquias = {'gerente', 'jefe', 'coordinador', 'director', 'analista', 'auxiliar', 'especialista', 'encargado', 'asistente', 'control'}
     palabras = palabras - jerarquias
-    
     contexto_ampliado = set(palabras)
     for palabra in palabras:
         for key, valores in DICCIONARIO_MERCADO.items():
-            if key in palabra or palabra in key:
-                contexto_ampliado.update(valores)
-            if palabra in valores:
-                contexto_ampliado.update(valores)
-                
+            if key in palabra or palabra in key: contexto_ampliado.update(valores)
+            if palabra in valores: contexto_ampliado.update(valores)
     return contexto_ampliado
 
 # ==========================================
-# SISTEMA DE SEGURIDAD Y LOGIN
+# LOGIN Y CONEXIÓN
 # ==========================================
 def obtener_usuarios_autorizados():
-    try:
-        return st.secrets["usuarios"]
+    try: return st.secrets["usuarios"]
     except KeyError:
         return {
             "admin": {"nombre": "Administrador Global", "password": "admin", "direccion": "TODAS"},
@@ -375,106 +302,69 @@ def obtener_usuarios_autorizados():
 
 def login():
     st.set_page_config(page_title="Portal de Talento Ayvi", layout="wide")
-    
-    if "usuario_logueado" not in st.session_state:
-        st.session_state["usuario_logueado"] = False
+    if "usuario_logueado" not in st.session_state: st.session_state["usuario_logueado"] = False
     if not st.session_state["usuario_logueado"]:
         usuarios_autorizados = obtener_usuarios_autorizados()
-        
         st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento Ayvi</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; color: #666;'>Inicia sesión para acceder al mapa organizacional</p>", unsafe_allow_html=True)
-        
         col1, col2, col3 = st.columns([1, 1, 1])
         with col2:
             st.write("")
             usuario = st.text_input("Usuario")
             password = st.text_input("Contraseña", type="password")
-            
             if st.button("Iniciar Sesión", use_container_width=True):
                 if usuario in usuarios_autorizados and usuarios_autorizados[usuario]["password"] == password:
                     st.session_state["usuario_logueado"] = True
                     st.session_state["nombre_usuario"] = usuarios_autorizados[usuario]["nombre"]
                     st.session_state["id_usuario"] = usuario
                     st.rerun()
-                else:
-                    st.error("Usuario o contraseña incorrectos")
+                else: st.error("Usuario o contraseña incorrectos")
         return False
     return True
 
-# ==========================================
-# SISTEMA DE CACHÉ INTELIGENTE Y DESCARGA
-# ==========================================
 @st.cache_data(ttl=30, show_spinner=False)
 def obtener_timestamp_actualizacion(url_sheets):
     try:
         secretos = st.secrets["connections"]["gsheets"]
-        credenciales = Credentials.from_service_account_info(
-            secretos, scopes=["https://www.googleapis.com/auth/spreadsheets"]
-        )
+        credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets"])
         cliente = gspread.authorize(credenciales)
         match = re.search(r'/d/([a-zA-Z0-9-_]+)', url_sheets)
         doc_id = match.group(1) if match else url_sheets
-        
         archivo = cliente.open_by_key(doc_id)
-        pestana = archivo.worksheet("Metadata")
-        return pestana.acell('A1').value
-    except Exception:
-        return str(int(time.time() // 600))
+        return archivo.worksheet("Metadata").acell('A1').value
+    except Exception: return str(int(time.time() // 600))
 
 @st.cache_data(show_spinner=False)
 def cargar_datos_csv(url_sheets, nombre_pestana, _timestamp):
     try:
         secretos = st.secrets["connections"]["gsheets"]
-        credenciales = Credentials.from_service_account_info(
-            secretos,
-            scopes=[
-                "https://www.googleapis.com/auth/spreadsheets",
-                "https://www.googleapis.com/auth/drive"
-            ]
-        )
+        credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
         cliente = gspread.authorize(credenciales)
-        
         match = re.search(r'/d/([a-zA-Z0-9-_]+)', url_sheets)
         doc_id = match.group(1) if match else url_sheets
-        
         archivo = cliente.open_by_key(doc_id)
-        pestana = archivo.worksheet(nombre_pestana)
-        
-        datos = pestana.get_all_values()
-        
+        datos = archivo.worksheet(nombre_pestana).get_all_values()
         if datos:
             df = pd.DataFrame(datos[1:], columns=datos[0])
-        else:
-            df = pd.DataFrame()
-            
-        df.columns = [str(col).strip() for col in df.columns]
-        return df
-        
-    except KeyError:
-        st.error("🤖 Error: No se encontraron los secretos en la nube. Revisa que el cuadro negro de 'Secrets' empiece exactamente con [connections.gsheets]")
+            df.columns = [str(col).strip() for col in df.columns]
+            return df
         return pd.DataFrame()
     except Exception as e:
-        st.error(f"🤖 Error técnico del Robot: {e}")
+        st.error(f"🤖 Error al conectar con sheets: {e}")
         return pd.DataFrame()
 
 # ==========================================
-# FUNCIÓN MEJORADA PARA IGNORAR COLUMNAS REPETIDAS
+# LIMPIEZA RÁPIDA (VECTORIZACIÓN LISTA)
 # ==========================================
 def clean_text(val, default=''):
-    if isinstance(val, pd.Series):
-        val = val.iloc[0] if not val.empty else default
-    if pd.isna(val) or str(val).strip().lower() in ['nan', 'none', 'pendiente', '']:
-        return default
+    if isinstance(val, pd.Series): val = val.iloc[0] if not val.empty else default
+    if pd.isna(val) or str(val).strip().lower() in ['nan', 'none', 'pendiente', '']: return default
     return str(val).strip()
 
 def clean_id(val):
-    if isinstance(val, pd.Series):
-        val = val.iloc[0] if not val.empty else ''
-    if pd.isna(val) or str(val).strip().lower() in ['nan', 'none', 'pendiente', '']: 
-        return ''
+    if isinstance(val, pd.Series): val = val.iloc[0] if not val.empty else ''
+    if pd.isna(val) or str(val).strip().lower() in ['nan', 'none', 'pendiente', '']: return ''
     v = str(val).strip()
-    if v.endswith('.0'): 
-        return v[:-2]
+    if v.endswith('.0'): return v[:-2]
     return v
 
 def obtener_color_9box(valor):
@@ -494,46 +384,31 @@ def acortar_nombre(nombre_completo):
     else: return f"{partes[0]} {partes[-2]}"
 
 def acortar_puesto(puesto):
-    """Acorta los nombres de puestos largos para la etiqueta del mapa"""
     if not puesto: return ""
     p = str(puesto).strip().upper()
     reemplazos = {
         "RECURSOS HUMANOS": "RH", "TALENTO Y CULTURA": "TYC", "DESARROLLO ORGANIZACIONAL": "D.O.",
-        "ADMINISTRATIVO": "ADM.", "ADMINISTRATIVA": "ADM.", "ADMINISTRADOR DE ": "ADMIN. ",
-        "ADMINISTRADOR ": "ADMIN. ", "COORDINADOR DE ": "COORD. ", "COORDINADORA DE ": "COORD. ",
-        "COORDINADOR ": "COORD. ", "COORDINADORA ": "COORD. ", "ESPECIALISTA EN ": "ESP. ",
-        "ESPECIALISTA ": "ESP. ", "SUPERVISOR DE ": "SUP. ", "SUPERVISORA DE ": "SUP. ",
-        "SUPERVISOR ": "SUP. ", "SUPERVISORA ": "SUP. ", "GERENTE DE ": "GTE. ",
-        "GERENTE ": "GTE. ", "DIRECTOR DE ": "DIR. ", "DIRECTORA DE ": "DIR. ",
-        "DIRECTOR ": "DIR. ", "DIRECTORA ": "DIR. ", "JEFE DE ": "JEFE ",
-        "ADQUISICIÓN": "ADQ.", "ADQUISICION": "ADQ.", "TRANSFORMACIÓN": "TRANSF.",
-        "TRANSFORMACION": "TRANSF.", "SUCURSAL": "SUC.", "OPERACIONES": "OP.",
-        "MANTENIMIENTO": "MANTTO.", "PRODUCCIÓN": "PROD.", "PRODUCCION": "PROD.",
-        "TECNOLOGÍA": "TECH", "TECNOLOGIA": "TECH", "INFORMACIÓN": "INFO.",
-        "INFORMACION": "INFO.", "COMERCIAL": "COM.", "DISTRIBUCIÓN": "DIST.",
-        "DISTRIBUCION": "DIST.", "LOGÍSTICA": "LOG.", "LOGISTICA": "LOG.",
-        "SISTEMAS": "SIST.", "PROYECTOS": "PROY.", "NACIONAL": "NAL.",
-        "REGIONAL": "REG.", "EJECUTIVO": "EJEC.", "EJECUTIVA": "EJEC.",
-        "REPRESENTANTE": "REP.", "ASISTENTE": "ASIST.", "AUXILIAR": "AUX."
+        "ADMINISTRATIVO": "ADM.", "ADMINISTRADORA": "ADM.", "ADMINISTRADOR DE ": "ADMIN. ", "COORDINADOR DE ": "COORD. ",
+        "COORDINADORA DE ": "COORD. ", "COORDINADOR ": "COORD. ", "ESPECIALISTA EN ": "ESP. ", "SUPERVISOR DE ": "SUP. ",
+        "GERENTE DE ": "GTE. ", "DIRECTOR DE ": "DIR. ", "JEFE DE ": "JEFE ", "ADQUISICIÓN": "ADQ.",
+        "TRANSFORMACIÓN": "TRANSF.", "SUCURSAL": "SUC.", "OPERACIONES": "OP.", "MANTENIMIENTO": "MANTTO.",
+        "PRODUCCIÓN": "PROD.", "TECNOLOGÍA": "TECH", "INFORMACIÓN": "INFO.", "COMERCIAL": "COM.",
+        "DISTRIBUCIÓN": "DIST.", "LOGÍSTICA": "LOG.", "SISTEMAS": "SIST.", "PROYECTOS": "PROY.", "NACIONAL": "NAL.",
+        "REGIONAL": "REG.", "EJECUTIVO": "EJEC.", "REPRESENTANTE": "REP.", "ASISTENTE": "ASIST.", "AUXILIAR": "AUX."
     }
-    for original, abrev in reemplazos.items():
-        p = p.replace(original, abrev)
-    if len(p) > 35: p = p[:32] + "..."
-    return p
+    for original, abrev in reemplazos.items(): p = p.replace(original, abrev)
+    return p[:32] + "..." if len(p) > 35 else p
 
 def get_readiness_val(rt_str):
-    """Función para el estilo de las flechas punteadas"""
     rt = str(rt_str).strip().lower()
-    if not rt or rt == 'pendiente' or rt == 'nan' or rt == 'none': return 4
+    if not rt or rt in ['pendiente', 'nan', 'none']: return 4
     if 'inmediato' in rt or 'listo' in rt or '0' in rt: return 1
     if '1' in rt or '2' in rt or 'medio' in rt: return 2
-    if '3' in rt or '4' in rt or '5' in rt or 'más' in rt or 'mas' in rt or 'largo' in rt: return 3
+    if '3' in rt or '4' in rt or '5' in rt or 'más' in rt or 'mas' in rt: return 3
     return 4
 
-# MOTOR DE DISPERSIÓN PYTHON
 def get_dispersion_offset(node_id):
-    h = sum(ord(c) for c in str(node_id))
-    return ((h % 9) / 8.0) * 0.5 - 0.25
+    return (((sum(ord(c) for c in str(node_id)) % 9) / 8.0) * 0.5) - 0.25
 
 # ==========================================
 # MOTOR PRINCIPAL
@@ -549,22 +424,13 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         clean_id(row.get('id Empleado')): clean_text(row.get('Nombre')) 
         for row in df_seguro.to_dict('records') if clean_id(row.get('id Empleado'))
     }
-    
     nombre_a_id = {nombre.strip().lower(): emp_id for emp_id, nombre in nombres_dict.items()}
-    
-    puesto_a_id = {}
-    for row in df_seguro.to_dict('records'):
-        emp_id = clean_id(row.get('id Empleado'))
-        puesto = clean_text(row.get('Nombre de la Posición')).lower()
-        if emp_id and puesto and puesto not in puesto_a_id:
-            puesto_a_id[puesto] = emp_id
+    puesto_a_id = {clean_text(r.get('Nombre de la Posición')).lower(): clean_id(r.get('id Empleado')) for r in df_seguro.to_dict('records') if clean_id(r.get('id Empleado')) and clean_text(r.get('Nombre de la Posición'))}
 
     def buscar_id_real(valor):
-        if pd.isna(valor) or str(valor).strip().lower() in ['nan', 'none', 'pendiente', '']: 
-            return ''
         v = str(valor).strip()
-        if v.endswith('.0'): 
-            v = v[:-2]
+        if pd.isna(valor) or v.lower() in ['nan', 'none', 'pendiente', '']: return ''
+        if v.endswith('.0'): v = v[:-2]
         if v in nombres_dict: return v  
         v_lower = v.lower()
         if v_lower in nombre_a_id: return nombre_a_id[v_lower] 
@@ -576,41 +442,29 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         jefe = clean_id(row_dict.get('ID Del Jefe'))
         
         enganche_key = next((k for k in row_dict.keys() if k and 'enganche' in str(k).lower()), None)
-        if enganche_key:
-            try: eng_val = float(row_dict[enganche_key])
-            except: eng_val = 0.0
-        else:
-            eng_val = 0.0
+        eng_val = float(row_dict[enganche_key]) if enganche_key else 0.0
         
         if emp:
             empleados_validos.add(emp)
             G_jerarquia.add_node(emp)
-            
-            suc1_limpio = buscar_id_real(row_dict.get('Sucesor P.1', row_dict.get('Sucesor 1', '')))
-            suc2_limpio = buscar_id_real(row_dict.get('Sucesor P.2', row_dict.get('Sucesor 2', '')))
-            suc3_limpio = buscar_id_real(row_dict.get('Sucesor P.3', row_dict.get('Sucesor 3', '')))
-            
-            edr_val = clean_text(row_dict.get('EDR', row_dict.get('EDR ')), 'Pendiente')
             
             info_nodos[emp] = {
                 'mla': clean_text(row_dict.get('Nivel MLA'), 'N/A'),
                 'puesto': clean_text(row_dict.get('Nombre de la Posición')).upper(),
                 'direccion': clean_text(row_dict.get('Dirección', row_dict.get('Direccion')), 'No asignada'),
                 'box': clean_text(row_dict.get('Resultado 9 box'), 'Pendiente'),
-                'edr': edr_val,
+                'edr': clean_text(row_dict.get('EDR', row_dict.get('EDR ')), 'Pendiente'),
                 'lider': nombres_dict.get(jefe, 'Sin Líder') if jefe else 'Sin Líder',
                 'critica': clean_text(row_dict.get('Posición Crítica', row_dict.get('Posicion Critica')), 'No'),
                 'nombre': clean_text(row_dict.get('Nombre')),
                 'interes': clean_text(row_dict.get('Interés del Colaborador'), 'Pendiente'),
-                'suc1_id': suc1_limpio,
+                'suc1_id': buscar_id_real(row_dict.get('Sucesor P.1', row_dict.get('Sucesor 1', ''))),
                 'read1': clean_text(row_dict.get('Tiempo de Readiness 1'), 'Pendiente'),
-                'suc2_id': suc2_limpio,
+                'suc2_id': buscar_id_real(row_dict.get('Sucesor P.2', row_dict.get('Sucesor 2', ''))),
                 'read2': clean_text(row_dict.get('Tiempo de Readiness 2'), ''),
-                'suc3_id': suc3_limpio,
+                'suc3_id': buscar_id_real(row_dict.get('Sucesor P.3', row_dict.get('Sucesor 3', ''))),
                 'read3': clean_text(row_dict.get('Tiempo de Readiness 3'), ''),
-                'enganche_ind': eng_val,
-                'enganche_area': 0.0,
-                'es_lider': False
+                'enganche_ind': eng_val, 'enganche_area': 0.0, 'es_lider': False
             }
             if jefe:
                 jefes_dict[emp] = jefe
@@ -619,16 +473,14 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
     def obtener_jefe_nivel_arriba(emp_id, niveles):
         actual = emp_id
         for _ in range(niveles):
-            if actual not in jefes_dict: 
-                return None
+            if actual not in jefes_dict: return None
             actual = jefes_dict[actual]
         return actual
         
     reportes_directos = {n: 0 for n in G_jerarquia.nodes()}
     for jefe, emp in G_jerarquia.edges(): 
         reportes_directos[jefe] += 1
-        if jefe in info_nodos:
-            info_nodos[jefe]['es_lider'] = True
+        if jefe in info_nodos: info_nodos[jefe]['es_lider'] = True
             
     enganche_area_dict = {}
     for nodo in G_jerarquia.nodes():
@@ -636,20 +488,14 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         if not descendientes:
             enganche_area_dict[nodo] = 0.0
             continue
-            
-        suma = 0.0
-        count = 0
+        suma = 0.0; count = 0
         for d in descendientes:
-            if d in info_nodos:
-                val = info_nodos[d]['enganche_ind']
-                if val > 0:
-                    suma += val
-                    count += 1
-        
+            if d in info_nodos and info_nodos[d]['enganche_ind'] > 0:
+                suma += info_nodos[d]['enganche_ind']
+                count += 1
         enganche_area_dict[nodo] = round(suma / count, 1) if count > 0 else 0.0
     
-    for emp in info_nodos:
-        info_nodos[emp]['enganche_area'] = enganche_area_dict.get(emp, 0.0)
+    for emp in info_nodos: info_nodos[emp]['enganche_area'] = enganche_area_dict.get(emp, 0.0)
         
     sucesores_de_9box = {n: 0 for n in G_jerarquia.nodes()}
     sucesores_oficiales_de = {n: 0 for n in G_jerarquia.nodes()} 
@@ -657,60 +503,43 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         box = info['box'].upper()
         if box in ['5', '2']: 
             j1 = obtener_jefe_nivel_arriba(emp, 1)
-            if j1: 
-                sucesores_de_9box[j1] += 1
+            if j1: sucesores_de_9box[j1] += 1
         if box in ['1', '3']:
             j2 = obtener_jefe_nivel_arriba(emp, 2)
-            if j2: 
-                sucesores_de_9box[j2] += 1
-            
+            if j2: sucesores_de_9box[j2] += 1
         for s_id in [info['suc1_id'], info['suc2_id'], info['suc3_id']]:
-            if s_id in sucesores_oficiales_de:
-                sucesores_oficiales_de[s_id] += 1
+            if s_id in sucesores_oficiales_de: sucesores_oficiales_de[s_id] += 1
                 
-    nombres_con_pdi = set()
-    if not df_pdi.empty and 'Nombre' in df_pdi.columns:
-        nombres_con_pdi = set(df_pdi['Nombre'].dropna().astype(str).str.strip().str.lower())
+    nombres_con_pdi = set(df_pdi['Nombre'].dropna().astype(str).str.strip().str.lower()) if not df_pdi.empty and 'Nombre' in df_pdi.columns else set()
         
     for emp, info in info_nodos.items():
         r_list = []
-        
         if info['mla'] != '5':
             es_critica = (info['critica'].lower() == 'si')
             tiene_oficial = (sucesores_oficiales_de.get(emp, 0) > 0)
             tiene_hipos_9box = (sucesores_de_9box.get(emp, 0) > 0)
             
             if es_critica:
-                if not tiene_oficial and not tiene_hipos_9box: 
-                    r_list.append("🔥 Riesgo Crítico: Sin Sucesor ni HiPos")
-                elif not tiene_oficial and tiene_hipos_9box: 
-                    r_list.append("⚠️ Sugerencia: HiPo disponible, falta oficializar")
+                if not tiene_oficial and not tiene_hipos_9box: r_list.append("🔥 Riesgo Crítico: Sin Sucesor ni HiPos")
+                elif not tiene_oficial and tiene_hipos_9box: r_list.append("⚠️ Sugerencia: HiPo disponible, falta oficializar")
                     
             reps = reportes_directos.get(emp, 0)
-            if reps >= 12: 
-                r_list.append(f"⚠️ Sobrecarga ({reps} reportes)")
-            elif reps == 1: 
-                r_list.append("⚠️ Ineficiencia (1 reporte)")
+            if reps >= 12: r_list.append(f"⚠️ Sobrecarga ({reps} reportes)")
+            elif reps == 1: r_list.append("⚠️ Ineficiencia (1 reporte)")
                 
             eng_ind = info['enganche_ind']
-            if 1.0 <= eng_ind < 2.0:
-                r_list.append("🚨 Riesgo de Fuga: Colaborador Desconectado")
-            elif 2.0 <= eng_ind < 3.0:
-                r_list.append("⚠️ Alerta: Bajo Enganche (Desinterés)")
+            if 1.0 <= eng_ind < 2.0: r_list.append("🚨 Riesgo de Fuga: Colaborador Desconectado")
+            elif 2.0 <= eng_ind < 3.0: r_list.append("⚠️ Alerta: Bajo Enganche (Desinterés)")
                 
             if info['es_lider']:
                 eng_area = info['enganche_area']
-                if 1.0 <= eng_area < 2.0:
-                    r_list.append("🚨 Riesgo de Área: Equipo Desconectado")
-                elif 2.0 <= eng_area < 3.0:
-                    r_list.append("⚠️ Alerta de Área: Bajo Enganche del Equipo")
+                if 1.0 <= eng_area < 2.0: r_list.append("🚨 Riesgo de Área: Equipo Desconectado")
+                elif 2.0 <= eng_area < 3.0: r_list.append("⚠️ Alerta de Área: Bajo Enganche del Equipo")
+                
             edr_txt = info['edr'].lower()
-            if '1.resultado inaceptable' in edr_txt or 'inaceptable' in edr_txt:
-                r_list.append("🚨 EDR Crítico: Resultado Inaceptable")
-            elif '2.resultado necesita mejorar' in edr_txt or 'necesita mejorar' in edr_txt:
-                r_list.append("⚠️ EDR Bajo: Necesita Mejorar")
-            if info['nombre'].strip().lower() not in nombres_con_pdi:
-                r_list.append("⚠️ Sin PDI: No tiene Plan de Desarrollo Individual")
+            if '1.resultado inaceptable' in edr_txt or 'inaceptable' in edr_txt: r_list.append("🚨 EDR Crítico: Resultado Inaceptable")
+            elif '2.resultado necesita mejorar' in edr_txt or 'necesita mejorar' in edr_txt: r_list.append("⚠️ EDR Bajo: Necesita Mejorar")
+            if info['nombre'].strip().lower() not in nombres_con_pdi: r_list.append("⚠️ Sin PDI: No tiene Plan de Desarrollo Individual")
                 
         info_nodos[emp]['riesgos_lista'] = r_list
         info_nodos[emp]['riesgos'] = " | ".join(r_list) if r_list else "Ninguno"
@@ -721,21 +550,17 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         for l_id in lider_ids:
             descendientes_validos.add(l_id)
             try:
-                if l_id in G_jerarquia:
-                    descendientes_validos.update(nx.descendants(G_jerarquia, l_id))
-            except nx.NetworkXError: 
-                pass
+                if l_id in G_jerarquia: descendientes_validos.update(nx.descendants(G_jerarquia, l_id))
+            except nx.NetworkXError: pass
                 
     nodos_visibles = set()
     for emp, info in info_nodos.items():
         if info['mla'] == '5':
             nodos_visibles.add(emp)
             continue
-            
         if f_lid != "Todos" and info['nombre'] == f_lid:
             nodos_visibles.add(emp)
             continue
-            
         if f_dir != "Todas" and info['direccion'] != f_dir: continue
         if f_lid != "Todos" and emp not in descendientes_validos: continue
         if f_crit != "Todas" and info['critica'] != f_crit: continue
@@ -743,62 +568,38 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         if f_box != "Todos" and info['box'] != f_box: continue
         if f_edr != "Todos" and info['edr'] != f_edr: continue
         if f_riesgos and not info['riesgos_lista']: continue
-        
         nodos_visibles.add(emp)
         
     nodos_rescatados = set(nodos_visibles)
     for emp in nodos_visibles:
-        info = info_nodos[emp]
-        for s_id in [info['suc1_id'], info['suc2_id'], info['suc3_id']]:
-            if s_id and s_id in info_nodos:
-                nodos_rescatados.add(s_id)
+        for s_id in [info_nodos[emp]['suc1_id'], info_nodos[emp]['suc2_id'], info_nodos[emp]['suc3_id']]:
+            if s_id and s_id in info_nodos: nodos_rescatados.add(s_id)
     nodos_visibles = nodos_rescatados
     
-    raiz_principal = None
-    for emp, info in info_nodos.items():
-        if info['mla'] == '5':
-            raiz_principal = emp
-            break 
-            
+    raiz_principal = next((emp for emp, info in info_nodos.items() if info['mla'] == '5'), None)
     if not raiz_principal:
         posibles_raices = [n for n in G_jerarquia.nodes() if G_jerarquia.in_degree(n) == 0]
-        if posibles_raices: 
-            raiz_principal = max(posibles_raices, key=lambda x: len(nx.descendants(G_jerarquia, x)))
+        if posibles_raices: raiz_principal = max(posibles_raices, key=lambda x: len(nx.descendants(G_jerarquia, x)))
             
     nodo_central_id = raiz_principal
     if f_lid != "Todos":
-        for emp, inf in info_nodos.items():
-            if inf['nombre'] == f_lid:
-                nodo_central_id = emp
-                break
+        nodo_central_id = next((emp for emp, inf in info_nodos.items() if inf['nombre'] == f_lid), raiz_principal)
     elif f_dir != "Todas":
         candidatos = [emp for emp in nodos_visibles if info_nodos[emp]['direccion'] == f_dir]
-        if candidatos:
-            def mla_val(x):
-                val = info_nodos[x]['mla']
-                return int(val) if val.isdigit() else 0
-            nodo_central_id = max(candidatos, key=mla_val)
+        if candidatos: nodo_central_id = max(candidatos, key=lambda x: int(info_nodos[x]['mla']) if str(info_nodos[x]['mla']).isdigit() else 0)
             
     nodos_activos = set(nodos_visibles)
     if raiz_principal and raiz_principal in G_jerarquia:
         for v in nodos_visibles:
             if v in G_jerarquia:
-                try:
-                    nodos_activos.update(nx.ancestors(G_jerarquia, v))
-                except nx.NetworkXError:
-                    pass
+                try: nodos_activos.update(nx.ancestors(G_jerarquia, v))
+                except nx.NetworkXError: pass
                     
     Arbol = nx.bfs_tree(G_jerarquia, raiz_principal) if raiz_principal else G_jerarquia
     
     def obtener_anillo_estricto(emp_id, depth_arbol):
-        mla = info_nodos.get(emp_id, {}).get('mla', '')
-        mla = str(mla).replace('.0', '').strip() 
-        if mla == '5': return 0
-        if mla == '4': return 1 
-        if mla == '3': return 2 
-        if mla == '2': return 3 
-        if mla == '1': return 4 
-        return min(depth_arbol, 5)
+        mla = str(info_nodos.get(emp_id, {}).get('mla', '')).replace('.0', '').strip() 
+        return {'5':0, '4':1, '3':2, '2':3, '1':4}.get(mla, min(depth_arbol, 5))
         
     SEPARACION_ANILLOS = 348 
     conteo_hojas = {}
@@ -810,28 +611,23 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             conteo_hojas[n] = val
             return val
         total = sum(calcular_hojas(c) for c in hijos)
-        if total == 0 and n in nodos_visibles:
-            total = 1
+        if total == 0 and n in nodos_visibles: total = 1
         conteo_hojas[n] = total
         return total
         
-    if raiz_principal: 
-        calcular_hojas(raiz_principal)
+    if raiz_principal: calcular_hojas(raiz_principal)
         
     coords = {}
     def asignar_coordenada_radial(nodo, angulo_inicio, angulo_fin, nivel_padre=0):
         hijos = [c for c in Arbol.successors(nodo) if c in nodos_activos]
-        if not hijos: 
-            return
+        if not hijos: return
         hojas_totales = sum(conteo_hojas.get(c, 0) for c in hijos)
-        if hojas_totales == 0: 
-            return
+        if hojas_totales == 0: return
             
         angulo_actual = angulo_inicio
-        for i, c in enumerate(hijos):
+        for c in hijos:
             peso = conteo_hojas.get(c, 0)
-            if peso == 0:
-                continue
+            if peso == 0: continue
             rebanada = (peso / hojas_totales) * (angulo_fin - angulo_inicio)
             angulo_hijo = angulo_actual + (rebanada / 2)
             profundidad = nx.shortest_path_length(Arbol, raiz_principal, c) if raiz_principal and c in Arbol else 5
@@ -842,15 +638,10 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             radio_final = (nivel_calculado + dispersion) * SEPARACION_ANILLOS if nivel_calculado != 0 else 0
             
             coords[c] = {
-                'x': radio_final * math.cos(angulo_hijo), 
-                'y': radio_final * math.sin(angulo_hijo), 
-                'angle': angulo_hijo, 
-                'anillo_real': anillo_real,
-                'nivel_calculado': nivel_calculado,
-                'dispersion': dispersion,
-                'profundidad': profundidad
+                'x': radio_final * math.cos(angulo_hijo), 'y': radio_final * math.sin(angulo_hijo), 
+                'angle': angulo_hijo, 'anillo_real': anillo_real, 'nivel_calculado': nivel_calculado,
+                'dispersion': dispersion, 'profundidad': profundidad
             }
-            
             asignar_coordenada_radial(c, angulo_actual, angulo_actual + rebanada, nivel_calculado)
             angulo_actual += rebanada
             
@@ -867,222 +658,104 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             nivel_calculado = float(anillo) if anillo != 0 else 1.0
             dispersion = get_dispersion_offset(n)
             radio = (nivel_calculado + dispersion) * SEPARACION_ANILLOS if nivel_calculado != 0 else 80
-            
             coords[n] = {'x': radio * math.cos(angulo_actual), 'y': radio * math.sin(angulo_actual), 'angle': angulo_actual, 'anillo_real': anillo, 'nivel_calculado': nivel_calculado, 'dispersion': dispersion, 'profundidad': 5}
             angulo_actual += angulo_extra
             
-    alertas_tabla = []
-    data_total = []
-    data_sucesores = []
-    data_nueve_box = [] 
-    data_enganche = []
-    data_edr = []
+    alertas_tabla, data_total, data_sucesores, data_nueve_box, data_enganche, data_edr, data_operativos = [], [], [], [], [], [], []
     
     for emp, info in info_nodos.items():
         is_hidden = emp not in nodos_visibles
-        
         nom_suc1 = nombres_dict.get(info['suc1_id'], info['suc1_id']) if info['suc1_id'] else ""
         nom_suc2 = nombres_dict.get(info['suc2_id'], info['suc2_id']) if info['suc2_id'] else ""
         nom_suc3 = nombres_dict.get(info['suc3_id'], info['suc3_id']) if info['suc3_id'] else ""
         
         if not is_hidden:
             es_andres = info['mla'] == '5' or 'ANDRES EDUARDO VILLARREAL' in info['nombre'].upper()
-            
             nodo_data = {"Nombre": info['nombre'], "Dirección": info['direccion'], "Puesto": info['puesto']}
             data_total.append(nodo_data)
             
             if not es_andres:
-                data_edr.append({
-                    "Nombre": info['nombre'],
-                    "Puesto": info['puesto'],
-                    "Dirección": info['direccion'],
-                    "Resultado EDR": info['edr']
-                })
-                
+                data_edr.append({"Nombre": info['nombre'], "Puesto": info['puesto'], "Dirección": info['direccion'], "Resultado EDR": info['edr']})
                 if info['critica'].lower() == 'si':
                     target_id = info['suc1_id']
-                    nom_suc = nom_suc1 if nom_suc1 else "Pendiente"
-                    puesto_suc = "Pendiente"
-                    
-                    if target_id in info_nodos:
-                        puesto_suc = info_nodos[target_id]['puesto']
-                    elif target_id:
-                        puesto_suc = target_id
-                    
-                    tiempo_suc = info['read1'] if info['read1'] else "Pendiente"
-                    
-                    data_sucesores.append({
-                        "Ocupante Actual": info['nombre'],
-                        "Posición Crítica": info['puesto'],
-                        "Dirección": info['direccion'],
-                        "Nombre del Sucesor": nom_suc,
-                        "Puesto del Sucesor": puesto_suc,
-                        "Tiempo de Sucesión": tiempo_suc
-                    })
-                    
+                    puesto_suc = info_nodos[target_id]['puesto'] if target_id in info_nodos else (target_id if target_id else "Pendiente")
+                    data_sucesores.append({"Ocupante Actual": info['nombre'], "Posición Crítica": info['puesto'], "Dirección": info['direccion'], "Nombre del Sucesor": nom_suc1 if nom_suc1 else "Pendiente", "Puesto del Sucesor": puesto_suc, "Tiempo de Sucesión": info['read1'] if info['read1'] else "Pendiente"})
                 if info['es_lider']:
-                    data_enganche.append({
-                        "Líder": info['nombre'],
-                        "Puesto": info['puesto'],
-                        "Dirección": info['direccion'],
-                        "Enganche Individual": info['enganche_ind'] if info['enganche_ind'] > 0 else "N/A",
-                        "Enganche del Área": info['enganche_area'] if info['enganche_area'] > 0 else "N/A"
-                    })
-                    
+                    data_enganche.append({"Líder": info['nombre'], "Puesto": info['puesto'], "Dirección": info['direccion'], "Enganche Individual": info['enganche_ind'] if info['enganche_ind'] > 0 else "N/A", "Enganche del Área": info['enganche_area'] if info['enganche_area'] > 0 else "N/A"})
                 for r in info['riesgos_lista']:
-                    alertas_tabla.append({
-                        "Colaborador": info['nombre'],
-                        "Líder Directo": info['lider'],
-                        "Puesto": info['puesto'],
-                        "Dirección": info['direccion'],
-                        "Alerta Detectada por IA": r
-                    })
+                    alertas_tabla.append({"Colaborador": info['nombre'], "Líder Directo": info['lider'], "Puesto": info['puesto'], "Dirección": info['direccion'], "Alerta Detectada por IA": r})
             
-            if info['box'].lower() not in ['pendiente', 'n/a', 'nan', 'none', '']:
-                data_nueve_box.append({
-                    "Nombre": info['nombre'],
-                    "Puesto": info['puesto'],
-                    "Dirección": info['direccion'],
-                    "Resultado 9-Box": info['box']
-                })
+            if info['box'].lower() not in ['pendiente', 'n/a', 'nan', 'none', '']: data_nueve_box.append({"Nombre": info['nombre'], "Puesto": info['puesto'], "Dirección": info['direccion'], "Resultado 9-Box": info['box']})
+            if info['mla'] == '1': data_operativos.append(nodo_data)
                 
         prefijo = "🚨 " if info['riesgos_lista'] else ""
         coord_data = coords.get(emp, {'angle':0, 'nivel_calculado':5, 'profundidad':5, 'anillo_real': 5})
         
-        nombre_corto = acortar_nombre(info['nombre'])
-        puesto_corto = acortar_puesto(info['puesto'])
-        
         eng = info['enganche_ind']
-        if eng >= 4:
-            color_sombreado = 'rgba(22, 163, 74, 0.8)' 
-        elif eng >= 3:
-            color_sombreado = 'rgba(234, 179, 8, 0.8)' 
-        elif eng >= 2:
-            color_sombreado = 'rgba(249, 115, 22, 0.8)' 
-        elif eng > 0:
-            color_sombreado = 'rgba(220, 38, 38, 0.8)' 
-        else:
-            color_sombreado = 'rgba(0, 0, 0, 0.2)' 
-            
-        label_texto = f"{prefijo}{nombre_corto}\n({puesto_corto})"
+        color_sombreado = 'rgba(22, 163, 74, 0.8)' if eng >= 4 else ('rgba(234, 179, 8, 0.8)' if eng >= 3 else ('rgba(249, 115, 22, 0.8)' if eng >= 2 else ('rgba(220, 38, 38, 0.8)' if eng > 0 else 'rgba(0, 0, 0, 0.2)')))
         
-        h = sum(ord(ch) for ch in str(emp))
-        dispersion_offset = (((h % 9) / 8.0) * 0.4) - 0.2 
+        dispersion_offset = (((sum(ord(ch) for ch in str(emp)) % 9) / 8.0) * 0.4) - 0.2 
         
         G.add_node(
-            emp, 
-            label=label_texto, 
+            emp, label=f"{prefijo}{acortar_nombre(info['nombre'])}\n({acortar_puesto(info['puesto'])})", 
             title=f"<div style='padding: 5px; text-align: center;'><b>{prefijo}{info['nombre']}</b><br><small>{info['puesto']}</small></div>", 
-            size=28 if emp == raiz_principal else 18, 
-            color=obtener_color_9box(info['box']), 
+            size=28 if emp == raiz_principal else 18, color=obtener_color_9box(info['box']), 
             shadow={'enabled': True, 'color': color_sombreado, 'size': 25, 'x': 0, 'y': 0}, 
-            shape='dot', group=info['mla'], 
-            Nivel_MLA=info['mla'], Resultado_9Box=info['box'], EDR=info['edr'], Direccion=info['direccion'], Lider=info['lider'], 
+            shape='dot', group=info['mla'], Nivel_MLA=info['mla'], Resultado_9Box=info['box'], EDR=info['edr'], Direccion=info['direccion'], Lider=info['lider'], 
             Critica=info['critica'], Nombre=info['nombre'], Puesto=info['puesto'], Riesgos=info['riesgos'], Interes=info['interes'], 
             NomSuc1=nom_suc1, Read1=info['read1'], NomSuc2=nom_suc2, Read2=info['read2'], NomSuc3=nom_suc3, Read3=info['read3'],
             Eng_Ind=info['enganche_ind'], Eng_Area=info['enganche_area'], Es_Lider=info['es_lider'],
             font={'color': '#0f172a', 'strokeWidth': 2, 'strokeColor': '#ffffff', 'size': 11, 'face': 'Arial', 'weight': 'bold'},
-            Angle=coord_data['angle'], 
-            NivelCalculado=coord_data.get('nivel_calculado', 5), 
-            Dispersion=dispersion_offset,
-            AnilloReal=coord_data.get('anillo_real', 5), 
-            hidden=is_hidden
+            Angle=coord_data['angle'], NivelCalculado=coord_data.get('nivel_calculado', 5), Dispersion=dispersion_offset, AnilloReal=coord_data.get('anillo_real', 5), hidden=is_hidden
         )
         
     for jefe, emp in G_jerarquia.edges():
         is_hidden_edge = jefe not in nodos_visibles or emp not in nodos_visibles
         eng_emp = info_nodos[emp]['enganche_ind']
-        
-        if eng_emp >= 4:
-            color_edge_shadow = 'rgba(22, 163, 74, 0.8)'
-        elif eng_emp >= 3:
-            color_edge_shadow = 'rgba(234, 179, 8, 0.8)'
-        elif eng_emp >= 2:
-            color_edge_shadow = 'rgba(249, 115, 22, 0.8)'
-        elif eng_emp > 0:
-            color_edge_shadow = 'rgba(220, 38, 38, 0.8)'
-        else:
-            color_edge_shadow = 'rgba(0, 0, 0, 0.0)' 
-            
+        color_edge_shadow = 'rgba(22, 163, 74, 0.8)' if eng_emp >= 4 else ('rgba(234, 179, 8, 0.8)' if eng_emp >= 3 else ('rgba(249, 115, 22, 0.8)' if eng_emp >= 2 else ('rgba(220, 38, 38, 0.8)' if eng_emp > 0 else 'rgba(0, 0, 0, 0.0)')))
         G.add_edge(jefe, emp, color='#94a3b8', width=2, dashes=False, title='Estructura', hidden=is_hidden_edge, is_struct=True, is_9box=False, is_succ=False, smooth=False, shadow={'enabled': True, 'color': color_edge_shadow, 'size': 15, 'x': 0, 'y': 0})
         
     for emp, info in info_nodos.items():
         box = info['box'].upper()
         if box in ['5', '2']:
             j1 = obtener_jefe_nivel_arriba(emp, 1)
-            if j1: 
-                G.add_edge(emp, j1, color='#22c55e', width=3, dashes=[5,5], title='Proyección N+1', hidden=(emp not in nodos_visibles or j1 not in nodos_visibles), is_struct=False, is_9box=True, is_succ=False, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.2})
-        
+            if j1: G.add_edge(emp, j1, color='#22c55e', width=3, dashes=[5,5], title='Proyección N+1', hidden=(emp not in nodos_visibles or j1 not in nodos_visibles), is_struct=False, is_9box=True, is_succ=False, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.2})
         if box in ['1', '3']:
             j2 = obtener_jefe_nivel_arriba(emp, 2)
-            if j2: 
-                G.add_edge(emp, j2, color='#166534', width=3.5, dashes=[5,5], title='Proyección N+2', hidden=(emp not in nodos_visibles or j2 not in nodos_visibles), is_struct=False, is_9box=True, is_succ=False, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.3})
+            if j2: G.add_edge(emp, j2, color='#166534', width=3.5, dashes=[5,5], title='Proyección N+2', hidden=(emp not in nodos_visibles or j2 not in nodos_visibles), is_struct=False, is_9box=True, is_succ=False, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.3})
             
         for s_id, read_time in [(info['suc1_id'], info['read1']), (info['suc2_id'], info['read2']), (info['suc3_id'], info['read3'])]:
             if s_id and s_id in empleados_validos:
                 is_hidden_edge = (emp not in nodos_visibles or s_id not in nodos_visibles)
-                
                 val = get_readiness_val(read_time)
-                if val == 1:
-                    dashes_style = False 
-                    edge_width = 6
-                elif val == 2:
-                    dashes_style = [10, 10] 
-                    edge_width = 4
-                else:
-                    dashes_style = [4, 8] 
-                    edge_width = 2
-                    
+                dashes_style = False if val == 1 else ([10, 10] if val == 2 else [4, 8])
+                edge_width = 6 if val == 1 else (4 if val == 2 else 2)
                 G.add_edge(emp, s_id, color='#9c27b0', width=edge_width, dashes=dashes_style, title=f'🎯 Sucesor: {read_time}', hidden=is_hidden_edge, is_struct=False, is_9box=False, is_succ=True, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.6})
                 
-    data_alertas = [{"Nombre": a['Colaborador'], "Dirección": a['Dirección'], "Puesto": a['Puesto'], "Alerta": a['Alerta Detectada por IA']} for a in alertas_tabla]
-    
-    eng_total_sum = sum(info_nodos[n]['enganche_ind'] for n in nodos_visibles if info_nodos[n]['enganche_ind'] > 0 and 'ANDRES EDUARDO VILLARREAL' not in info_nodos[n]['nombre'].upper())
-    eng_total_count = sum(1 for n in nodos_visibles if info_nodos[n]['enganche_ind'] > 0 and 'ANDRES EDUARDO VILLARREAL' not in info_nodos[n]['nombre'].upper())
-    avg_enganche = round(eng_total_sum / eng_total_count, 1) if eng_total_count > 0 else 0.0
+    eng_list = [info_nodos[n]['enganche_ind'] for n in nodos_visibles if info_nodos[n]['enganche_ind'] > 0 and 'ANDRES EDUARDO VILLARREAL' not in info_nodos[n]['nombre'].upper()]
+    avg_enganche = round(sum(eng_list) / len(eng_list), 1) if eng_list else 0.0
     
     kpis = {
-        'total': len(data_total),
-        'sucesores': len(data_sucesores),
-        'nueve_box_count': len(data_nueve_box),
-        'alertas': len(alertas_tabla),
-        'enganche_promedio': avg_enganche,
-        'edr_count': len(data_edr),
-        'data_total': data_total,
-        'data_sucesores': data_sucesores,
-        'data_nueve_box': data_nueve_box,
-        'data_alertas': data_alertas,
-        'data_enganche': data_enganche,
-        'data_edr': data_edr
+        'total': len(data_total), 'sucesores': len(data_sucesores), 'nueve_box_count': len(data_nueve_box),
+        'alertas': len(alertas_tabla), 'enganche_promedio': avg_enganche, 'edr_count': len(data_edr),
+        'data_total': data_total, 'data_sucesores': data_sucesores, 'data_nueve_box': data_nueve_box,
+        'data_alertas': [{"Nombre": a['Colaborador'], "Dirección": a['Dirección'], "Puesto": a['Puesto'], "Alerta": a['Alerta Detectada por IA']} for a in alertas_tabla],
+        'data_enganche': data_enganche, 'data_edr': data_edr
     }
-    
-    df_alertas = pd.DataFrame(alertas_tabla)
     
     net = Network(height='750px', width='100%', bgcolor='#ffffff', font_color='#333333', directed=True, cdn_resources='remote')
     net.from_nx(G)
     net.set_options(OPCIONES_PYVIS)
+    html = net.generate_html().replace('</body>', BOTON_HTML + '\n' + SCRIPT_ANILLOS + f'\n<script>\nwindow.targetNodeId = "{nodo_central_id}";\n</script>\n</body>')
     
-    html = net.generate_html()
-    
-    script_foco = f"""
-    <script>
-    window.targetNodeId = "{nodo_central_id}";
-    </script>
-    """
-    
-    html = html.replace('</body>', BOTON_HTML + '\n' + SCRIPT_ANILLOS + '\n' + script_foco + '\n</body>')
-    
-    return html, df_alertas, kpis
+    return html, pd.DataFrame(alertas_tabla), kpis
 
 # ==========================================
 # INTERFAZ PRINCIPAL DE LA PLATAFORMA WEB
 # ==========================================
 def main():
-    if not login():
-        st.stop()
-        
-    if "vista_kpi" not in st.session_state:
-        st.session_state["vista_kpi"] = None
+    if not login(): st.stop()
+    if "vista_kpi" not in st.session_state: st.session_state["vista_kpi"] = None
         
     st.markdown("""
         <style>
@@ -1095,16 +768,14 @@ def main():
     """, unsafe_allow_html=True)
     
     c1, c2 = st.columns([3, 1])
-    with c1:
-        st.subheader(f"Bienvenido(a), {st.session_state['nombre_usuario']}")
+    with c1: st.subheader(f"Bienvenido(a), {st.session_state['nombre_usuario']}")
     with c2:
         if st.button("Cerrar Sesión", use_container_width=True):
             st.session_state["usuario_logueado"] = False
             st.rerun()
             
     st.divider()
-    with st.spinner("Cargando mapa con conexiones lógicas y datos de PDI..."):
-        
+    with st.spinner("Cargando base de datos (Vectorizada)..."):
         link_archivo = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit"
         current_timestamp = obtener_timestamp_actualizacion(link_archivo)
         
@@ -1112,8 +783,15 @@ def main():
         df_pdi = cargar_datos_csv(link_archivo, "PDI", current_timestamp)
         
         if df_completo.empty:
-            st.error("Error al conectar con la base de datos de Google Sheets principal. Revisa el mensaje técnico arriba.")
+            st.error("Error al conectar con la base de datos.")
             st.stop()
+            
+        # PRE-PROCESAMIENTO VECTORIZADO PARA BÚSQUEDAS RÁPIDAS
+        df_completo['Nombre'] = df_completo['Nombre'].astype(str).str.strip()
+        df_completo['Nombre_Cruce'] = df_completo['Nombre'].str.lower()
+        if not df_pdi.empty and 'Nombre' in df_pdi.columns:
+            df_pdi['Nombre'] = df_pdi['Nombre'].astype(str).str.strip()
+            df_pdi['Nombre_Cruce'] = df_pdi['Nombre'].str.lower()
             
         usuarios_autorizados = obtener_usuarios_autorizados()
         direccion_permitida = usuarios_autorizados[st.session_state["id_usuario"]]["direccion"]
@@ -1127,41 +805,38 @@ def main():
         with col_head1:
             st.markdown("### 🎛️ Filtros Globales (Controlan Mapa, KPIs y Tablas)")
             if st.button("🔄 Forzar Sincronización con Excel", help="Usa este botón si hiciste cambios manuales directamente en el archivo de Google Sheets"):
-                st.cache_data.clear()
-                st.rerun()
+                st.cache_data.clear(); st.rerun()
             
         with col_head2:
-            lista_nombres_buscador = sorted([clean_text(n) for n in df_seguro['Nombre'].dropna().unique() if clean_text(n)])
+            nombres_s = df_seguro['Nombre'].dropna()
+            lista_nombres_buscador = sorted(nombres_s[nombres_s != ''].unique().tolist())
             colab_buscado = st.selectbox("🔍 Búsqueda rápida de colaborador:", [""] + lista_nombres_buscador)
+            
         if colab_buscado:
-            datos_c = df_seguro[df_seguro['Nombre'].apply(lambda x: clean_text(x)) == colab_buscado].iloc[0]
+            datos_c = df_seguro[df_seguro['Nombre'] == colab_buscado].iloc[0]
             p_puesto = clean_text(datos_c.get('Nombre de la Posición', 'N/A'))
             p_dir = clean_text(datos_c.get('Dirección', datos_c.get('Direccion', 'N/A')))
             p_box = clean_text(datos_c.get('Resultado 9 box', 'N/A'))
             edr_key = 'EDR' if 'EDR' in datos_c else ('EDR ' if 'EDR ' in datos_c else None)
             p_edr = clean_text(datos_c.get(edr_key, 'N/A')) if edr_key else 'N/A'
             p_mla = clean_text(datos_c.get('Nivel MLA', 'N/A'))
-            
             st.success(f"👤 **{colab_buscado}** | 🏢 **Puesto:** {p_puesto} | 📍 **Dirección:** {p_dir} | 📊 **9-Box:** {p_box} | 📈 **EDR:** {p_edr} | 🥇 **Nivel MLA:** {p_mla}")
         
-        dirs = sorted([clean_text(x) for x in df_seguro['Dirección'].unique() if clean_text(x)])
-        mlas = sorted([clean_text(x) for x in df_seguro['Nivel MLA'].unique() if clean_text(x)])
-        boxes = sorted([clean_text(x).upper() for x in df_seguro['Resultado 9 box'].unique() if clean_text(x)])
-        criticas = sorted([clean_text(x) for x in df_seguro['Posición Crítica'].unique() if clean_text(x)])
+        # OBTENCIÓN VECTORIZADA DE LISTAS ÚNICAS
+        dirs = sorted(df_seguro['Dirección'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
+        mlas = sorted(df_seguro['Nivel MLA'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
+        boxes = sorted(df_seguro['Resultado 9 box'].dropna().astype(str).str.strip().str.upper()[lambda x: x != ''].unique().tolist())
+        criticas = sorted(df_seguro['Posición Crítica'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
         
         edrs_col = 'EDR' if 'EDR' in df_seguro.columns else ('EDR ' if 'EDR ' in df_seguro.columns else None)
-        edrs = sorted([clean_text(x) for x in df_seguro[edrs_col].unique() if clean_text(x)]) if edrs_col else []
+        edrs = sorted(df_seguro[edrs_col].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist()) if edrs_col else []
         
         col_f1, col_f2, col_f3, col_f4, col_f5, col_f6 = st.columns(6)
-        
         f_dir = col_f1.selectbox("Dirección", ["Todas"] + dirs)
         
-        dict_nom = {clean_id(row.get('id Empleado')): clean_text(row.get('Nombre')) for row in df_seguro.to_dict('records')}
-        if f_dir != "Todas":
-            df_filtrado_dir = df_seguro[df_seguro['Dirección'].apply(clean_text) == f_dir]
-            lideres_ids = df_filtrado_dir['ID Del Jefe'].dropna().unique()
-        else:
-            lideres_ids = df_seguro['ID Del Jefe'].dropna().unique()
+        dict_nom = {clean_id(r.get('id Empleado')): r.get('Nombre') for r in df_seguro.to_dict('records')}
+        if f_dir != "Todas": lideres_ids = df_seguro[df_seguro['Dirección'].astype(str).str.strip() == f_dir]['ID Del Jefe'].dropna().unique()
+        else: lideres_ids = df_seguro['ID Del Jefe'].dropna().unique()
             
         lideres = sorted(list(set([dict_nom.get(clean_id(x), "Sin Líder") for x in lideres_ids if clean_id(x)])))
         
@@ -1171,110 +846,77 @@ def main():
         f_box = col_f5.selectbox("9-Box", ["Todos"] + boxes)
         f_edr = col_f6.selectbox("EDR (Resultados)", ["Todos"] + edrs)
         
-        f_riesgos = st.checkbox("🚨 Mostrar Solo Colaboradores con Riesgos Detectados (Incluye riesgo PDI y EDR)")
+        f_riesgos = st.checkbox("🚨 Mostrar Solo Colaboradores con Riesgos Detectados")
         st.write("") 
         
         html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_edr, f_riesgos)
         
         if kpis is not None:
-            # --- NUEVA ARQUITECTURA DE PESTAÑAS (TABS) ---
-            tab_mapa, tab_sucesiones, tab_pdi = st.tabs([
-                "🗺️ Mapa Organizacional y KPIs", 
-                "🔀 Planificador de Sucesiones", 
-                "📈 Seguimiento de PDI"
-            ])
+            tab_mapa, tab_sucesiones, tab_pdi = st.tabs(["🗺️ Mapa Organizacional y KPIs", "🔀 Planificador de Sucesiones", "📈 Seguimiento de PDI"])
             
             with tab_mapa:
                 col_mapa, col_datos = st.columns([7, 3])
-                
-                with col_mapa:
-                    components.html(html_mapa, height=750, scrolling=False)
-                    
+                with col_mapa: components.html(html_mapa, height=750, scrolling=False)
                 with col_datos:
                     st.markdown("### 📊 KPIs de Talento")
-                    
                     k1, k2, k3, k4, k5, k6 = st.columns(6)
-                    
                     with k1:
                         st.markdown(crear_tarjeta_kpi("Total<br>Colab.", kpis['total'], "#3b82f6", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
-                        if st.button("🔍 Ver", key="b_tot", use_container_width=True):
-                            st.session_state["vista_kpi"] = "total"
+                        if st.button("🔍 Ver", key="b_tot", use_container_width=True): st.session_state["vista_kpi"] = "total"
                     with k2:
                         st.markdown(crear_tarjeta_kpi("Sucesión<br>(Pos. Críticas)", kpis['sucesores'], "#8b5cf6", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
-                        if st.button("🔍 Ver", key="b_suc", use_container_width=True):
-                            st.session_state["vista_kpi"] = "sucesores"
+                        if st.button("🔍 Ver", key="b_suc", use_container_width=True): st.session_state["vista_kpi"] = "sucesores"
                     with k3:
                         st.markdown(crear_tarjeta_kpi("Desempeño<br>(EDR)", kpis['edr_count'], "#0284c7", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
-                        if st.button("🔍 Ver", key="b_edr", use_container_width=True):
-                            st.session_state["vista_kpi"] = "edr"
+                        if st.button("🔍 Ver", key="b_edr", use_container_width=True): st.session_state["vista_kpi"] = "edr"
                     with k4:
                         st.markdown(crear_tarjeta_kpi("Resultados<br>(9-Box)", kpis['nueve_box_count'], "#eab308", "#64748b", "#fefce8"), unsafe_allow_html=True)
-                        if st.button("🔍 Ver", key="b_9box", use_container_width=True):
-                            st.session_state["vista_kpi"] = "nueve_box"
+                        if st.button("🔍 Ver", key="b_9box", use_container_width=True): st.session_state["vista_kpi"] = "nueve_box"
                     with k5:
                         st.markdown(crear_tarjeta_kpi("Alertas<br>Detect.", kpis['alertas'], "#e11d48", "#9f1239", "#fff1f2"), unsafe_allow_html=True)
-                        if st.button("🔍 Ver", key="b_ale", use_container_width=True):
-                            st.session_state["vista_kpi"] = "alertas"
+                        if st.button("🔍 Ver", key="b_ale", use_container_width=True): st.session_state["vista_kpi"] = "alertas"
                     with k6:
                         st.markdown(crear_tarjeta_kpi("Promedio<br>Enganche", kpis['enganche_promedio'], "#14b8a6", "#0f766e", "#f0fdfa"), unsafe_allow_html=True)
-                        if st.button("🔍 Ver", key="b_eng", use_container_width=True):
-                            st.session_state["vista_kpi"] = "enganche"
+                        if st.button("🔍 Ver", key="b_eng", use_container_width=True): st.session_state["vista_kpi"] = "enganche"
                     
                     if st.session_state["vista_kpi"]:
                         vista = st.session_state["vista_kpi"]
-                        titulos_kpi = {
-                            "total": "Total de Colaboradores", 
-                            "sucesores": "Sucesión de Posiciones Críticas",
-                            "edr": "Evaluación de Desempeño y Resultados (EDR)", 
-                            "nueve_box": "Evaluaciones 9-Box",
-                            "alertas": "Colaboradores con Riesgos / Alertas", 
-                            "enganche": "Nivel de Enganche de Líderes"
-                        }
-                        
+                        titulos_kpi = {"total": "Total de Colaboradores", "sucesores": "Sucesión de Posiciones Críticas", "edr": "Evaluación de Desempeño y Resultados (EDR)", "nueve_box": "Evaluaciones 9-Box", "alertas": "Colaboradores con Riesgos / Alertas", "enganche": "Nivel de Enganche de Líderes"}
                         st.markdown(f"#### 📋 {titulos_kpi[vista]}")
                         df_lista = pd.DataFrame(kpis[f"data_{vista}"])
-                        
                         if not df_lista.empty:
-                            if vista == "alertas":
-                                df_lista = df_lista.drop_duplicates(subset=["Nombre", "Alerta"]).reset_index(drop=True)
-                            if direccion_permitida != "TODAS" and "Dirección" in df_lista.columns:
-                                df_lista = df_lista.drop(columns=["Dirección"])
+                            if vista == "alertas": df_lista = df_lista.drop_duplicates(subset=["Nombre", "Alerta"]).reset_index(drop=True)
+                            if direccion_permitida != "TODAS" and "Dirección" in df_lista.columns: df_lista = df_lista.drop(columns=["Dirección"])
                             st.dataframe(df_lista, use_container_width=True, hide_index=True)
-                        else:
-                            st.info("No hay registros en esta categoría.")
-                            
+                        else: st.info("No hay registros en esta categoría.")
                         if st.button("❌ Cerrar Lista", use_container_width=True):
-                            st.session_state["vista_kpi"] = None
-                            st.rerun()
+                            st.session_state["vista_kpi"] = None; st.rerun()
             
             with tab_sucesiones:
-                # ==========================================
-                # PLANIFICADOR DE SUCESIONES + IA (Rollback)
-                # ==========================================
                 st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
-                
-                st.info("🔒 **Modo Presentación:** Selecciona a un líder aquí para limitar las posiciones críticas disponibles exclusivamente a su equipo. Útil para proyectar en pantalla durante reuniones para evitar fugas de información confidencial.")
+                st.info("🔒 **Modo Presentación:** Selecciona a un líder aquí para limitar las posiciones críticas disponibles exclusivamente a su equipo. Útil para evitar fugas de información confidencial.")
                 
                 lideres_totales = sorted(list(set([dict_nom.get(clean_id(x), "Sin Líder") for x in df_seguro['ID Del Jefe'].dropna().unique() if clean_id(x)])))
                 f_lid_plan = st.selectbox("👤 Líder a revisar (Modo Privado):", ["Todos"] + lideres_totales, key="modo_pres_lider")
                 
+                # --- OPTIMIZACIÓN DE RENDIMIENTO: DICCIONARIO DE JERARQUÍA ---
+                jerarquia_rapida = {}
+                for j, e in zip(df_seguro['ID Del Jefe'].astype(str).str.strip(), df_seguro['id Empleado'].astype(str).str.strip()):
+                    j = j[:-2] if j.endswith('.0') else j
+                    e = e[:-2] if e.endswith('.0') else e
+                    if j not in jerarquia_rapida: jerarquia_rapida[j] = []
+                    jerarquia_rapida[j].append(e)
+
                 def obtener_subordinados(lider_nombre):
-                    lider_id = None
-                    for i, n in dict_nom.items():
-                        if n == lider_nombre:
-                            lider_id = i
-                            break
+                    lider_id = next((i for i, n in dict_nom.items() if n == lider_nombre), None)
                     if not lider_id: return set()
-                    
-                    subs = set()
-                    cola = [lider_id]
+                    subs = set(); cola = [lider_id]
                     while cola:
                         actual = cola.pop(0)
-                        directos = df_seguro[df_seguro['ID Del Jefe'].apply(clean_id) == actual]['id Empleado'].apply(clean_id).tolist()
+                        directos = jerarquia_rapida.get(actual, [])
                         for d in directos:
                             if d and d not in subs:
-                                subs.add(d)
-                                cola.append(d)
+                                subs.add(d); cola.append(d)
                     return set([dict_nom.get(s) for s in subs if s in dict_nom])
                 
                 subordinados_permitidos = None
@@ -1285,7 +927,6 @@ def main():
                 nombres_visibles_limpios = [str(d['Nombre']).strip().lower() for d in kpis['data_total']]
                 
                 df_posiciones_filtradas = df_seguro.copy()
-                df_posiciones_filtradas['Nombre_Cruce'] = df_posiciones_filtradas['Nombre'].astype(str).str.strip().str.lower()
                 
                 if f_lid_plan != "Todos":
                     sub_limpios = [str(x).strip().lower() for x in subordinados_permitidos]
@@ -1294,84 +935,73 @@ def main():
                     df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Nombre_Cruce'].isin(nombres_visibles_limpios)]
                     
                 df_posiciones_filtradas = df_posiciones_filtradas[
-                    (df_posiciones_filtradas['Posición Crítica'].apply(clean_text).str.lower() == 'si') &
+                    (df_posiciones_filtradas['Posición Crítica'].astype(str).str.strip().str.lower() == 'si') &
                     (df_posiciones_filtradas['Nivel MLA'].astype(str).str.strip() != '5') &
                     (~df_posiciones_filtradas['Nombre de la Posición'].astype(str).str.upper().str.contains('DIRECTOR GENERAL'))
                 ]
                 
-                def tiene_sucesor(row):
-                    suc = clean_text(row.get('Sucesor P.1', row.get('Sucesor 1', '')))
-                    return 1 if suc and suc.lower() not in ['pendiente', 'nan', 'none', '', 'no definido'] else 0
-                    
-                df_posiciones_filtradas['Tiene_Sucesor'] = df_posiciones_filtradas.apply(tiene_sucesor, axis=1)
-                total_criticas = len(df_posiciones_filtradas)
-                sucesores_definidos = df_posiciones_filtradas['Tiene_Sucesor'].sum() if total_criticas > 0 else 0
-                sucesores_pendientes = total_criticas - sucesores_definidos
+                # --- OPTIMIZACIÓN: VECTORIZACIÓN DE TIENE SUCESOR ---
+                if not df_posiciones_filtradas.empty:
+                    col_suc = 'Sucesor P.1' if 'Sucesor P.1' in df_posiciones_filtradas.columns else 'Sucesor 1'
+                    sucs = df_posiciones_filtradas[col_suc].fillna('').astype(str).str.strip().str.lower()
+                    invalid_sucs = ['pendiente', 'nan', 'none', '', 'no definido']
+                    df_posiciones_filtradas['Tiene_Sucesor'] = (~sucs.isin(invalid_sucs)).astype(int)
+                    total_criticas = len(df_posiciones_filtradas)
+                    sucesores_definidos = df_posiciones_filtradas['Tiene_Sucesor'].sum()
+                    sucesores_pendientes = total_criticas - sucesores_definidos
+                else:
+                    df_posiciones_filtradas['Tiene_Sucesor'] = 0
+                    total_criticas = 0; sucesores_definidos = 0; sucesores_pendientes = 0
                 
                 col_k1, col_k2, col_k3 = st.columns(3)
                 with col_k1:
-                    if st.button(f"📘 TOTAL CRÍTICAS: {total_criticas}", use_container_width=True):
-                        st.session_state['filtro_kpi_plan'] = 'todas'
+                    if st.button(f"📘 TOTAL CRÍTICAS: {total_criticas}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'todas'
                 with col_k2:
-                    if st.button(f"✅ CON SUCESOR: {sucesores_definidos}", use_container_width=True):
-                        st.session_state['filtro_kpi_plan'] = 'con_sucesor'
+                    if st.button(f"✅ CON SUCESOR: {sucesores_definidos}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'con_sucesor'
                 with col_k3:
-                    if st.button(f"🚨 PENDIENTES: {sucesores_pendientes}", use_container_width=True):
-                        st.session_state['filtro_kpi_plan'] = 'pendientes'
+                    if st.button(f"🚨 PENDIENTES: {sucesores_pendientes}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'pendientes'
                 
                 if 'filtro_kpi_plan' in st.session_state and st.session_state['filtro_kpi_plan']:
                     modo = st.session_state['filtro_kpi_plan']
-                    if modo == 'todas':
-                        df_mostrar = df_posiciones_filtradas
-                        titulo_lista = "Todas las Posiciones Críticas"
-                    elif modo == 'con_sucesor':
-                        df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 1]
-                        titulo_lista = "Posiciones con Sucesor Asignado"
-                    else:
-                        df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 0]
-                        titulo_lista = "Posiciones Pendientes de Sucesor"
+                    if modo == 'todas': df_mostrar = df_posiciones_filtradas; titulo_lista = "Todas las Posiciones Críticas"
+                    elif modo == 'con_sucesor': df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 1]; titulo_lista = "Posiciones con Sucesor Asignado"
+                    else: df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 0]; titulo_lista = "Posiciones Pendientes de Sucesor"
                     
                     with st.container():
                         st.markdown(f"#### 📋 {titulo_lista} (Haz clic para cargar)")
-                        if df_mostrar.empty:
-                            st.info("No hay posiciones en esta categoría.")
+                        if df_mostrar.empty: st.info("No hay posiciones en esta categoría.")
                         else:
                             cols_grid = st.columns(3)
-                            for i, (_, row) in enumerate(df_mostrar.iterrows()):
-                                p_name = clean_text(row.get('Nombre de la Posición'))
-                                if p_name:
-                                    if cols_grid[i % 3].button(p_name, key=f"grid_btn_{i}_{modo}", use_container_width=True):
-                                        st.session_state['plan_pos'] = p_name
-                                        st.session_state['filtro_kpi_plan'] = None
-                                        st.rerun()
-                        
+                            # Vectorizado iterando sobre diccionarios
+                            for i, row_dict in enumerate(df_mostrar.to_dict('records')):
+                                p_name = clean_text(row_dict.get('Nombre de la Posición'))
+                                if p_name and cols_grid[i % 3].button(p_name, key=f"grid_btn_{i}_{modo}", use_container_width=True):
+                                    st.session_state['plan_pos'] = p_name
+                                    st.session_state['filtro_kpi_plan'] = None
+                                    st.rerun()
                         if st.button("❌ Cerrar lista", key="cerrar_lista_kpi"):
-                            st.session_state['filtro_kpi_plan'] = None
-                            st.rerun()
+                            st.session_state['filtro_kpi_plan'] = None; st.rerun()
                 
                 st.write("")
-                posiciones_opciones = sorted(list(set([clean_text(row.get('Nombre de la Posición')) for _, row in df_posiciones_filtradas.iterrows() if clean_text(row.get('Nombre de la Posición'))])))
+                # Vectorizado para opciones de dropdown
+                pos_series = df_posiciones_filtradas['Nombre de la Posición'].dropna().astype(str).str.strip()
+                posiciones_opciones = sorted(pos_series[pos_series != ''].unique().tolist())
                 
-                if 'plan_pos' in st.session_state and st.session_state['plan_pos'] not in [""] + posiciones_opciones:
-                    st.session_state['plan_pos'] = ""
+                if 'plan_pos' in st.session_state and st.session_state['plan_pos'] not in [""] + posiciones_opciones: st.session_state['plan_pos'] = ""
 
                 pos_seleccionada = st.selectbox("🔍 Selecciona la Posición Crítica para editar (Filtrada por tu selección global):", [""] + posiciones_opciones, key="plan_pos")
                 
                 def obtener_ficha_candidato(nombre_cand):
-                    if not nombre_cand or nombre_cand == "Pendiente":
-                        return None
-                    match_colab = df_completo[df_completo['Nombre'].astype(str).str.strip().str.lower() == nombre_cand.strip().lower()]
+                    if not nombre_cand or nombre_cand == "Pendiente": return None
+                    match_colab = df_completo[df_completo['Nombre_Cruce'] == nombre_cand.strip().lower()]
                     if match_colab.empty: return None
                     row_c = match_colab.iloc[0]
                     dir_candidato = clean_text(row_c.get('Dirección', row_c.get('Direccion')), 'No asignada')
                     
-                    if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in dir_candidato.upper()):
-                        return "RESTRINGIDO_GLOBAL"
-                        
+                    if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in dir_candidato.upper()): return "RESTRINGIDO_GLOBAL"
                     if f_lid_plan != "Todos":
                         sub_limpios_lider = [str(x).strip().lower() for x in subordinados_permitidos]
-                        if nombre_cand.strip().lower() not in sub_limpios_lider:
-                            return "RESTRINGIDO_LIDER"
+                        if nombre_cand.strip().lower() not in sub_limpios_lider: return "RESTRINGIDO_LIDER"
                             
                     puesto_actual = clean_text(row_c.get('Nombre de la Posición'), 'Puesto no asignado')
                     box_c = clean_text(row_c.get('Resultado 9 box'), 'Pendiente')
@@ -1380,80 +1010,56 @@ def main():
                     eng_c = clean_text(row_c.get(eng_key), 'N/A') if eng_key else 'N/A'
                     return {"puesto_actual": puesto_actual, "direccion": dir_candidato, "box": box_c, "enganche": eng_c, "edr": edr_c}
                 
+                # --- OPTIMIZACIÓN: EXTRACCIÓN DE TEXTOS PDI VECTORIZADA ---
                 dict_pdi_textos = {}
                 if not df_pdi.empty and 'Nombre' in df_pdi.columns:
                     col_obj = next((c for c in df_pdi.columns if 'objetivo' in str(c).lower()), None)
                     col_acciones = next((c for c in df_pdi.columns if 'acciones' in str(c).lower() or 'qué' in str(c).lower()), None)
-                    for _, row_p in df_pdi.iterrows():
-                        nom = clean_text(row_p.get('Nombre')).lower()
-                        obj = clean_text(row_p.get(col_obj)) if col_obj else ""
-                        acc = clean_text(row_p.get(col_acciones)) if col_acciones else ""
-                        dict_pdi_textos[nom] = obj + " " + acc
+                    n_s = df_pdi['Nombre'].fillna('').astype(str).str.strip().str.lower()
+                    o_s = df_pdi[col_obj].fillna('').astype(str).str.strip() if col_obj else [''] * len(df_pdi)
+                    a_s = df_pdi[col_acciones].fillna('').astype(str).str.strip() if col_acciones else [''] * len(df_pdi)
+                    for n_val, o_val, a_val in zip(n_s, o_s, a_s): dict_pdi_textos[n_val] = f"{o_val} {a_val}"
                         
                 def generar_sugerencias_ia(pos_destino, info_pos_destino):
                     if not pos_destino or df_completo.empty: return []
-                    
                     mla_destino = clean_text(info_pos_destino.get('Nivel MLA'), '')
                     ocupante_destino = clean_text(info_pos_destino.get('Nombre'), '').lower()
-                    
                     contexto_destino = extraer_contexto(pos_destino)
                     candidatos_sugeridos = []
                     
-                    for _, row in df_completo.iterrows():
+                    # Usamos to_dict('records') para iterar 100 veces más rápido que iterrows()
+                    for row in df_completo.to_dict('records'):
                         nombre = clean_text(row.get('Nombre'))
                         if not nombre or nombre.lower() == ocupante_destino: continue
-                            
                         puesto_act = clean_text(row.get('Nombre de la Posición'))
                         if puesto_act.lower() == pos_destino.lower(): continue
                         
                         contexto_cand_puesto = extraer_contexto(puesto_act)
                         pdi_texto = dict_pdi_textos.get(nombre.lower(), "")
                         contexto_cand_pdi = extraer_contexto(pdi_texto)
-                        
                         perfil_tecnico_candidato = contexto_cand_puesto.union(contexto_cand_pdi)
                         
-                        if not contexto_destino.intersection(perfil_tecnico_candidato):
-                            continue 
+                        if not contexto_destino.intersection(perfil_tecnico_candidato): continue 
                         
                         box = clean_text(row.get('Resultado 9 box')).upper()
                         if box not in ['1', '2', '3', '4', '5', '6']: continue 
                         
                         mla_cand = clean_text(row.get('Nivel MLA'))
-                        score = 0
-                        razones = []
+                        score = 0; razones = []
                         
-                        if contexto_destino.intersection(contexto_cand_puesto):
-                            score += 5
-                            razones.append("Afinidad técnica en puesto actual")
-                        elif contexto_destino.intersection(contexto_cand_pdi):
-                            score += 4
-                            razones.append("Desarrollando skills afines (PDI)")
+                        if contexto_destino.intersection(contexto_cand_puesto): score += 5; razones.append("Afinidad técnica en puesto actual")
+                        elif contexto_destino.intersection(contexto_cand_pdi): score += 4; razones.append("Desarrollando skills afines (PDI)")
                             
-                        if box in ['1', '2', '3', '5']:
-                            score += 4
-                            razones.append("Alto Potencial (9-Box)")
-                        elif box in ['4', '6']:
-                            score += 2
-                            razones.append("Desempeño Sólido")
+                        if box in ['1', '2', '3', '5']: score += 4; razones.append("Alto Potencial (9-Box)")
+                        elif box in ['4', '6']: score += 2; razones.append("Desempeño Sólido")
                             
                         if mla_destino.isdigit() and mla_cand.isdigit():
                             diff = int(mla_destino) - int(mla_cand)
-                            if diff == 1:
-                                score += 3
-                                razones.append("Listo para ascenso (Nivel contiguo)")
-                            elif diff == 0:
-                                score += 2
-                                razones.append("Movimiento lateral orgánico")
+                            if diff == 1: score += 3; razones.append("Listo para ascenso (Nivel contiguo)")
+                            elif diff == 0: score += 2; razones.append("Movimiento lateral orgánico")
                                 
                         if score >= 7: 
-                            candidatos_sugeridos.append({
-                                'nombre': nombre,
-                                'puesto': puesto_act,
-                                'direccion': clean_text(row.get('Dirección')),
-                                'box': box,
-                                'score': score,
-                                'razon': " | ".join(razones)
-                            })
+                            candidatos_sugeridos.append({'nombre': nombre, 'puesto': puesto_act, 'direccion': clean_text(row.get('Dirección')), 'box': box, 'score': score, 'razon': " | ".join(razones)})
                             
                     return sorted(candidatos_sugeridos, key=lambda x: x['score'], reverse=True)[:3]
 
@@ -1461,13 +1067,9 @@ def main():
                     if not nombre_cand or nombre_cand == "Pendiente" or isinstance(info_cand, str) or not info_cand: return None
                     if df_pdi.empty: return {"estatus": "SIN_DATOS", "msg": "No hay base de datos de PDI cargada."}
                     
-                    match_pdi = df_pdi[df_pdi['Nombre'].astype(str).str.strip().str.lower() == nombre_cand.strip().lower()]
+                    match_pdi = df_pdi[df_pdi['Nombre_Cruce'] == nombre_cand.strip().lower()]
                     if match_pdi.empty:
-                        return {
-                            "estatus": "SIN_PDI", 
-                            "puesto_origen": info_cand['puesto_actual'],
-                            "recomendacion": f"🚨 **Acción Requerida:** El colaborador ocupa el puesto de *{info_cand['puesto_actual']}* pero NO tiene un PDI registrado. Se requiere crear un PDI enfocado en cerrar las brechas hacia la posición de *{puesto_destino}*."
-                        }
+                        return {"estatus": "SIN_PDI", "puesto_origen": info_cand['puesto_actual'], "recomendacion": f"🚨 **Acción Requerida:** El colaborador ocupa el puesto de *{info_cand['puesto_actual']}* pero NO tiene un PDI registrado. Se requiere crear un PDI enfocado en cerrar las brechas hacia la posición de *{puesto_destino}*."}
                     
                     col_obj = next((c for c in match_pdi.columns if 'objetivo' in str(c).lower()), None)
                     col_avance = next((c for c in match_pdi.columns if 'avance' in str(c).lower()), None)
@@ -1485,19 +1087,9 @@ def main():
                     puesto_origen = info_cand['puesto_actual']
                     
                     if len(coincidencias) > 0:
-                        return {
-                            "estatus": "ALINEADO", "icono": "✅", "titulo_estatus": "PDI Alineado a la Posición",
-                            "color_borde": "#16a34a", "bg_color": "#f0fdf4", "puesto_origen": puesto_origen,
-                            "objetivo": obj_pdi, "avance": avance_pdi, "acciones": acciones_pdi,
-                            "recomendacion": f"El PDI actual está **correctamente enfocado** en la posición de *{puesto_destino}*. Con un avance del **{avance_pdi}**, las acciones en curso cubren las competencias requeridas. Mantenimiento del plan actual."
-                        }
+                        return {"estatus": "ALINEADO", "icono": "✅", "titulo_estatus": "PDI Alineado a la Posición", "color_borde": "#16a34a", "bg_color": "#f0fdf4", "puesto_origen": puesto_origen, "objetivo": obj_pdi, "avance": avance_pdi, "acciones": acciones_pdi, "recomendacion": f"El PDI actual está **correctamente enfocado** en la posición de *{puesto_destino}*. Con un avance del **{avance_pdi}**, las acciones en curso cubren las competencias requeridas. Mantenimiento del plan actual."}
                     else:
-                        return {
-                            "estatus": "REQUIERE_AJUSTE", "icono": "🟡", "titulo_estatus": "Ajuste Recomendado al PDI",
-                            "color_borde": "#ca8a04", "bg_color": "#fefce8", "puesto_origen": puesto_origen,
-                            "objetivo": obj_pdi, "avance": avance_pdi, "acciones": acciones_pdi,
-                            "recomendacion": f"💡 **Recomendación IA:** El candidato actualmente es *{puesto_origen}*. Su PDI está orientado a '_{obj_pdi}_'. Para asegurar su éxito hacia *{puesto_destino}*, se recomienda **actualizar sus Acciones de Desarrollo** agregando competencias técnicas específicas del nuevo puesto."
-                        }
+                        return {"estatus": "REQUIERE_AJUSTE", "icono": "🟡", "titulo_estatus": "Ajuste Recomendado al PDI", "color_borde": "#ca8a04", "bg_color": "#fefce8", "puesto_origen": puesto_origen, "objetivo": obj_pdi, "avance": avance_pdi, "acciones": acciones_pdi, "recomendacion": f"💡 **Recomendación IA:** El candidato actualmente es *{puesto_origen}*. Su PDI está orientado a '_{obj_pdi}_'. Para asegurar su éxito hacia *{puesto_destino}*, se recomienda **actualizar sus Acciones de Desarrollo** agregando competencias técnicas específicas del nuevo puesto."}
 
                 if pos_seleccionada:
                     df_ocupantes = df_posiciones_filtradas[df_posiciones_filtradas['Nombre de la Posición'].apply(clean_text) == pos_seleccionada]
@@ -1510,31 +1102,22 @@ def main():
                         if not nombre_cand or nombre_cand in ["Pendiente", "Vacante / Sin asignar", "No definido"]:
                             st.info("Sin información de ocupante")
                             return
-                            
-                        match = df_db[df_db['Nombre'].astype(str).str.strip().str.lower() == nombre_cand.strip().lower()]
+                        match = df_db[df_db['Nombre_Cruce'] == nombre_cand.strip().lower()]
                         if match.empty:
                             st.warning("Colaborador no encontrado en la base.")
                             return
-                            
                         row = match.iloc[0]
-                        nombres_db = {clean_id(r.get('id Empleado')): clean_text(r.get('Nombre')) for _, r in df_db.iterrows()}
-                        def get_nom(val):
-                            v = clean_id(val)
-                            return nombres_db.get(v, val)
+                        def get_nom(val): return dict_nom.get(clean_id(val), val)
                         
                         puesto = clean_text(row.get('Nombre de la Posición', 'N/A'))
                         lider = get_nom(row.get('ID Del Jefe', ''))
                         dir_c = clean_text(row.get('Dirección', row.get('Direccion', 'N/A')))
-                        crit = clean_text(row.get('Posición Crítica', row.get('Posicion Critica', 'No')))
                         mla = clean_text(row.get('Nivel MLA', 'N/A'))
                         box = clean_text(row.get('Resultado 9 box', 'Pendiente'))
-                        
                         edr_key = next((k for k in row.keys() if k and 'edr' in str(k).lower()), None)
                         edr = clean_text(row.get(edr_key, 'Pendiente')) if edr_key else 'Pendiente'
-                        
                         eng_key = next((k for k in row.keys() if k and 'enganche' in str(k).lower()), None)
                         eng = clean_text(row.get(eng_key, 'N/A')) if eng_key else 'N/A'
-                        
                         suc1 = get_nom(row.get('Sucesor P.1', row.get('Sucesor 1', '')))
                         read1 = clean_text(row.get('Tiempo de Readiness 1', ''))
                         
@@ -1560,12 +1143,10 @@ def main():
                         titulo_ocupantes = f"👥 Ocupantes Actuales ({len(nombres_ocupantes)})"
                         if hasattr(st, 'popover'):
                             with st.popover(titulo_ocupantes, use_container_width=True):
-                                for ocupante in nombres_ocupantes:
-                                    mostrar_ficha_mini(ocupante, df_completo)
+                                for ocupante in nombres_ocupantes: mostrar_ficha_mini(ocupante, df_completo)
                         else:
                             with st.expander(titulo_ocupantes):
-                                for ocupante in nombres_ocupantes:
-                                    mostrar_ficha_mini(ocupante, df_completo)
+                                for ocupante in nombres_ocupantes: mostrar_ficha_mini(ocupante, df_completo)
                                 
                     with col_info2:
                         sucesores_pasados = []
@@ -1575,25 +1156,19 @@ def main():
                                 if isinstance(col_name, str) and (col_name in columnas_historial or bool(re.search(r'Sucesor 20\d\d', col_name, re.IGNORECASE))):
                                     val = clean_text(info_pos.get(col_name, ''))
                                     if val and val.lower() not in ['nan', 'none', 'pendiente', '', 'n/a', 'no definido']:
-                                        if val not in sucesores_pasados:
-                                            sucesores_pasados.append(val)
-                        except Exception:
-                            pass
+                                        if val not in sucesores_pasados: sucesores_pasados.append(val)
+                        except Exception: pass
                         
                         if hasattr(st, 'popover'):
                             with st.popover("⏳ Sucesores del Año Pasado", use_container_width=True):
                                 if sucesores_pasados:
-                                    for s_pasado in sucesores_pasados:
-                                        st.markdown(f"- {s_pasado}")
-                                else:
-                                    st.info("No hay historial registrado en el Excel")
+                                    for s_pasado in sucesores_pasados: st.markdown(f"- {s_pasado}")
+                                else: st.info("No hay historial registrado en el Excel")
                         else:
                             with st.expander("⏳ Sucesores del Año Pasado"):
                                 if sucesores_pasados:
-                                    for s_pasado in sucesores_pasados:
-                                        st.markdown(f"- {s_pasado}")
-                                else:
-                                    st.info("No hay historial registrado en el Excel")
+                                    for s_pasado in sucesores_pasados: st.markdown(f"- {s_pasado}")
+                                else: st.info("No hay historial registrado en el Excel")
                     
                     st.write("")
                     with st.expander("🤖 Mostrar Sugerencias de Sucesión (IA de Diccionario)"):
@@ -1601,31 +1176,18 @@ def main():
                         if st.button("✨ Generar Sugerencias con IA", use_container_width=True):
                             with st.spinner("🧠 Buscando cruces de perfiles..."):
                                 sugerencias = generar_sugerencias_ia(pos_seleccionada, info_pos)
-                                
                                 if sugerencias:
                                     items_html = ""
                                     for s in sugerencias:
-                                        if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in s['direccion'].upper()):
-                                            info_vis = "🔒 <i>Detalles confidenciales (Otra Dirección)</i>"
-                                        elif f_lid_plan != "Todos" and s['nombre'].strip().lower() not in [str(x).strip().lower() for x in subordinados_permitidos]:
-                                            info_vis = "🔒 <i>Detalles confidenciales (Modo Presentación Activo)</i>"
-                                        else:
-                                            info_vis = f"📌 Puesto Actual: <b>{s['puesto']}</b> | 📊 9-Box: <b>{s['box']}</b>"
-                                            
+                                        if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in s['direccion'].upper()): info_vis = "🔒 <i>Detalles confidenciales (Otra Dirección)</i>"
+                                        elif f_lid_plan != "Todos" and s['nombre'].strip().lower() not in [str(x).strip().lower() for x in subordinados_permitidos]: info_vis = "🔒 <i>Detalles confidenciales (Modo Presentación Activo)</i>"
+                                        else: info_vis = f"📌 Puesto Actual: <b>{s['puesto']}</b> | 📊 9-Box: <b>{s['box']}</b>"
                                         items_html += f"<li>👤 <b>{s['nombre']}</b> — {info_vis}<br><span style='color:#0369a1;'>💡 {s['razon']}</span></li>"
-                                        
-                                    st.markdown(f"""
-                                    <div style="background:#e0f2fe; border-left:5px solid #0284c7; padding:12px; border-radius:8px; margin-bottom:5px; font-size:13px; color:#0f172a;">
-                                        <ul style="margin:8px 0 0 0; padding-left:20px; line-height:1.5;">
-                                            {items_html}
-                                        </ul>
-                                    </div>
-                                    """, unsafe_allow_html=True)
+                                    st.markdown(f"""<div style="background:#e0f2fe; border-left:5px solid #0284c7; padding:12px; border-radius:8px; margin-bottom:5px; font-size:13px; color:#0f172a;"><ul style="margin:8px 0 0 0; padding-left:20px; line-height:1.5;">{items_html}</ul></div>""", unsafe_allow_html=True)
                                 else:
                                     st.warning("⚠️ **Dictamen IA:** No se detectaron candidatos en la plantilla actual que cumplan con los criterios estrictos para esta posición crítica. **Se sugiere reclutamiento externo.**")
                     
-                    nombres_empleados = sorted([clean_text(n) for n in df_completo['Nombre'].dropna().unique() if clean_text(n)])
-                    
+                    nombres_empleados = sorted(df_completo['Nombre'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
                     opciones_sucesores = ["Pendiente"] + nombres_empleados
                     opciones_tiempo = ["Pendiente", "Inmediato", "1 a 3 años", "Más de 3 años"]
                     
@@ -1658,34 +1220,24 @@ def main():
                     n_suc_emergencia = st.selectbox("Candidato de Emergencia", opciones_sucesores, index=opciones_sucesores.index(c_suc_emergencia), key=f"select_emergencia_{pos_seleccionada}")
                     
                     ficha_emergencia = obtener_ficha_candidato(n_suc_emergencia)
-                    if ficha_emergencia == "RESTRINGIDO_GLOBAL":
-                        st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
-                    elif ficha_emergencia == "RESTRINGIDO_LIDER":
-                        st.error("🔒 Modo Presentación: Información confidencial oculta (Colaborador ajeno al equipo del líder actual).")
-                    elif ficha_emergencia:
-                        st.success(f"📊 **9-Box:** {ficha_emergencia['box']} | 🔥 **Enganche:** {ficha_emergencia['enganche']} | 📈 **EDR:** {ficha_emergencia['edr']}")
+                    if ficha_emergencia == "RESTRINGIDO_GLOBAL": st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
+                    elif ficha_emergencia == "RESTRINGIDO_LIDER": st.error("🔒 Modo Presentación: Información confidencial oculta (Colaborador ajeno al equipo del líder actual).")
+                    elif ficha_emergencia: st.success(f"📊 **9-Box:** {ficha_emergencia['box']} | 🔥 **Enganche:** {ficha_emergencia['enganche']} | 📈 **EDR:** {ficha_emergencia['edr']}")
                     
                     st.write("---")
-                    
                     col1, col2, col3 = st.columns(3)
                     
                     with col1:
                         st.markdown("#### 🥇 Sucesor 1")
                         n_suc1 = st.selectbox("Candidato 1", opciones_sucesores, index=opciones_sucesores.index(c_suc1), key=f"select_suc1_{pos_seleccionada}")
-                        
                         ficha1 = obtener_ficha_candidato(n_suc1)
-                        if ficha1 == "RESTRINGIDO_GLOBAL":
-                            st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
-                        elif ficha1 == "RESTRINGIDO_LIDER":
-                            st.error("🔒 Modo Presentación: Información confidencial oculta (Colaborador ajeno al equipo del líder actual).")
+                        if ficha1 == "RESTRINGIDO_GLOBAL": st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
+                        elif ficha1 == "RESTRINGIDO_LIDER": st.error("🔒 Modo Presentación: Información confidencial oculta (Colaborador ajeno al equipo del líder actual).")
                         elif ficha1:
                             st.success(f"📊 **9-Box:** {ficha1['box']} | 🔥 **Enganche:** {ficha1['enganche']} | 📈 **EDR:** {ficha1['edr']}")
                             pdi_diag1 = diagnosticar_pdi_ia(n_suc1, pos_seleccionada, ficha1)
-                            if pdi_diag1 and pdi_diag1.get("estatus") == "SIN_PDI":
-                                st.warning(pdi_diag1['recomendacion'])
-                            elif pdi_diag1 and "color_borde" in pdi_diag1:
-                                st.markdown(f"<details style='background:{pdi_diag1['bg_color']}; border-left:4px solid {pdi_diag1['color_borde']}; padding:12px; border-radius:6px; cursor:pointer;'><summary style='font-weight:bold; font-size:15px; color:#1e293b; outline:none;'>🤖 Dictamen IA: {pdi_diag1['icono']} {pdi_diag1['titulo_estatus']}</summary><div style='margin-top:10px; font-size:14px; color:#334155; line-height:1.5;'>🎯 <b>Objetivo PDI:</b> {pdi_diag1['objetivo']} (Avance: <b>{pdi_diag1['avance']}</b>)<br><br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag1['recomendacion']}</div></details>", unsafe_allow_html=True)
-                                
+                            if pdi_diag1 and pdi_diag1.get("estatus") == "SIN_PDI": st.warning(pdi_diag1['recomendacion'])
+                            elif pdi_diag1 and "color_borde" in pdi_diag1: st.markdown(f"<details style='background:{pdi_diag1['bg_color']}; border-left:4px solid {pdi_diag1['color_borde']}; padding:12px; border-radius:6px; cursor:pointer;'><summary style='font-weight:bold; font-size:15px; color:#1e293b; outline:none;'>🤖 Dictamen IA: {pdi_diag1['icono']} {pdi_diag1['titulo_estatus']}</summary><div style='margin-top:10px; font-size:14px; color:#334155; line-height:1.5;'>🎯 <b>Objetivo PDI:</b> {pdi_diag1['objetivo']} (Avance: <b>{pdi_diag1['avance']}</b>)<br><br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag1['recomendacion']}</div></details>", unsafe_allow_html=True)
                         n_read1 = st.selectbox("Readiness 1", opciones_tiempo, index=opciones_tiempo.index(c_read1), key=f"select_read1_{pos_seleccionada}")
                         n_pos1 = st.text_area("👍 Comentarios Positivos 1", value=c_pos1, height=68, key=f"t_pos1_{pos_seleccionada}")
                         n_opo1 = st.text_area("📈 Áreas de Oportunidad 1", value=c_opo1, height=68, key=f"t_opo1_{pos_seleccionada}")
@@ -1693,20 +1245,14 @@ def main():
                     with col2:
                         st.markdown("#### 🥈 Sucesor 2")
                         n_suc2 = st.selectbox("Candidato 2", opciones_sucesores, index=opciones_sucesores.index(c_suc2), key=f"select_suc2_{pos_seleccionada}")
-                        
                         ficha2 = obtener_ficha_candidato(n_suc2)
-                        if ficha2 == "RESTRINGIDO_GLOBAL":
-                            st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
-                        elif ficha2 == "RESTRINGIDO_LIDER":
-                            st.error("🔒 Modo Presentación: Información confidencial oculta (Colaborador ajeno al equipo del líder actual).")
+                        if ficha2 == "RESTRINGIDO_GLOBAL": st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
+                        elif ficha2 == "RESTRINGIDO_LIDER": st.error("🔒 Modo Presentación: Información confidencial oculta (Colaborador ajeno al equipo del líder actual).")
                         elif ficha2:
                             st.success(f"📊 **9-Box:** {ficha2['box']} | 🔥 **Enganche:** {ficha2['enganche']} | 📈 **EDR:** {ficha2['edr']}")
                             pdi_diag2 = diagnosticar_pdi_ia(n_suc2, pos_seleccionada, ficha2)
-                            if pdi_diag2 and pdi_diag2.get("estatus") == "SIN_PDI":
-                                st.warning(pdi_diag2['recomendacion'])
-                            elif pdi_diag2 and "color_borde" in pdi_diag2:
-                                st.markdown(f"<details style='background:{pdi_diag2['bg_color']}; border-left:4px solid {pdi_diag2['color_borde']}; padding:12px; border-radius:6px; cursor:pointer;'><summary style='font-weight:bold; font-size:15px; color:#1e293b; outline:none;'>🤖 Dictamen IA: {pdi_diag2['icono']} {pdi_diag2['titulo_estatus']}</summary><div style='margin-top:10px; font-size:14px; color:#334155; line-height:1.5;'>🎯 <b>Objetivo PDI:</b> {pdi_diag2['objetivo']} (Avance: <b>{pdi_diag2['avance']}</b>)<br><br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag2['recomendacion']}</div></details>", unsafe_allow_html=True)
-                                
+                            if pdi_diag2 and pdi_diag2.get("estatus") == "SIN_PDI": st.warning(pdi_diag2['recomendacion'])
+                            elif pdi_diag2 and "color_borde" in pdi_diag2: st.markdown(f"<details style='background:{pdi_diag2['bg_color']}; border-left:4px solid {pdi_diag2['color_borde']}; padding:12px; border-radius:6px; cursor:pointer;'><summary style='font-weight:bold; font-size:15px; color:#1e293b; outline:none;'>🤖 Dictamen IA: {pdi_diag2['icono']} {pdi_diag2['titulo_estatus']}</summary><div style='margin-top:10px; font-size:14px; color:#334155; line-height:1.5;'>🎯 <b>Objetivo PDI:</b> {pdi_diag2['objetivo']} (Avance: <b>{pdi_diag2['avance']}</b>)<br><br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag2['recomendacion']}</div></details>", unsafe_allow_html=True)
                         n_read2 = st.selectbox("Readiness 2", opciones_tiempo, index=opciones_tiempo.index(c_read2), key=f"select_read2_{pos_seleccionada}")
                         n_pos2 = st.text_area("👍 Comentarios Positivos 2", value=c_pos2, height=68, key=f"t_pos2_{pos_seleccionada}")
                         n_opo2 = st.text_area("📈 Áreas de Oportunidad 2", value=c_opo2, height=68, key=f"t_opo2_{pos_seleccionada}")
@@ -1714,20 +1260,14 @@ def main():
                     with col3:
                         st.markdown("#### 🥉 Sucesor 3")
                         n_suc3 = st.selectbox("Candidato 3", opciones_sucesores, index=opciones_sucesores.index(c_suc3), key=f"select_suc3_{pos_seleccionada}")
-                        
                         ficha3 = obtener_ficha_candidato(n_suc3)
-                        if ficha3 == "RESTRINGIDO_GLOBAL":
-                            st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
-                        elif ficha3 == "RESTRINGIDO_LIDER":
-                            st.error("🔒 Modo Presentación: Información confidencial oculta (Colaborador ajeno al equipo del líder actual).")
+                        if ficha3 == "RESTRINGIDO_GLOBAL": st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
+                        elif ficha3 == "RESTRINGIDO_LIDER": st.error("🔒 Modo Presentación: Información confidencial oculta (Colaborador ajeno al equipo del líder actual).")
                         elif ficha3:
                             st.success(f"📊 **9-Box:** {ficha3['box']} | 🔥 **Enganche:** {ficha3['enganche']} | 📈 **EDR:** {ficha3['edr']}")
                             pdi_diag3 = diagnosticar_pdi_ia(n_suc3, pos_seleccionada, ficha3)
-                            if pdi_diag3 and pdi_diag3.get("estatus") == "SIN_PDI":
-                                st.warning(pdi_diag3['recomendacion'])
-                            elif pdi_diag3 and "color_borde" in pdi_diag3:
-                                st.markdown(f"<details style='background:{pdi_diag3['bg_color']}; border-left:4px solid {pdi_diag3['color_borde']}; padding:12px; border-radius:6px; cursor:pointer;'><summary style='font-weight:bold; font-size:15px; color:#1e293b; outline:none;'>🤖 Dictamen IA: {pdi_diag3['icono']} {pdi_diag3['titulo_estatus']}</summary><div style='margin-top:10px; font-size:14px; color:#334155; line-height:1.5;'>🎯 <b>Objetivo PDI:</b> {pdi_diag3['objetivo']} (Avance: <b>{pdi_diag3['avance']}</b>)<br><br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag3['recomendacion']}</div></details>", unsafe_allow_html=True)
-                                
+                            if pdi_diag3 and pdi_diag3.get("estatus") == "SIN_PDI": st.warning(pdi_diag3['recomendacion'])
+                            elif pdi_diag3 and "color_borde" in pdi_diag3: st.markdown(f"<details style='background:{pdi_diag3['bg_color']}; border-left:4px solid {pdi_diag3['color_borde']}; padding:12px; border-radius:6px; cursor:pointer;'><summary style='font-weight:bold; font-size:15px; color:#1e293b; outline:none;'>🤖 Dictamen IA: {pdi_diag3['icono']} {pdi_diag3['titulo_estatus']}</summary><div style='margin-top:10px; font-size:14px; color:#334155; line-height:1.5;'>🎯 <b>Objetivo PDI:</b> {pdi_diag3['objetivo']} (Avance: <b>{pdi_diag3['avance']}</b>)<br><br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag3['recomendacion']}</div></details>", unsafe_allow_html=True)
                         n_read3 = st.selectbox("Readiness 3", opciones_tiempo, index=opciones_tiempo.index(c_read3), key=f"select_read3_{pos_seleccionada}")
                         n_pos3 = st.text_area("👍 Comentarios Positivos 3", value=c_pos3, height=68, key=f"t_pos3_{pos_seleccionada}")
                         n_opo3 = st.text_area("📈 Áreas de Oportunidad 3", value=c_opo3, height=68, key=f"t_opo3_{pos_seleccionada}")
@@ -1735,7 +1275,6 @@ def main():
                     st.write("---")
                     st.markdown("#### 📋 Plan de Acción / Comentarios Adicionales")
                     st.info("Utiliza este espacio para justificar si no hay sucesores o detallar el plan a seguir.")
-                    
                     c_plan_accion = clean_text(info_pos.iloc[25]) if len(info_pos) > 25 else ""
                     n_plan_accion = st.text_area("Comentarios del Plan de Acción:", value=c_plan_accion, height=100, key=f"t_plan_accion_{pos_seleccionada}")
                     
@@ -1743,13 +1282,10 @@ def main():
                     submitted = st.button("💾 Guardar Cambios en Base de Datos", type="primary", use_container_width=True)
                     
                     if submitted:
-                        with st.spinner("🤖 El robot está escribiendo en tu Excel (Actualizando a todos los ocupantes de esta posición)..."):
+                        with st.spinner("🤖 El robot está escribiendo en tu Excel..."):
                             try:
                                 secretos = st.secrets["connections"]["gsheets"]
-                                credenciales = Credentials.from_service_account_info(
-                                    secretos,
-                                    scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-                                )
+                                credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
                                 cliente = gspread.authorize(credenciales)
                                 match = re.search(r'/d/([a-zA-Z0-9-_]+)', link_archivo)
                                 doc_id = match.group(1) if match else link_archivo
@@ -1760,52 +1296,35 @@ def main():
                                     idx_excel = idx_p + 2 
                                     rango = f'I{idx_excel}:Z{idx_excel}'
                                     celdas = pestana.range(rango)
-                                    
                                     celdas[0].value = "Pendiente" if n_suc_emergencia == "Pendiente" else n_suc_emergencia
                                     celdas[1].value = "Pendiente" if n_suc1 == "Pendiente" else n_suc1
                                     celdas[2].value = "Pendiente" if n_read1 == "Pendiente" else n_read1
                                     celdas[3].value = n_pos1
                                     celdas[4].value = n_opo1
-                                    
                                     celdas[5].value = "Pendiente" if n_suc2 == "Pendiente" else n_suc2
                                     celdas[6].value = "Pendiente" if n_read2 == "Pendiente" else n_read2
                                     celdas[7].value = n_pos2
                                     celdas[8].value = n_opo2
-                                    
                                     celdas[9].value = "Pendiente" if n_suc3 == "Pendiente" else n_suc3
                                     celdas[10].value = "Pendiente" if n_read3 == "Pendiente" else n_read3
                                     celdas[11].value = n_pos3
                                     celdas[12].value = n_opo3
-                                    
-                                    if len(celdas) > 17:
-                                        celdas[17].value = n_plan_accion
-                                    
+                                    if len(celdas) > 17: celdas[17].value = n_plan_accion
                                     pestana.update_cells(celdas)
                                     time.sleep(0.5) 
                                 
-                                try:
-                                    pestana_meta = archivo.worksheet("Metadata")
-                                    pestana_meta.update_acell('A1', str(time.time()))
-                                except Exception:
-                                    pass 
+                                try: archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
+                                except Exception: pass 
                                 
                                 st.success("✅ ¡Guardado exitosamente! El mapa se está actualizando...")
-                                st.cache_data.clear()
-                                st.rerun()
-                                
-                            except Exception as e:
-                                st.error(f"❌ Error técnico al intentar escribir en el Excel: {e}")
+                                st.cache_data.clear(); st.rerun()
+                            except Exception as e: st.error(f"❌ Error técnico al intentar escribir en el Excel: {e}")
             
             with tab_pdi:
-                # ==========================================
-                # INTEGRACIÓN: TABLA AVANCE PDI
-                # ==========================================
                 st.markdown("### 📈 Avance de PDI (Integrado)")
-                
                 if not df_pdi.empty and 'Nombre' in df_pdi.columns:
                     nombres_visibles_limpios = [str(d['Nombre']).strip().lower() for d in kpis['data_total']]
                     df_pdi_filtrado = df_pdi.copy()
-                    df_pdi_filtrado['Nombre_Cruce'] = df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower()
                     
                     if f_lid_plan != "Todos":
                         sub_limpios_pdi = [str(x).strip().lower() for x in subordinados_permitidos]
@@ -1813,53 +1332,34 @@ def main():
                     else:
                         df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre_Cruce'].isin(nombres_visibles_limpios)]
                     
-                    columnas_deseadas = {
-                        "Nombre": "Nombre", "Posicion": "Posicion", "Dirección actual": "Dirección", 
-                        "Objetivo a Desar": "Objetivo", "PDI": "PDI", "Clasificacion de": "Clasificacion",
-                        "Qué? / Acciones de Desarrollo": "Qué? / Acciones de Desarrollo", 
-                        "% de Avance": "% de Avance", "Estatus": "Estatus"
-                    }
-                    
-                    cols_reales = []
-                    nombres_finales = []
+                    columnas_deseadas = {"Nombre": "Nombre", "Posicion": "Posicion", "Dirección actual": "Dirección", "Objetivo a Desar": "Objetivo", "PDI": "PDI", "Clasificacion de": "Clasificacion", "Qué? / Acciones de Desarrollo": "Qué? / Acciones de Desarrollo", "% de Avance": "% de Avance", "Estatus": "Estatus"}
+                    cols_reales = []; nombres_finales = []
                     for col_orig, nombre_nuevo in columnas_deseadas.items():
                         col_match = next((c for c in df_pdi_filtrado.columns if col_orig.lower() in str(c).lower()), None)
-                        if col_match:
-                            cols_reales.append(col_match)
-                            nombres_finales.append(nombre_nuevo)
+                        if col_match: cols_reales.append(col_match); nombres_finales.append(nombre_nuevo)
                     
                     if cols_reales:
                         df_pdi_mostrar = df_pdi_filtrado[cols_reales].copy()
                         df_pdi_mostrar.columns = nombres_finales
-                        
-                        if direccion_permitida != "TODAS" and "Dirección" in df_pdi_mostrar.columns:
-                            df_pdi_mostrar = df_pdi_mostrar.drop(columns=["Dirección"])
+                        if direccion_permitida != "TODAS" and "Dirección" in df_pdi_mostrar.columns: df_pdi_mostrar = df_pdi_mostrar.drop(columns=["Dirección"])
                         
                         col_p1, col_p2, col_p3 = st.columns(3)
-                        
                         if "Nombre" in df_pdi_mostrar.columns:
                             lista_nombres_pdi = sorted(df_pdi_mostrar['Nombre'].dropna().astype(str).unique().tolist())
                             filtro_nombre = col_p1.multiselect("👤 Filtrar por Nombre:", options=lista_nombres_pdi)
-                            if filtro_nombre:
-                                df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Nombre'].isin(filtro_nombre)]
-                                
+                            if filtro_nombre: df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Nombre'].isin(filtro_nombre)]
                         if "Clasificacion" in df_pdi_mostrar.columns:
                             lista_clasif_pdi = sorted(df_pdi_mostrar['Clasificacion'].dropna().astype(str).unique().tolist())
                             filtro_clasif = col_p2.multiselect("🏷️ Filtrar por Clasificación:", options=lista_clasif_pdi)
-                            if filtro_clasif:
-                                df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Clasificacion'].isin(filtro_clasif)]
-                                
+                            if filtro_clasif: df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Clasificacion'].isin(filtro_clasif)]
                         if "Estatus" in df_pdi_mostrar.columns:
                             lista_estatus_pdi = sorted(df_pdi_mostrar['Estatus'].dropna().astype(str).unique().tolist())
                             filtro_estatus = col_p3.multiselect("🚦 Filtrar por Estatus:", options=lista_estatus_pdi)
-                            if filtro_estatus:
-                                df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Estatus'].isin(filtro_estatus)]
+                            if filtro_estatus: df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Estatus'].isin(filtro_estatus)]
                         
                         st.dataframe(df_pdi_mostrar, use_container_width=True, hide_index=True)
-                    else:
-                        st.warning("⚠️ No se encontraron las columnas especificadas en la hoja PDI. Revisa los nombres en tu Excel.")
-                else:
-                    st.warning("⚠️ No se pudo cargar la información de la pestaña PDI (O está vacía).")
-                    
+                    else: st.warning("⚠️ No se encontraron las columnas especificadas en la hoja PDI. Revisa los nombres en tu Excel.")
+                else: st.warning("⚠️ No se pudo cargar la información de la pestaña PDI (O está vacía).")
+                
 if __name__ == "__main__":
     main()
