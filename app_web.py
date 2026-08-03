@@ -1687,6 +1687,14 @@ def main():
                     n_pos3 = st.text_area("👍 Comentarios Positivos 3", value=c_pos3, height=68, key=f"t_pos3_{pos_seleccionada}")
                     n_opo3 = st.text_area("📈 Áreas de Oportunidad 3", value=c_opo3, height=68, key=f"t_opo3_{pos_seleccionada}")
                 
+                # --- NUEVA SECCIÓN: PLAN DE ACCIÓN (COLUMNA Z) ---
+                st.write("---")
+                st.markdown("#### 📋 Plan de Acción / Comentarios Adicionales")
+                st.info("Utiliza este espacio para justificar si no hay sucesores o detallar el plan a seguir.")
+                
+                c_plan_accion = clean_text(info_pos.iloc[25]) if len(info_pos) > 25 else ""
+                n_plan_accion = st.text_area("Comentarios del Plan de Acción:", value=c_plan_accion, height=100, key=f"t_plan_accion_{pos_seleccionada}")
+                
                 st.write("")
                 submitted = st.button("💾 Guardar Cambios en Base de Datos", type="primary", use_container_width=True)
                 
@@ -1704,10 +1712,10 @@ def main():
                             archivo = cliente.open_by_key(doc_id)
                             pestana = archivo.worksheet("Base de datos")
                             
-                            # --- NUEVA LÓGICA DE ESCRITURA EXTENDIDA HASTA LA 'U' ---
+                            # --- NUEVA LÓGICA DE ESCRITURA EXTENDIDA HASTA LA 'Z' ---
                             for idx_p in df_ocupantes.index:
                                 idx_excel = idx_p + 2 
-                                rango = f'I{idx_excel}:U{idx_excel}'
+                                rango = f'I{idx_excel}:Z{idx_excel}'
                                 celdas = pestana.range(rango)
                                 
                                 celdas[0].value = "Pendiente" if n_suc_emergencia == "Pendiente" else n_suc_emergencia
@@ -1725,6 +1733,10 @@ def main():
                                 celdas[10].value = "Pendiente" if n_read3 == "Pendiente" else n_read3
                                 celdas[11].value = n_pos3
                                 celdas[12].value = n_opo3
+                                
+                                # La columna Z está a 17 posiciones de distancia de la I (I=0, Z=17)
+                                if len(celdas) > 17:
+                                    celdas[17].value = n_plan_accion
                                 
                                 pestana.update_cells(celdas)
                                 time.sleep(0.5) 
