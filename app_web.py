@@ -103,10 +103,10 @@ def login():
     return True
 
 # ==========================================
-# MOTOR PRINCIPAL (GRAFO) - ¡AHORA CON CACHÉ DE RENDIMIENTO! 🔥
+# MOTOR PRINCIPAL (GRAFO CON CACHÉ Y LAZY LOADING)
 # ==========================================
 @st.cache_data(show_spinner=False)
-def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_edr, f_riesgos):
+def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_edr, f_riesgos, renderizar_mapa):
     G = nx.MultiDiGraph()
     G_jerarquia = nx.DiGraph() 
     jefes_dict = {}
@@ -414,11 +414,23 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
     
     kpis = {
         'total': len(data_total), 'sucesores': len(data_sucesores), 'nueve_box_count': len(data_nueve_box),
-        'alertas': len(alertas_tabla), 'enganche_promedio': avg_enganche, 'edr_count': len(data_edr),
-        'data_total': data_total, 'data_sucesores': data_sucesores, 'data_nueve_box': data_nueve_box,
+        'alertas': len(alertas_tabla), 'enganche_promedio': avg_enganche, 'edr_count': len(data_edr), 'operativos': len(data_operativos),
+        'data_total': data_total, 'data_sucesores': data_sucesores, 'data_nueve_box': data_nueve_box, 'data_operativos': data_operativos,
         'data_alertas': [{"Nombre": a['Colaborador'], "Dirección": a['Dirección'], "Puesto": a['Puesto'], "Alerta": a['Alerta Detectada por IA']} for a in alertas_tabla],
         'data_enganche': data_enganche, 'data_edr': data_edr
     }
+    
+    # --- LAZY LOADING: SI NO DEBE RENDERIZAR MAPA, SALIMOS AQUÍ ---
+    if not renderizar_mapa:
+        html_placeholder = """
+        <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 750px; background-color: #f8f9fa; border-radius: 12px; border: 3px dashed #cbd5e1; font-family: Arial, sans-serif;">
+            <div style="font-size: 50px; margin-bottom: 15px;">⚡</div>
+            <h2 style="color: #3b82f6; margin: 0 0 10px 0;">Modo Rápido Activado</h2>
+            <p style="color: #64748b; font-size: 15px; text-align: center; max-width: 450px;">El cálculo de los <b>KPIs</b> se ha realizado instantáneamente con éxito.<br><br>Para evitar sobrecargar tu navegador, selecciona una <b>Dirección</b> o un <b>Líder</b> en los filtros de arriba para generar el grafo visual.</p>
+        </div>
+        """
+        return html_placeholder, pd.DataFrame(alertas_tabla), kpis
+    # --------------------------------------------------------------
     
     net = Network(height='750px', width='100%', bgcolor='#ffffff', font_color='#333333', directed=True, cdn_resources='remote')
     net.from_nx(G)
@@ -542,10 +554,25 @@ def main():
         f_mla = col_f4.selectbox("Nivel MLA", ["Todos"] + mlas)
         f_box = col_f5.selectbox("9-Box", ["Todos"] + boxes)
         f_edr = col_f6.selectbox("EDR (Resultados)", ["Todos"] + edrs)
-        f_riesgos = st.checkbox("🚨 Mostrar Solo Colaboradores con Riesgos Detectados")
+        
+        col_chk1, col_chk2 = st.columns(2)
+        with col_chk1:
+            f_riesgos = st.checkbox("🚨 Mostrar Solo Colaboradores con Riesgos Detectados")
+            
+        # --- LÓGICA DE CARGA PEREZOSA (LAZY LOADING) ---
+        renderizar_mapa = True
+        # Si el usuario NO ha filtrado nada, apagar el mapa para evitar saturar el navegador
+        if f_dir == "Todas" and f_lid == "Todos":
+            renderizar_mapa = False
+            
+        with col_chk2:
+            if not renderizar_mapa:
+                forzar_mapa = st.checkbox("⚠️ Dibujar el mapa visual de todos modos (Puede ser lento)", value=False)
+                if forzar_mapa:
+                    renderizar_mapa = True
         st.write("") 
         
-        html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_edr, f_riesgos)
+        html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_edr, f_riesgos, renderizar_mapa)
         
         if kpis is not None:
             if st.session_state["id_usuario"] == "admin":
