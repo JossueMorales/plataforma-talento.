@@ -9,7 +9,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 import time
 
-# IMPORTACIONES DESDE EL NUEVO ARCHIVO DE CONFIGURACIÓN
+# IMPORTACIONES DESDE EL ARCHIVO DE CONFIGURACIÓN
 from config_ui import (
     OPCIONES_PYVIS, SCRIPT_ANILLOS, INYECCION_HTML_JS,
     crear_tarjeta_kpi, extraer_contexto, clean_text, clean_id,
@@ -17,39 +17,12 @@ from config_ui import (
     get_readiness_val, get_dispersion_offset
 )
 
-# ==========================================
-# LOGIN Y CONEXIÓN
-# ==========================================
-def obtener_usuarios_autorizados():
-    try: return st.secrets["usuarios"]
-    except KeyError:
-        return {
-            "admin": {"nombre": "Administrador Global", "password": "admin", "direccion": "TODAS"},
-            "d.comercial": {"nombre": "Director Comercial", "password": "123", "direccion": "DIRECCIÓN COMERCIAL"},
-            "d.rh": {"nombre": "Director de Recursos Humanos", "password": "123", "direccion": "RECURSOS HUMANOS"}
-        }
+# VARIABLE GLOBAL DE BASE DE DATOS
+LINK_ARCHIVO = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit"
 
-def login():
-    st.set_page_config(page_title="Portal de Talento Ayvi", layout="wide")
-    if "usuario_logueado" not in st.session_state: st.session_state["usuario_logueado"] = False
-    if not st.session_state["usuario_logueado"]:
-        usuarios_autorizados = obtener_usuarios_autorizados()
-        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento Ayvi</h1>", unsafe_allow_html=True)
-        col1, col2, col3 = st.columns([1, 1, 1])
-        with col2:
-            st.write("")
-            usuario = st.text_input("Usuario")
-            password = st.text_input("Contraseña", type="password")
-            if st.button("Iniciar Sesión", use_container_width=True):
-                if usuario in usuarios_autorizados and usuarios_autorizados[usuario]["password"] == password:
-                    st.session_state["usuario_logueado"] = True
-                    st.session_state["nombre_usuario"] = usuarios_autorizados[usuario]["nombre"]
-                    st.session_state["id_usuario"] = usuario
-                    st.rerun()
-                else: st.error("Usuario o contraseña incorrectos")
-        return False
-    return True
-
+# ==========================================
+# SISTEMA DE CACHÉ INTELIGENTE Y DESCARGA
+# ==========================================
 @st.cache_data(ttl=30, show_spinner=False)
 def obtener_timestamp_actualizacion(url_sheets):
     try:
@@ -60,7 +33,8 @@ def obtener_timestamp_actualizacion(url_sheets):
         doc_id = match.group(1) if match else url_sheets
         archivo = cliente.open_by_key(doc_id)
         return archivo.worksheet("Metadata").acell('A1').value
-    except Exception: return str(int(time.time() // 600))
+    except Exception: 
+        return str(int(time.time() // 600))
 
 @st.cache_data(show_spinner=False)
 def cargar_datos_csv(url_sheets, nombre_pestana, _timestamp):
@@ -78,8 +52,55 @@ def cargar_datos_csv(url_sheets, nombre_pestana, _timestamp):
             return df
         return pd.DataFrame()
     except Exception as e:
-        st.error(f"🤖 Error al conectar con sheets: {e}")
         return pd.DataFrame()
+
+# ==========================================
+# SISTEMA DE SEGURIDAD Y LOGIN DINÁMICO
+# ==========================================
+def login():
+    st.set_page_config(page_title="Portal de Talento Ayvi", layout="wide")
+    
+    if "usuario_logueado" not in st.session_state: 
+        st.session_state["usuario_logueado"] = False
+        
+    if not st.session_state["usuario_logueado"]:
+        # 1. Creamos un administrador "Salvavidas" incrustado por si falla el Excel
+        usuarios_autorizados = {
+            "admin": {"nombre": "Administrador Global (Modo Rescate)", "password": "admin", "direccion": "TODAS"}
+        }
+        
+        # 2. Leemos la pestaña "Usuarios" del Google Sheets
+        current_timestamp = obtener_timestamp_actualizacion(LINK_ARCHIVO)
+        df_usuarios = cargar_datos_csv(LINK_ARCHIVO, "Usuarios", current_timestamp)
+        
+        # 3. Inyectamos los usuarios del Excel a la memoria de la plataforma
+        if not df_usuarios.empty:
+            for _, row in df_usuarios.iterrows():
+                u = str(row.get("Usuario", "")).strip()
+                if u:
+                    usuarios_autorizados[u] = {
+                        "nombre": str(row.get("Nombre", "")).strip(),
+                        "password": str(row.get("Password", "")).strip(),
+                        "direccion": str(row.get("Direccion", "")).strip()
+                    }
+        
+        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento Ayvi</h1>", unsafe_allow_html=True)
+        col1, col2, col3 = st.columns([1, 1, 1])
+        with col2:
+            st.write("")
+            usuario = st.text_input("Usuario")
+            password = st.text_input("Contraseña", type="password")
+            if st.button("Iniciar Sesión", use_container_width=True):
+                if usuario in usuarios_autorizados and usuarios_autorizados[usuario]["password"] == password:
+                    st.session_state["usuario_logueado"] = True
+                    st.session_state["nombre_usuario"] = usuarios_autorizados[usuario]["nombre"]
+                    st.session_state["id_usuario"] = usuario
+                    st.session_state["direccion_permitida"] = usuarios_autorizados[usuario]["direccion"]
+                    st.rerun()
+                else: 
+                    st.error("Usuario o contraseña incorrectos")
+        return False
+    return True
 
 # ==========================================
 # MOTOR PRINCIPAL (GRAFO)
@@ -274,7 +295,9 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
     def calcular_hojas(n):
         hijos = [c for c in Arbol.successors(n) if c in nodos_activos]
         if not hijos:
-            val = 1 if n in nodos_visibles else 0; conteo_hojas[n] = val; return val
+            val = 1 if n in nodos_visibles else 0
+            conteo_hojas[n] = val
+            return val
         total = sum(calcular_hojas(c) for c in hijos)
         if total == 0 and n in nodos_visibles: total = 1
         conteo_hojas[n] = total
@@ -428,11 +451,10 @@ def main():
             
     st.divider()
     with st.spinner("Cargando base de datos (Vectorizada)..."):
-        link_archivo = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit"
-        current_timestamp = obtener_timestamp_actualizacion(link_archivo)
+        current_timestamp = obtener_timestamp_actualizacion(LINK_ARCHIVO)
         
-        df_completo = cargar_datos_csv(link_archivo, "Base de datos", current_timestamp)
-        df_pdi = cargar_datos_csv(link_archivo, "PDI", current_timestamp)
+        df_completo = cargar_datos_csv(LINK_ARCHIVO, "Base de datos", current_timestamp)
+        df_pdi = cargar_datos_csv(LINK_ARCHIVO, "PDI", current_timestamp)
         
         if df_completo.empty:
             st.error("Error al conectar con la base de datos.")
@@ -444,8 +466,7 @@ def main():
             df_pdi['Nombre'] = df_pdi['Nombre'].astype(str).str.strip()
             df_pdi['Nombre_Cruce'] = df_pdi['Nombre'].str.lower()
             
-        usuarios_autorizados = obtener_usuarios_autorizados()
-        direccion_permitida = usuarios_autorizados[st.session_state["id_usuario"]]["direccion"]
+        direccion_permitida = st.session_state["direccion_permitida"]
         
         if direccion_permitida != "TODAS":
             df_seguro = df_completo[(df_completo['Dirección'].astype(str).str.upper().str.contains(direccion_permitida)) | (df_completo['Nivel MLA'].astype(str).str.strip() == '5')]
@@ -494,8 +515,11 @@ def main():
         html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_edr, f_riesgos)
         
         if kpis is not None:
-            # --- SECCIÓN DE PESTAÑAS (TABS) ---
-            tab_mapa, tab_sucesiones, tab_pdi = st.tabs(["🗺️ Mapa Organizacional y KPIs", "🔀 Planificador de Sucesiones", "📈 Seguimiento de PDI"])
+            # --- SECCIÓN DE PESTAÑAS (TABS) CON PANEL ADMIN ---
+            if st.session_state["id_usuario"] == "admin":
+                tab_mapa, tab_sucesiones, tab_pdi, tab_admin = st.tabs(["🗺️ Mapa Organizacional y KPIs", "🔀 Planificador de Sucesiones", "📈 Seguimiento de PDI", "⚙️ Panel de Administración"])
+            else:
+                tab_mapa, tab_sucesiones, tab_pdi = st.tabs(["🗺️ Mapa Organizacional y KPIs", "🔀 Planificador de Sucesiones", "📈 Seguimiento de PDI"])
             
             with tab_mapa:
                 col_mapa, col_datos = st.columns([7, 3])
@@ -617,7 +641,6 @@ def main():
                                     st.session_state['plan_pos'] = p_name; st.session_state['filtro_kpi_plan'] = None; st.rerun()
                         if st.button("❌ Cerrar lista", key="cerrar_lista_kpi"): st.session_state['filtro_kpi_plan'] = None; st.rerun()
                 
-                # --- NUEVO: BOTÓN DE EXPORTACIÓN A EXCEL / CSV ---
                 st.write("---")
                 st.markdown("#### 📥 Exportar Reporte de Sucesiones")
                 cols_reporte = ['Nombre', 'Nombre de la Posición', 'Dirección', 'Nivel MLA', 'Resultado 9 box', 'Sucesor P.1', 'Tiempo de Readiness 1', 'Sucesor P.2', 'Tiempo de Readiness 2', 'Sucesor P.3', 'Tiempo de Readiness 3']
@@ -926,8 +949,8 @@ def main():
                                 secretos = st.secrets["connections"]["gsheets"]
                                 credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
                                 cliente = gspread.authorize(credenciales)
-                                match = re.search(r'/d/([a-zA-Z0-9-_]+)', link_archivo)
-                                doc_id = match.group(1) if match else link_archivo
+                                match = re.search(r'/d/([a-zA-Z0-9-_]+)', LINK_ARCHIVO)
+                                doc_id = match.group(1) if match else LINK_ARCHIVO
                                 archivo = cliente.open_by_key(doc_id)
                                 pestana = archivo.worksheet("Base de datos")
                                 
@@ -999,6 +1022,55 @@ def main():
                         st.dataframe(df_pdi_mostrar, use_container_width=True, hide_index=True)
                     else: st.warning("⚠️ No se encontraron las columnas especificadas en la hoja PDI. Revisa los nombres en tu Excel.")
                 else: st.warning("⚠️ No se pudo cargar la información de la pestaña PDI (O está vacía).")
-                
+            
+            # --- NUEVA PESTAÑA EXCLUSIVA PARA EL ADMINISTRADOR ---
+            if st.session_state["id_usuario"] == "admin":
+                with tab_admin:
+                    st.markdown("### ⚙️ Gestión de Usuarios Directivos")
+                    st.info("Crea nuevos accesos para Directores. Estos se guardarán permanentemente en la pestaña 'Usuarios' de tu Excel de Google Sheets.")
+                    
+                    with st.form("nuevo_usuario_form"):
+                        st.markdown("#### Agregar Nuevo Director")
+                        n_user = st.text_input("ID de Usuario (ej. d.marketing)")
+                        n_nombre = st.text_input("Nombre / Título del Perfil (ej. Director de Marketing)")
+                        n_pass = st.text_input("Contraseña de acceso", type="password")
+                        n_dir = st.selectbox("Dirección Permitida (Elige 'TODAS' para RH o Dirección General)", ["TODAS"] + dirs)
+                        
+                        submit_btn = st.form_submit_button("Crear Nuevo Usuario")
+                        
+                        if submit_btn:
+                            if n_user and n_pass and n_nombre:
+                                with st.spinner("🤖 Escribiendo usuario en Google Sheets..."):
+                                    try:
+                                        secretos = st.secrets["connections"]["gsheets"]
+                                        credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
+                                        cliente = gspread.authorize(credenciales)
+                                        match = re.search(r'/d/([a-zA-Z0-9-_]+)', LINK_ARCHIVO)
+                                        doc_id = match.group(1) if match else LINK_ARCHIVO
+                                        archivo = cliente.open_by_key(doc_id)
+                                        
+                                        pestana_users = archivo.worksheet("Usuarios")
+                                        pestana_users.append_row([n_user, n_nombre, n_pass, n_dir])
+                                        
+                                        archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
+                                        
+                                        st.success(f"✅ ¡Usuario '{n_user}' creado exitosamente! Ya puede iniciar sesión.")
+                                        st.cache_data.clear()
+                                        time.sleep(1)
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"❌ Error al crear el usuario. Asegúrate de que la pestaña 'Usuarios' exista en tu Excel. Detalles técnicos: {e}")
+                            else:
+                                st.warning("⚠️ Debes llenar todos los campos (ID, Nombre y Contraseña) para crear el usuario.")
+                                
+                    st.write("---")
+                    st.markdown("#### 👥 Usuarios Actuales en Base de Datos")
+                    current_timestamp = obtener_timestamp_actualizacion(LINK_ARCHIVO)
+                    df_u = cargar_datos_csv(LINK_ARCHIVO, "Usuarios", current_timestamp)
+                    if not df_u.empty:
+                        st.dataframe(df_u, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("La pestaña 'Usuarios' en Google Sheets está vacía.")
+                        
 if __name__ == "__main__":
     main()
