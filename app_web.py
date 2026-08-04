@@ -64,16 +64,13 @@ def login():
         st.session_state["usuario_logueado"] = False
         
     if not st.session_state["usuario_logueado"]:
-        # 1. Administrador "Salvavidas" base
         usuarios_autorizados = {
             "admin": {"nombre": "Administrador Global", "password": "admin", "direccion": "TODAS", "lider": "TODOS"}
         }
         
-        # 2. Leemos la pestaña "Usuarios" del Google Sheets
         current_timestamp = obtener_timestamp_actualizacion(LINK_ARCHIVO)
         df_usuarios = cargar_datos_csv(LINK_ARCHIVO, "Usuarios", current_timestamp)
         
-        # 3. Inyectamos usuarios integrando la 5ta columna de "Lider Restringido"
         if not df_usuarios.empty:
             for _, row in df_usuarios.iterrows():
                 u = str(row.get("Usuario", "")).strip()
@@ -106,8 +103,9 @@ def login():
     return True
 
 # ==========================================
-# MOTOR PRINCIPAL (GRAFO)
+# MOTOR PRINCIPAL (GRAFO) - ¡AHORA CON CACHÉ DE RENDIMIENTO! 🔥
 # ==========================================
+@st.cache_data(show_spinner=False)
 def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_edr, f_riesgos):
     G = nx.MultiDiGraph()
     G_jerarquia = nx.DiGraph() 
@@ -472,13 +470,11 @@ def main():
         direccion_permitida = st.session_state.get("direccion_permitida", "TODAS")
         lider_permitido = st.session_state.get("lider_permitido", "TODOS")
         
-        # --- FILTRO 1: SEGURIDAD POR DIRECCIÓN ---
         if direccion_permitida != "TODAS":
             df_seguro = df_completo[(df_completo['Dirección'].astype(str).str.upper().str.contains(direccion_permitida)) | (df_completo['Nivel MLA'].astype(str).str.strip() == '5')]
         else:
             df_seguro = df_completo.copy()
             
-        # --- FILTRO 2: SEGURIDAD POR LÍDER RESTRINGIDO (RLS 2.0) ---
         if lider_permitido != "TODOS" and lider_permitido != "":
             dict_nom_global = {clean_id(r.get('id Empleado')): clean_text(r.get('Nombre')) for r in df_completo.to_dict('records')}
             jerarquia_global = {}
@@ -505,14 +501,11 @@ def main():
             nombres_permitidos.append(lider_permitido)
             nombres_permitidos_limpios = [str(n).strip().lower() for n in nombres_permitidos if n]
             
-            # Cortar la base de datos a solo los subordinados de este gerente
             df_seguro = df_seguro[df_seguro['Nombre_Cruce'].isin(nombres_permitidos_limpios)]
             st.session_state['nombres_permitidos_limpios'] = nombres_permitidos_limpios
         else:
             st.session_state['nombres_permitidos_limpios'] = []
 
-        # =============================================================
-            
         col_head1, col_head2 = st.columns([2, 1])
         with col_head1:
             st.markdown("### 🎛️ Filtros Globales (Controlan Mapa, KPIs y Tablas)")
@@ -555,7 +548,6 @@ def main():
         html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_edr, f_riesgos)
         
         if kpis is not None:
-            # --- SECCIÓN DE PESTAÑAS (TABS) CON PANEL ADMIN ---
             if st.session_state["id_usuario"] == "admin":
                 tab_mapa, tab_sucesiones, tab_pdi, tab_admin = st.tabs(["🗺️ Mapa Organizacional y KPIs", "🔀 Planificador de Sucesiones", "📈 Seguimiento de PDI", "⚙️ Panel de Administración"])
             else:
@@ -714,7 +706,6 @@ def main():
                     
                     if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in dir_candidato.upper()): return "RESTRINGIDO_GLOBAL"
                     
-                    # SEGURIDAD DE LÍDER (RLS 2.0)
                     if st.session_state.get('lider_permitido', "TODOS") != "TODOS":
                         if nombre_cand.strip().lower() not in st.session_state['nombres_permitidos_limpios']:
                             return "RESTRINGIDO_LIDER_CUENTA"
@@ -1074,7 +1065,6 @@ def main():
                     else: st.warning("⚠️ No se encontraron las columnas especificadas en la hoja PDI. Revisa los nombres en tu Excel.")
                 else: st.warning("⚠️ No se pudo cargar la información de la pestaña PDI (O está vacía).")
             
-            # --- NUEVA PESTAÑA EXCLUSIVA PARA EL ADMINISTRADOR ---
             if st.session_state["id_usuario"] == "admin":
                 with tab_admin:
                     st.markdown("### ⚙️ Gestión de Usuarios Directivos")
