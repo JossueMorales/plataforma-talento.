@@ -55,7 +55,7 @@ def cargar_datos_csv(url_sheets, nombre_pestana, _timestamp):
         return pd.DataFrame()
 
 # ==========================================
-# SISTEMA DE SEGURIDAD Y LOGIN DINÁMICO
+# SISTEMA DE SEGURIDAD Y LOGIN DINÁMICO (RLS 2.0)
 # ==========================================
 def login():
     st.set_page_config(page_title="Portal de Talento Ayvi", layout="wide")
@@ -64,16 +64,16 @@ def login():
         st.session_state["usuario_logueado"] = False
         
     if not st.session_state["usuario_logueado"]:
-        # 1. Creamos un administrador "Salvavidas" incrustado por si falla el Excel
+        # 1. Administrador "Salvavidas" base
         usuarios_autorizados = {
-            "admin": {"nombre": "Administrador Global (Modo Rescate)", "password": "admin", "direccion": "TODAS"}
+            "admin": {"nombre": "Administrador Global", "password": "admin", "direccion": "TODAS", "lider": "TODOS"}
         }
         
         # 2. Leemos la pestaña "Usuarios" del Google Sheets
         current_timestamp = obtener_timestamp_actualizacion(LINK_ARCHIVO)
         df_usuarios = cargar_datos_csv(LINK_ARCHIVO, "Usuarios", current_timestamp)
         
-        # 3. Inyectamos los usuarios del Excel a la memoria de la plataforma
+        # 3. Inyectamos usuarios integrando la 5ta columna de "Lider Restringido"
         if not df_usuarios.empty:
             for _, row in df_usuarios.iterrows():
                 u = str(row.get("Usuario", "")).strip()
@@ -81,7 +81,8 @@ def login():
                     usuarios_autorizados[u] = {
                         "nombre": str(row.get("Nombre", "")).strip(),
                         "password": str(row.get("Password", "")).strip(),
-                        "direccion": str(row.get("Direccion", "")).strip()
+                        "direccion": str(row.get("Direccion", "")).strip(),
+                        "lider": str(row.get("Lider Restringido", "TODOS")).strip()
                     }
         
         st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento Ayvi</h1>", unsafe_allow_html=True)
@@ -96,6 +97,8 @@ def login():
                     st.session_state["nombre_usuario"] = usuarios_autorizados[usuario]["nombre"]
                     st.session_state["id_usuario"] = usuario
                     st.session_state["direccion_permitida"] = usuarios_autorizados[usuario]["direccion"]
+                    st.session_state["lider_permitido"] = usuarios_autorizados[usuario].get("lider", "TODOS")
+                    if st.session_state["lider_permitido"] == "": st.session_state["lider_permitido"] = "TODOS"
                     st.rerun()
                 else: 
                     st.error("Usuario o contraseña incorrectos")
@@ -450,7 +453,7 @@ def main():
             st.session_state["usuario_logueado"] = False; st.rerun()
             
     st.divider()
-    with st.spinner("Cargando base de datos (Vectorizada)..."):
+    with st.spinner("Cargando base de datos y validando seguridad dinámica..."):
         current_timestamp = obtener_timestamp_actualizacion(LINK_ARCHIVO)
         
         df_completo = cargar_datos_csv(LINK_ARCHIVO, "Base de datos", current_timestamp)
@@ -466,12 +469,49 @@ def main():
             df_pdi['Nombre'] = df_pdi['Nombre'].astype(str).str.strip()
             df_pdi['Nombre_Cruce'] = df_pdi['Nombre'].str.lower()
             
-        direccion_permitida = st.session_state["direccion_permitida"]
+        direccion_permitida = st.session_state.get("direccion_permitida", "TODAS")
+        lider_permitido = st.session_state.get("lider_permitido", "TODOS")
         
+        # --- FILTRO 1: SEGURIDAD POR DIRECCIÓN ---
         if direccion_permitida != "TODAS":
             df_seguro = df_completo[(df_completo['Dirección'].astype(str).str.upper().str.contains(direccion_permitida)) | (df_completo['Nivel MLA'].astype(str).str.strip() == '5')]
         else:
             df_seguro = df_completo.copy()
+            
+        # --- FILTRO 2: SEGURIDAD POR LÍDER RESTRINGIDO (RLS 2.0) ---
+        if lider_permitido != "TODOS" and lider_permitido != "":
+            dict_nom_global = {clean_id(r.get('id Empleado')): clean_text(r.get('Nombre')) for r in df_completo.to_dict('records')}
+            jerarquia_global = {}
+            for j, e in zip(df_completo['ID Del Jefe'].astype(str).str.strip(), df_completo['id Empleado'].astype(str).str.strip()):
+                j = j[:-2] if j.endswith('.0') else j
+                e = e[:-2] if e.endswith('.0') else e
+                if j not in jerarquia_global: jerarquia_global[j] = []
+                jerarquia_global[j].append(e)
+
+            lider_id_global = next((i for i, n in dict_nom_global.items() if str(n).strip().lower() == lider_permitido.strip().lower()), None)
+            
+            subs_globales = set()
+            if lider_id_global:
+                cola = [lider_id_global]
+                while cola:
+                    actual = cola.pop(0)
+                    directos = jerarquia_global.get(actual, [])
+                    for d in directos:
+                        if d and d not in subs_globales:
+                            subs_globales.add(d)
+                            cola.append(d)
+            
+            nombres_permitidos = [dict_nom_global.get(s) for s in subs_globales if s in dict_nom_global]
+            nombres_permitidos.append(lider_permitido)
+            nombres_permitidos_limpios = [str(n).strip().lower() for n in nombres_permitidos if n]
+            
+            # Cortar la base de datos a solo los subordinados de este gerente
+            df_seguro = df_seguro[df_seguro['Nombre_Cruce'].isin(nombres_permitidos_limpios)]
+            st.session_state['nombres_permitidos_limpios'] = nombres_permitidos_limpios
+        else:
+            st.session_state['nombres_permitidos_limpios'] = []
+
+        # =============================================================
             
         col_head1, col_head2 = st.columns([2, 1])
         with col_head1:
@@ -673,6 +713,12 @@ def main():
                     dir_candidato = clean_text(row_c.get('Dirección', row_c.get('Direccion')), 'No asignada')
                     
                     if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in dir_candidato.upper()): return "RESTRINGIDO_GLOBAL"
+                    
+                    # SEGURIDAD DE LÍDER (RLS 2.0)
+                    if st.session_state.get('lider_permitido', "TODOS") != "TODOS":
+                        if nombre_cand.strip().lower() not in st.session_state['nombres_permitidos_limpios']:
+                            return "RESTRINGIDO_LIDER_CUENTA"
+                            
                     if f_lid_plan != "Todos":
                         sub_limpios_lider = [str(x).strip().lower() for x in subordinados_permitidos]
                         if nombre_cand.strip().lower() not in sub_limpios_lider: return "RESTRINGIDO_LIDER"
@@ -842,6 +888,7 @@ def main():
                                     items_html = ""
                                     for s in sugerencias:
                                         if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in s['direccion'].upper()): info_vis = "🔒 <i>Detalles confidenciales (Otra Dirección)</i>"
+                                        elif st.session_state.get('lider_permitido', "TODOS") != "TODOS" and s['nombre'].strip().lower() not in st.session_state['nombres_permitidos_limpios']: info_vis = "🔒 <i>Detalles confidenciales (Usuario Limitado por Cuenta)</i>"
                                         elif f_lid_plan != "Todos" and s['nombre'].strip().lower() not in [str(x).strip().lower() for x in subordinados_permitidos]: info_vis = "🔒 <i>Detalles confidenciales (Modo Presentación Activo)</i>"
                                         else: info_vis = f"📌 Puesto Actual: <b>{s['puesto']}</b> | 📊 9-Box: <b>{s['box']}</b>"
                                         items_html += f"<li>👤 <b>{s['nombre']}</b> — {info_vis}<br><span style='color:#0369a1;'>💡 {s['razon']}</span></li>"
@@ -883,6 +930,7 @@ def main():
                     
                     ficha_emergencia = obtener_ficha_candidato(n_suc_emergencia)
                     if ficha_emergencia == "RESTRINGIDO_GLOBAL": st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
+                    elif ficha_emergencia == "RESTRINGIDO_LIDER_CUENTA": st.error("🔒 Acceso Restringido: La cuenta con la que iniciaste sesión no tiene permisos para ver los KPIs de este colaborador.")
                     elif ficha_emergencia == "RESTRINGIDO_LIDER": st.error("🔒 Modo Presentación: Información confidencial oculta (Colaborador ajeno al equipo del líder actual).")
                     elif ficha_emergencia: st.success(f"📊 **9-Box:** {ficha_emergencia['box']} | 🔥 **Enganche:** {ficha_emergencia['enganche']} | 📈 **EDR:** {ficha_emergencia['edr']}")
                     
@@ -894,6 +942,7 @@ def main():
                         n_suc1 = st.selectbox("Candidato 1", opciones_sucesores, index=opciones_sucesores.index(c_suc1), key=f"select_suc1_{pos_seleccionada}")
                         ficha1 = obtener_ficha_candidato(n_suc1)
                         if ficha1 == "RESTRINGIDO_GLOBAL": st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
+                        elif ficha1 == "RESTRINGIDO_LIDER_CUENTA": st.error("🔒 Acceso Restringido: La cuenta con la que iniciaste sesión no tiene permisos para ver los KPIs de este colaborador.")
                         elif ficha1 == "RESTRINGIDO_LIDER": st.error("🔒 Modo Presentación: Información confidencial oculta (Colaborador ajeno al equipo del líder actual).")
                         elif ficha1:
                             st.success(f"📊 **9-Box:** {ficha1['box']} | 🔥 **Enganche:** {ficha1['enganche']} | 📈 **EDR:** {ficha1['edr']}")
@@ -909,6 +958,7 @@ def main():
                         n_suc2 = st.selectbox("Candidato 2", opciones_sucesores, index=opciones_sucesores.index(c_suc2), key=f"select_suc2_{pos_seleccionada}")
                         ficha2 = obtener_ficha_candidato(n_suc2)
                         if ficha2 == "RESTRINGIDO_GLOBAL": st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
+                        elif ficha2 == "RESTRINGIDO_LIDER_CUENTA": st.error("🔒 Acceso Restringido: La cuenta con la que iniciaste sesión no tiene permisos para ver los KPIs de este colaborador.")
                         elif ficha2 == "RESTRINGIDO_LIDER": st.error("🔒 Modo Presentación: Información confidencial oculta (Colaborador ajeno al equipo del líder actual).")
                         elif ficha2:
                             st.success(f"📊 **9-Box:** {ficha2['box']} | 🔥 **Enganche:** {ficha2['enganche']} | 📈 **EDR:** {ficha2['edr']}")
@@ -924,6 +974,7 @@ def main():
                         n_suc3 = st.selectbox("Candidato 3", opciones_sucesores, index=opciones_sucesores.index(c_suc3), key=f"select_suc3_{pos_seleccionada}")
                         ficha3 = obtener_ficha_candidato(n_suc3)
                         if ficha3 == "RESTRINGIDO_GLOBAL": st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
+                        elif ficha3 == "RESTRINGIDO_LIDER_CUENTA": st.error("🔒 Acceso Restringido: La cuenta con la que iniciaste sesión no tiene permisos para ver los KPIs de este colaborador.")
                         elif ficha3 == "RESTRINGIDO_LIDER": st.error("🔒 Modo Presentación: Información confidencial oculta (Colaborador ajeno al equipo del líder actual).")
                         elif ficha3:
                             st.success(f"📊 **9-Box:** {ficha3['box']} | 🔥 **Enganche:** {ficha3['enganche']} | 📈 **EDR:** {ficha3['edr']}")
@@ -1027,14 +1078,17 @@ def main():
             if st.session_state["id_usuario"] == "admin":
                 with tab_admin:
                     st.markdown("### ⚙️ Gestión de Usuarios Directivos")
-                    st.info("Crea nuevos accesos para Directores. Estos se guardarán permanentemente en la pestaña 'Usuarios' de tu Excel de Google Sheets.")
+                    st.info("Crea nuevos accesos. Estos se guardarán en la pestaña 'Usuarios' de tu Excel de Google Sheets.")
                     
                     with st.form("nuevo_usuario_form"):
-                        st.markdown("#### Agregar Nuevo Director")
+                        st.markdown("#### Agregar Nuevo Perfil")
                         n_user = st.text_input("ID de Usuario (ej. d.marketing)")
                         n_nombre = st.text_input("Nombre / Título del Perfil (ej. Director de Marketing)")
                         n_pass = st.text_input("Contraseña de acceso", type="password")
                         n_dir = st.selectbox("Dirección Permitida (Elige 'TODAS' para RH o Dirección General)", ["TODAS"] + dirs)
+                        
+                        lideres_para_admin = sorted(df_completo['Nombre'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
+                        n_lider = st.selectbox("Líder Restringido (Elige 'TODOS' para ver toda el área, o un nombre para limitar la cuenta a un Gerente)", ["TODOS"] + lideres_para_admin)
                         
                         submit_btn = st.form_submit_button("Crear Nuevo Usuario")
                         
@@ -1050,7 +1104,7 @@ def main():
                                         archivo = cliente.open_by_key(doc_id)
                                         
                                         pestana_users = archivo.worksheet("Usuarios")
-                                        pestana_users.append_row([n_user, n_nombre, n_pass, n_dir])
+                                        pestana_users.append_row([n_user, n_nombre, n_pass, n_dir, n_lider])
                                         
                                         archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
                                         
@@ -1059,7 +1113,7 @@ def main():
                                         time.sleep(1)
                                         st.rerun()
                                     except Exception as e:
-                                        st.error(f"❌ Error al crear el usuario. Asegúrate de que la pestaña 'Usuarios' exista en tu Excel. Detalles técnicos: {e}")
+                                        st.error(f"❌ Error al crear el usuario. Asegúrate de que la pestaña 'Usuarios' tenga 5 columnas en la fila 1 (Usuario, Nombre, Password, Direccion, Lider Restringido). Detalles: {e}")
                             else:
                                 st.warning("⚠️ Debes llenar todos los campos (ID, Nombre y Contraseña) para crear el usuario.")
                                 
