@@ -95,7 +95,7 @@ def login():
         col1, col2, col3 = st.columns([1, 1, 1])
         with col2:
             st.write("")
-            usuario = st.text_input("Usuario")
+            usuario = st.text_input("Usuario (Número de Nómina)")
             password = st.text_input("Contraseña", type="password")
             if st.button("Iniciar Sesión", use_container_width=True):
                 if usuario in usuarios_autorizados and usuarios_autorizados[usuario]["password"] == password:
@@ -117,7 +117,7 @@ def login():
 # MOTOR PRINCIPAL (GRAFO CON CACHÉ Y LAZY LOADING)
 # ==========================================
 @st.cache_data(show_spinner=False)
-def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_edr, f_riesgos, renderizar_mapa):
+def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_edr, f_riesgos, renderizar_mapa, usuario_activo_id):
     G = nx.MultiDiGraph()
     G_jerarquia = nx.DiGraph() 
     jefes_dict = {}
@@ -282,12 +282,12 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         posibles_raices = [n for n in G_jerarquia.nodes() if G_jerarquia.in_degree(n) == 0]
         if posibles_raices: raiz_principal = max(posibles_raices, key=lambda x: len(nx.descendants(G_jerarquia, x)))
             
+    # --- AUTO-ENFOQUE PYVIS DE USUARIO ---
     nodo_central_id = raiz_principal
-    if f_lid != "Todos": nodo_central_id = next((emp for emp, inf in info_nodos.items() if inf['nombre'] == f_lid), raiz_principal)
-    elif f_dir != "Todas":
-        candidatos = [emp for emp in nodos_visibles if info_nodos[emp]['direccion'] == f_dir]
-        if candidatos: nodo_central_id = max(candidatos, key=lambda x: int(info_nodos[x]['mla']) if str(info_nodos[x]['mla']).isdigit() else 0)
-            
+    target_node_id = clean_id(usuario_activo_id)
+    if target_node_id in G_jerarquia.nodes():
+        nodo_central_id = target_node_id
+        
     nodos_activos = set(nodos_visibles)
     if raiz_principal and raiz_principal in G_jerarquia:
         for v in nodos_visibles:
@@ -471,7 +471,7 @@ def renderizar_mi_pdi(df_completo, df_pdi):
         nomina_aut, puesto_aut, dir_aut, lider_aut = "N/A", "N/A", "N/A", "N/A"
         st.warning("⚠️ No pudimos encontrar tus datos exactos en la base principal. Habla con RH.")
 
-    # --- BÚSQUEDA DEL PDI PREVIO EN LA BASE MULTI-FILA ---
+    # --- BÚSQUEDA DEL PDI PREVIO EN LA BASE MULTI-FILA (PDI 2027) ---
     datos_pdi_usuario = pd.DataFrame()
     if not df_pdi.empty and 'Nombre' in df_pdi.columns:
         df_pdi['Nombre_Cruce'] = df_pdi['Nombre'].astype(str).str.strip().str.lower()
@@ -605,7 +605,7 @@ def renderizar_mi_pdi(df_completo, df_pdi):
                     match = re.search(r'/d/([a-zA-Z0-9-_]+)', LINK_ARCHIVO)
                     doc_id = match.group(1) if match else LINK_ARCHIVO
                     archivo = cliente.open_by_key(doc_id)
-                    pestana_pdi_gs = archivo.worksheet("PDI")
+                    pestana_pdi_gs = archivo.worksheet("PDI 2027")
                     
                     # 1. Asegurar que las columnas existan o crearlas virtualmente
                     if df_pdi.empty: df_actual = pd.DataFrame(columns=COLUMNAS_PDI)
@@ -656,7 +656,7 @@ def renderizar_mi_pdi(df_completo, df_pdi):
                     
                     archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
                     st.cache_data.clear()
-                    st.success("✅ ¡PDI Guardado Exitosamente! Tu base de datos multifila se actualizó.")
+                    st.success("✅ ¡PDI 2027 Guardado Exitosamente! Tu base de datos multifila se actualizó.")
                     time.sleep(1.5)
                     st.rerun()
                 except Exception as e:
@@ -737,13 +737,40 @@ def main():
     with st.spinner("Cargando base de datos y validando seguridad dinámica..."):
         current_timestamp = obtener_timestamp_actualizacion(LINK_ARCHIVO)
         
-        df_completo = cargar_datos_csv(LINK_ARCHIVO, "Base de datos", current_timestamp)
-        df_pdi = cargar_datos_csv(LINK_ARCHIVO, "PDI", current_timestamp)
+        df_completo_raw = cargar_datos_csv(LINK_ARCHIVO, "Base de datos", current_timestamp)
+        df_pdi = cargar_datos_csv(LINK_ARCHIVO, "PDI 2027", current_timestamp)
         
-        if df_completo.empty:
+        if df_completo_raw.empty:
             st.error("Error al conectar con la base de datos principal.")
             st.stop()
             
+        # =========================================================================
+        # ENRUTAMIENTO DINÁMICO (BYPASS DE ESTATUS "BAJA")
+        # =========================================================================
+        estatus_global = {clean_id(r.get('id Empleado')): clean_text(r.get('Estatus', 'Activo')).lower() for r in df_completo_raw.to_dict('records')}
+        jefe_orig_global = {clean_id(r.get('id Empleado')): clean_id(r.get('ID Del Jefe')) for r in df_completo_raw.to_dict('records')}
+        
+        def get_active_boss_global(emp):
+            j = jefe_orig_global.get(emp)
+            vis = set()
+            while j and j in estatus_global:
+                if j in vis: break
+                vis.add(j)
+                if estatus_global[j] not in ['baja']: 
+                    return j
+                j = jefe_orig_global.get(j)
+            return j
+
+        df_completo = df_completo_raw.copy()
+        df_completo['ID Del Jefe'] = df_completo['id Empleado'].apply(lambda x: get_active_boss_global(clean_id(x)))
+        df_completo = df_completo[~df_completo['Estatus'].astype(str).str.strip().str.lower().isin(['baja'])]
+        
+        # --- EXTRACCIÓN AUTOMÁTICA DEL NOMBRE VÍA NÓMINA (UI/UX) ---
+        if st.session_state["id_usuario"] != "admin":
+            match_nomina = df_completo[df_completo['id Empleado'].apply(clean_id) == clean_id(st.session_state["id_usuario"])]
+            if not match_nomina.empty:
+                st.session_state["nombre_usuario"] = clean_text(match_nomina.iloc[0]['Nombre'])
+                
         df_completo['Nombre'] = df_completo['Nombre'].astype(str).str.strip()
         df_completo['Nombre_Cruce'] = df_completo['Nombre'].str.lower()
         if not df_pdi.empty and 'Nombre' in df_pdi.columns:
@@ -751,8 +778,13 @@ def main():
             df_pdi['Nombre_Cruce'] = df_pdi['Nombre'].str.lower()
             
         direccion_permitida = st.session_state.get("direccion_permitida", "TODAS")
-        lider_permitido = st.session_state.get("lider_permitido", "TODOS")
         es_colaborador = (direccion_permitida.strip().upper() == "COLABORADOR")
+        
+        # --- AISLAMIENTO ESTRICTO DE SUB-GRAFO ---
+        if st.session_state["id_usuario"] != "admin" and not es_colaborador:
+            st.session_state["lider_permitido"] = st.session_state["nombre_usuario"]
+            
+        lider_permitido = st.session_state.get("lider_permitido", "TODOS")
         
         # =========================================================================
         # VISTA 1: COLABORADORES INDIVIDUALES (SOLO VEN SU PDI)
@@ -800,6 +832,11 @@ def main():
             else:
                 st.session_state['nombres_permitidos_limpios'] = []
 
+            # --- OCULTAR NODO RAÍZ (ANDRÉS) DE FILTROS ---
+            df_filtros = df_seguro
+            if st.session_state["id_usuario"] != "admin":
+                df_filtros = df_seguro[~df_seguro['Nivel MLA'].astype(str).str.strip().isin(['5'])]
+
             col_head1, col_head2 = st.columns([2, 1])
             with col_head1:
                 st.markdown("### 🎛️ Filtros Globales (Controlan Mapa, KPIs y Tablas)")
@@ -807,7 +844,7 @@ def main():
                     st.cache_data.clear(); st.rerun()
                 
             with col_head2:
-                nombres_s = df_seguro['Nombre'].dropna()
+                nombres_s = df_filtros['Nombre'].dropna()
                 lista_nombres_buscador = sorted(nombres_s[nombres_s != ''].unique().tolist())
                 colab_buscado = st.selectbox("🔍 Búsqueda rápida de colaborador:", [""] + lista_nombres_buscador)
                 
@@ -815,19 +852,19 @@ def main():
                 datos_c = df_seguro[df_seguro['Nombre'] == colab_buscado].iloc[0]
                 st.success(f"👤 **{colab_buscado}** | 🏢 **Puesto:** {clean_text(datos_c.get('Nombre de la Posición', 'N/A'))} | 📍 **Dirección:** {clean_text(datos_c.get('Dirección', datos_c.get('Direccion', 'N/A')))} | 📊 **9-Box:** {clean_text(datos_c.get('Resultado 9 box', 'N/A'))} | 📈 **EDR:** {clean_text(datos_c.get('EDR', datos_c.get('EDR ', 'N/A')))} | 🥇 **Nivel MLA:** {clean_text(datos_c.get('Nivel MLA', 'N/A'))}")
             
-            dirs = sorted(df_seguro['Dirección'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
-            mlas = sorted(df_seguro['Nivel MLA'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
-            boxes = sorted(df_seguro['Resultado 9 box'].dropna().astype(str).str.strip().str.upper()[lambda x: x != ''].unique().tolist())
-            criticas = sorted(df_seguro['Posición Crítica'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
-            edrs_col = 'EDR' if 'EDR' in df_seguro.columns else ('EDR ' if 'EDR ' in df_seguro.columns else None)
-            edrs = sorted(df_seguro[edrs_col].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist()) if edrs_col else []
+            dirs = sorted(df_filtros['Dirección'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
+            mlas = sorted(df_filtros['Nivel MLA'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
+            boxes = sorted(df_filtros['Resultado 9 box'].dropna().astype(str).str.strip().str.upper()[lambda x: x != ''].unique().tolist())
+            criticas = sorted(df_filtros['Posición Crítica'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
+            edrs_col = 'EDR' if 'EDR' in df_filtros.columns else ('EDR ' if 'EDR ' in df_filtros.columns else None)
+            edrs = sorted(df_filtros[edrs_col].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist()) if edrs_col else []
             
             col_f1, col_f2, col_f3, col_f4, col_f5, col_f6 = st.columns(6)
             f_dir = col_f1.selectbox("Dirección", ["Todas"] + dirs)
             
             dict_nom = {clean_id(r.get('id Empleado')): r.get('Nombre') for r in df_seguro.to_dict('records')}
-            if f_dir != "Todas": lideres_ids = df_seguro[df_seguro['Dirección'].astype(str).str.strip() == f_dir]['ID Del Jefe'].dropna().unique()
-            else: lideres_ids = df_seguro['ID Del Jefe'].dropna().unique()
+            if f_dir != "Todas": lideres_ids = df_filtros[df_filtros['Dirección'].astype(str).str.strip() == f_dir]['ID Del Jefe'].dropna().unique()
+            else: lideres_ids = df_filtros['ID Del Jefe'].dropna().unique()
                 
             lideres = sorted(list(set([dict_nom.get(clean_id(x), "Sin Líder") for x in lideres_ids if clean_id(x)])))
             
@@ -852,7 +889,7 @@ def main():
                         renderizar_mapa = True
             st.write("") 
             
-            html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_edr, f_riesgos, renderizar_mapa)
+            html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_edr, f_riesgos, renderizar_mapa, st.session_state["id_usuario"])
             
             if kpis is not None:
                 if st.session_state["id_usuario"] == "admin":
@@ -1196,18 +1233,22 @@ def main():
                         c_suc_emergencia = clean_text(info_pos.get('Sucesor de emergencia', 'Pendiente')) or "Pendiente"
                         c_suc1 = clean_text(info_pos.get('Sucesor P.1', 'Pendiente')) or "Pendiente"
                         c_read1 = clean_text(info_pos.get('Tiempo de Readiness 1', 'Pendiente')) or "Pendiente"
-                        c_pos1 = clean_text(info_pos.get('Positivo', info_pos.get('Positivo 1', '')))
-                        c_opo1 = clean_text(info_pos.get('Oportunidad', info_pos.get('Oportunidad 1', '')))
+                        
+                        # --- NUEVA LECTURA DE COMENTARIOS CON NOMBRES EXACTOS ---
+                        c_pos1 = clean_text(info_pos.get('Positivo 1', ''))
+                        c_opo1 = clean_text(info_pos.get('Oportunidad 1', ''))
                         
                         c_suc2 = clean_text(info_pos.get('Sucesor P.2', 'Pendiente')) or "Pendiente"
                         c_read2 = clean_text(info_pos.get('Tiempo de Readiness 2', 'Pendiente')) or "Pendiente"
-                        c_pos2 = clean_text(info_pos.get('Positivo.1', info_pos.get('Positivo 2', '')))
-                        c_opo2 = clean_text(info_pos.get('Oportunidad.1', info_pos.get('Oportunidad 2', '')))
+                        
+                        c_pos2 = clean_text(info_pos.get('Positivo 2', ''))
+                        c_opo2 = clean_text(info_pos.get('Oportunidad 2', ''))
                         
                         c_suc3 = clean_text(info_pos.get('Sucesor P.3', 'Pendiente')) or "Pendiente"
                         c_read3 = clean_text(info_pos.get('Tiempo de Readiness 3', 'Pendiente')) or "Pendiente"
-                        c_pos3 = clean_text(info_pos.get('Positivo.2', info_pos.get('Positivo 3', '')))
-                        c_opo3 = clean_text(info_pos.get('Oportunidad.2', info_pos.get('Oportunidad 3', '')))
+                        
+                        c_pos3 = clean_text(info_pos.get('Positivo 3', ''))
+                        c_opo3 = clean_text(info_pos.get('Oportunidad 3', ''))
                         
                         if c_suc_emergencia not in opciones_sucesores: opciones_sucesores.append(c_suc_emergencia)
                         if c_suc1 not in opciones_sucesores: opciones_sucesores.append(c_suc1)
@@ -1298,25 +1339,50 @@ def main():
                                     archivo = cliente.open_by_key(doc_id)
                                     pestana = archivo.worksheet("Base de datos")
                                     
+                                    # ENCONTRAR COLUMNAS PARA GUARDAR CON NOMBRES EXACTOS
+                                    headers_bd = pestana.row_values(1)
+                                    def idx_col(nombre): return headers_bd.index(nombre) + 1 if nombre in headers_bd else None
+                                    
+                                    idx_emergencia = idx_col('Sucesor de emergencia')
+                                    idx_suc1 = idx_col('Sucesor P.1')
+                                    idx_read1 = idx_col('Tiempo de Readiness 1')
+                                    idx_pos1 = idx_col('Positivo 1')
+                                    idx_opo1 = idx_col('Oportunidad 1')
+                                    
+                                    idx_suc2 = idx_col('Sucesor P.2')
+                                    idx_read2 = idx_col('Tiempo de Readiness 2')
+                                    idx_pos2 = idx_col('Positivo 2')
+                                    idx_opo2 = idx_col('Oportunidad 2')
+                                    
+                                    idx_suc3 = idx_col('Sucesor P.3')
+                                    idx_read3 = idx_col('Tiempo de Readiness 3')
+                                    idx_pos3 = idx_col('Positivo 3')
+                                    idx_opo3 = idx_col('Oportunidad 3')
+                                    
                                     for idx_p in df_ocupantes.index:
                                         idx_excel = idx_p + 2 
-                                        rango = f'I{idx_excel}:Z{idx_excel}'
-                                        celdas = pestana.range(rango)
-                                        celdas[0].value = "Pendiente" if n_suc_emergencia == "Pendiente" else n_suc_emergencia
-                                        celdas[1].value = "Pendiente" if n_suc1 == "Pendiente" else n_suc1
-                                        celdas[2].value = "Pendiente" if n_read1 == "Pendiente" else n_read1
-                                        celdas[3].value = n_pos1
-                                        celdas[4].value = n_opo1
-                                        celdas[5].value = "Pendiente" if n_suc2 == "Pendiente" else n_suc2
-                                        celdas[6].value = "Pendiente" if n_read2 == "Pendiente" else n_read2
-                                        celdas[7].value = n_pos2
-                                        celdas[8].value = n_opo2
-                                        celdas[9].value = "Pendiente" if n_suc3 == "Pendiente" else n_suc3
-                                        celdas[10].value = "Pendiente" if n_read3 == "Pendiente" else n_read3
-                                        celdas[11].value = n_pos3
-                                        celdas[12].value = n_opo3
-                                        if len(celdas) > 17: celdas[17].value = n_plan_accion
-                                        pestana.update_cells(celdas)
+                                        
+                                        # ACT. EMERGENCIA
+                                        if idx_emergencia: pestana.update_cell(idx_excel, idx_emergencia, "Pendiente" if n_suc_emergencia == "Pendiente" else n_suc_emergencia)
+                                        
+                                        # ACT. SUC 1
+                                        if idx_suc1: pestana.update_cell(idx_excel, idx_suc1, "Pendiente" if n_suc1 == "Pendiente" else n_suc1)
+                                        if idx_read1: pestana.update_cell(idx_excel, idx_read1, "Pendiente" if n_read1 == "Pendiente" else n_read1)
+                                        if idx_pos1: pestana.update_cell(idx_excel, idx_pos1, n_pos1)
+                                        if idx_opo1: pestana.update_cell(idx_excel, idx_opo1, n_opo1)
+                                        
+                                        # ACT. SUC 2
+                                        if idx_suc2: pestana.update_cell(idx_excel, idx_suc2, "Pendiente" if n_suc2 == "Pendiente" else n_suc2)
+                                        if idx_read2: pestana.update_cell(idx_excel, idx_read2, "Pendiente" if n_read2 == "Pendiente" else n_read2)
+                                        if idx_pos2: pestana.update_cell(idx_excel, idx_pos2, n_pos2)
+                                        if idx_opo2: pestana.update_cell(idx_excel, idx_opo2, n_opo2)
+                                        
+                                        # ACT. SUC 3
+                                        if idx_suc3: pestana.update_cell(idx_excel, idx_suc3, "Pendiente" if n_suc3 == "Pendiente" else n_suc3)
+                                        if idx_read3: pestana.update_cell(idx_excel, idx_read3, "Pendiente" if n_read3 == "Pendiente" else n_read3)
+                                        if idx_pos3: pestana.update_cell(idx_excel, idx_pos3, n_pos3)
+                                        if idx_opo3: pestana.update_cell(idx_excel, idx_opo3, n_opo3)
+                                        
                                         time.sleep(0.5) 
                                     
                                     try: archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
@@ -1389,9 +1455,9 @@ def main():
                         st.markdown("### ⚙️ Gestión de Usuarios Directivos")
                         st.info("Crea nuevos accesos. Estos se guardarán en la pestaña 'Usuarios' de tu Excel de Google Sheets.")
                         
-                        with st.form("nuevo_usuario_form"):
+                        with st.form("nuevo_usuario_form", clear_on_submit=True):
                             st.markdown("#### Agregar Nuevo Perfil")
-                            n_user = st.text_input("ID de Usuario (ej. d.marketing)")
+                            n_user = st.text_input("ID de Usuario / Número de Nómina (ej. 10145)")
                             n_nombre = st.text_input("Nombre / Título del Perfil (ej. Director de Marketing)")
                             n_pass = st.text_input(f"Contraseña temporal (Sugerencia: {PASSWORD_POR_DEFECTO})")
                             n_dir = st.selectbox("Dirección Permitida (Elige 'TODAS' para RH o Dirección General, o 'COLABORADOR' para autogestión de PDI)", ["TODAS", "COLABORADOR"] + dirs)
