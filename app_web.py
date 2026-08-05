@@ -744,10 +744,17 @@ def main():
             st.error("Error al conectar con la base de datos principal.")
             st.stop()
             
-        # =========================================================================
+# =========================================================================
         # ENRUTAMIENTO DINÁMICO (BYPASS DE ESTATUS "BAJA")
         # =========================================================================
-        estatus_global = {clean_id(r.get('id Empleado')): clean_text(r.get('Estatus', 'Activo')).lower() for r in df_completo_raw.to_dict('records')}
+        # 1. Búsqueda inteligente de la columna Estatus (ignora mayúsculas o espacios extra)
+        col_estatus = next((c for c in df_completo_raw.columns if 'estatus' in str(c).lower()), None)
+        
+        if col_estatus:
+            estatus_global = {clean_id(r.get('id Empleado')): clean_text(r.get(col_estatus, 'Activo')).lower() for r in df_completo_raw.to_dict('records')}
+        else:
+            estatus_global = {clean_id(r.get('id Empleado')): 'activo' for r in df_completo_raw.to_dict('records')}
+            
         jefe_orig_global = {clean_id(r.get('id Empleado')): clean_id(r.get('ID Del Jefe')) for r in df_completo_raw.to_dict('records')}
         
         def get_active_boss_global(emp):
@@ -763,11 +770,10 @@ def main():
 
         df_completo = df_completo_raw.copy()
         df_completo['ID Del Jefe'] = df_completo['id Empleado'].apply(lambda x: get_active_boss_global(clean_id(x)))
-        df_completo = df_completo[~df_completo['Estatus'].astype(str).str.strip().str.lower().isin(['baja'])]
         
-        # --- EXTRACCIÓN AUTOMÁTICA DEL NOMBRE VÍA NÓMINA (UI/UX) ---
-        if st.session_state["id_usuario"] != "admin":
-            match_nomina = df_completo[df_completo['id Empleado'].apply(clean_id) == clean_id(st.session_state["id_usuario"])]
+        # 2. Filtrado seguro: Solo lo hace si encontró la columna
+        if col_estatus:
+            df_completo = df_completo[~df_completo[col_estatus].astype(str).str.strip().str.lower().isin(['baja'])]
             if not match_nomina.empty:
                 st.session_state["nombre_usuario"] = clean_text(match_nomina.iloc[0]['Nombre'])
                 
