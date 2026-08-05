@@ -19,7 +19,15 @@ from config_ui import (
 
 # VARIABLE GLOBAL DE BASE DE DATOS
 LINK_ARCHIVO = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit"
-PASSWORD_POR_DEFECTO = "Ayvi2026" # <-- Contraseña que forzará el cambio automático
+PASSWORD_POR_DEFECTO = "Ayvi2026" 
+
+# ESTRUCTURA MAESTRA DE COLUMNAS PARA EL PDI (Múltiples filas)
+COLUMNAS_PDI = [
+    "Nómina", "Nombre", "Puesto", "Dirección", "Líder", "Fecha Elaboración", "Departamento",
+    "Rol Interés 1", "Motivo 1", "Rol Interés 2", "Motivo 2", "Rol Interés 3", "Motivo 3",
+    "Objetivo de Desarrollo", "Categoría Desarrollo", "Acción de Desarrollo", 
+    "Competencia", "Recursos", "Métricas", "Fecha Cumplimiento", "% de Avance", "Estatus"
+]
 
 # ==========================================
 # SISTEMA DE CACHÉ INTELIGENTE Y DESCARGA
@@ -377,7 +385,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         
         eng = info['enganche_ind']
         color_sombreado = 'rgba(22, 163, 74, 0.8)' if eng >= 4 else ('rgba(234, 179, 8, 0.8)' if eng >= 3 else ('rgba(249, 115, 22, 0.8)' if eng >= 2 else ('rgba(220, 38, 38, 0.8)' if eng > 0 else 'rgba(0, 0, 0, 0.2)')))
-        dispersion_offset = (((sum(ord(ch) for ch in str(emp)) % 9) / 8.0) * 0.4) - 0.2 
+        dispersion_offset = (((sum(ord(ch) for str(emp)) % 9) / 8.0) * 0.4) - 0.2 
         
         G.add_node(
             emp, label=f"{prefijo}{acortar_nombre(info['nombre'])}\n({acortar_puesto(info['puesto'])})", 
@@ -441,15 +449,16 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
     return html, pd.DataFrame(alertas_tabla), kpis
 
 # ==========================================
-# FUNCIÓN ENCAPSULADA DE AUTOGESTIÓN (MI PDI)
+# FUNCIONES ENCAPSULADAS DE AUTOGESTIÓN (MI PDI - 70/20/10)
 # ==========================================
 def renderizar_mi_pdi(df_completo, df_pdi):
-    st.markdown(f"### 📝 Mi Plan de Desarrollo Individual (PDI)")
-    st.info("Bienvenido a tu portal de autogestión. Aquí puedes definir y actualizar tus objetivos de desarrollo profesional.")
+    st.markdown(f"### 📝 Plan de Desarrollo Individual (PDI)")
+    st.info("Estructura tu aprendizaje equilibrando experiencias prácticas (70%), interacciones sociales (20%) y formación formal (10%).")
     
     nombre_colab = st.session_state["nombre_usuario"]
     datos_bd = df_completo[df_completo['Nombre_Cruce'] == nombre_colab.strip().lower()]
     
+    # --- EXTRACCIÓN DE DATOS MAESTROS (AUTO-LLENADO) ---
     if not datos_bd.empty:
         row_bd = datos_bd.iloc[0]
         nomina_aut = clean_id(row_bd.get('id Empleado', ''))
@@ -460,108 +469,198 @@ def renderizar_mi_pdi(df_completo, df_pdi):
         lider_aut = dict_nom_global.get(jefe_id, 'No asignado')
     else:
         nomina_aut, puesto_aut, dir_aut, lider_aut = "N/A", "N/A", "N/A", "N/A"
-        st.warning("⚠️ No pudimos encontrar tus datos exactos en la base principal de Nómina. Asegúrate de que tu Nombre de Usuario coincida exactamente con el de la base.")
+        st.warning("⚠️ No pudimos encontrar tus datos exactos en la base principal. Habla con RH.")
 
-    datos_pdi = pd.DataFrame()
-    if not df_pdi.empty and 'Nombre_Cruce' in df_pdi.columns:
-        datos_pdi = df_pdi[df_pdi['Nombre_Cruce'] == nombre_colab.strip().lower()]
+    # --- BÚSQUEDA DEL PDI PREVIO EN LA BASE MULTI-FILA ---
+    datos_pdi_usuario = pd.DataFrame()
+    if not df_pdi.empty and 'Nombre' in df_pdi.columns:
+        df_pdi['Nombre_Cruce'] = df_pdi['Nombre'].astype(str).str.strip().str.lower()
+        datos_pdi_usuario = df_pdi[df_pdi['Nombre_Cruce'] == nombre_colab.strip().lower()]
         
-    if not datos_pdi.empty:
-        row_pdi = datos_pdi.iloc[0]
-        col_obj = next((c for c in df_pdi.columns if 'objetivo' in str(c).lower()), None)
-        col_acc = next((c for c in df_pdi.columns if 'acciones' in str(c).lower() or 'qué' in str(c).lower()), None)
-        col_av = next((c for c in df_pdi.columns if 'avance' in str(c).lower()), None)
-        col_est = next((c for c in df_pdi.columns if 'estatus' in str(c).lower()), None)
-        col_clasif = next((c for c in df_pdi.columns if 'clasificacion' in str(c).lower() or 'clasificación' in str(c).lower()), None)
-        
-        obj_actual = clean_text(row_pdi.get(col_obj)) if col_obj else ""
-        acc_actual = clean_text(row_pdi.get(col_acc)) if col_acc else ""
-        av_str = clean_text(row_pdi.get(col_av)) if col_av else "0"
-        try: av_actual = int(float(str(av_str).replace('%','').strip()))
-        except: av_actual = 0
-        est_actual = clean_text(row_pdi.get(col_est)) if col_est else "No Iniciado"
-        clasif_actual = clean_text(row_pdi.get(col_clasif)) if col_clasif else ""
-        existe_pdi = True
-    else:
-        obj_actual, acc_actual, av_actual, est_actual, clasif_actual = "", "", 0, "No Iniciado", ""
-        existe_pdi = False
-
-    with st.container():
-        st.markdown("#### 👤 Mis Datos de Origen")
-        c1, c2, c3 = st.columns(3)
-        c1.text_input("Nombre Completo", value=nombre_colab, disabled=True)
-        c2.text_input("Nómina / ID", value=nomina_aut, disabled=True)
-        c3.text_input("Puesto Actual", value=puesto_aut, disabled=True)
-        
-        c4, c5 = st.columns(2)
-        c4.text_input("Dirección / Área", value=dir_aut, disabled=True)
-        c5.text_input("Líder Directo", value=lider_aut, disabled=True)
-        
-    st.markdown("---")
+    fecha_elab, depto = "", ""
+    rol_1, mot_1, rol_2, mot_2, rol_3, mot_3 = "", "", "", "", "", ""
+    objetivo = ""
     
-    with st.form("form_edicion_pdi"):
-        st.markdown("#### 🎯 Mi Plan de Acción")
-        lista_clasif = ["Desempeño en Puesto Actual", "Preparación para Siguiente Nivel", "Desarrollo de Liderazgo", "Cierre de Brechas Técnicas"]
-        idx_clasif = lista_clasif.index(clasif_actual) if clasif_actual in lista_clasif else 0
-        nuevo_clasif = st.selectbox("Clasificación del PDI", lista_clasif, index=idx_clasif)
+    acciones_70, acciones_20, acciones_10 = [], [], []
+
+    if not datos_pdi_usuario.empty:
+        primer_row = datos_pdi_usuario.iloc[0]
+        fecha_elab = str(primer_row.get('Fecha Elaboración', ''))
+        depto = str(primer_row.get('Departamento', ''))
+        rol_1 = str(primer_row.get('Rol Interés 1', ''))
+        mot_1 = str(primer_row.get('Motivo 1', ''))
+        rol_2 = str(primer_row.get('Rol Interés 2', ''))
+        mot_2 = str(primer_row.get('Motivo 2', ''))
+        rol_3 = str(primer_row.get('Rol Interés 3', ''))
+        mot_3 = str(primer_row.get('Motivo 3', ''))
+        objetivo = str(primer_row.get('Objetivo de Desarrollo', ''))
         
-        nuevo_obj = st.text_area("Objetivo a Desarrollar (¿Qué quieres lograr?)", value=obj_actual, height=100)
-        nuevo_acc = st.text_area("Acciones de Desarrollo (¿Cómo lo vas a lograr? Cursos, proyectos, certificaciones, etc.)", value=acc_actual, height=150)
+        for _, row in datos_pdi_usuario.iterrows():
+            cat = str(row.get('Categoría Desarrollo', ''))
+            acc_data = {
+                "acc": str(row.get('Acción de Desarrollo', '')), "comp": str(row.get('Competencia', '')),
+                "rec": str(row.get('Recursos', '')), "met": str(row.get('Métricas', '')),
+                "fec": str(row.get('Fecha Cumplimiento', '')), "av": str(row.get('% de Avance', '0%')),
+                "est": str(row.get('Estatus', 'No Iniciado'))
+            }
+            if '70' in cat and acc_data["acc"]: acciones_70.append(acc_data)
+            elif '20' in cat and acc_data["acc"]: acciones_20.append(acc_data)
+            elif '10' in cat and acc_data["acc"]: acciones_10.append(acc_data)
+
+    # Rellenar hasta 3 campos vacíos por categoría para la cuadrícula
+    molde_vacio = {"acc": "", "comp": "", "rec": "", "met": "", "fec": "", "av": "0%", "est": "No Iniciado"}
+    while len(acciones_70) < 3: acciones_70.append(molde_vacio.copy())
+    while len(acciones_20) < 3: acciones_20.append(molde_vacio.copy())
+    while len(acciones_10) < 3: acciones_10.append(molde_vacio.copy())
+
+    # --- RENDERIZADO VISUAL DEL FORMULARIO ---
+    with st.container():
+        st.markdown("<div style='background-color:#1e40af; padding:8px; color:white; font-weight:bold; text-align:center; border-radius:4px;'>Información General</div>", unsafe_allow_html=True)
+        st.write("")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.text_input("Nombre del colaborador:", value=nombre_colab, disabled=True)
+        c2.text_input("Número de nómina:", value=nomina_aut, disabled=True)
+        c3.text_input("Puesto actual:", value=puesto_aut, disabled=True)
+        depto_input = c4.text_input("Departamento:", value=depto, placeholder="Escribe tu depto...")
         
-        st.markdown("#### 📊 Progreso Actual")
-        col_prog1, col_prog2 = st.columns(2)
-        nuevo_av = col_prog1.slider("% de Avance", min_value=0, max_value=100, value=av_actual, step=5)
+        c5, c6, c7, c8 = st.columns(4)
+        c5.text_input("Dirección Organizacional:", value=dir_aut, disabled=True)
+        c6.text_input("Líder Directo:", value=lider_aut, disabled=True)
+        fecha_input = c7.text_input("Fecha de elaboración:", value=fecha_elab, placeholder="Ej. 9/9/2026")
         
-        lista_est = ["No Iniciado", "En Progreso", "Pausado", "Completado"]
-        idx_est = lista_est.index(est_actual) if est_actual in lista_est else 0
-        nuevo_est = col_prog2.selectbox("Estatus", lista_est, index=idx_est)
+    st.write("")
+    
+    with st.form("form_edicion_pdi", clear_on_submit=False):
+        st.markdown("<div style='background-color:#fef08a; padding:6px; color:#854d0e; font-weight:bold; text-align:center; border-radius:4px;'>Expectativas de Desarrollo (Colaborador)</div>", unsafe_allow_html=True)
+        st.write("")
         
-        btn_guardar_pdi = st.form_submit_button("💾 Guardar y Compartir mi PDI", use_container_width=True)
+        roles_disponibles = [""] + sorted(df_completo['Nombre de la Posición'].dropna().astype(str).unique().tolist())
+        
+        def index_seguro(lista, valor): return lista.index(valor) if valor in lista else 0
+            
+        r1, m1 = st.columns([1, 2])
+        rol_int_1 = r1.selectbox("Rol / Área de Interés 1", roles_disponibles, index=index_seguro(roles_disponibles, rol_1))
+        mot_int_1 = m1.text_input("Motivo", value=mot_1, key="mot1", placeholder="¿Por qué te interesa este rol?")
+        
+        r2, m2 = st.columns([1, 2])
+        rol_int_2 = r2.selectbox("Rol / Área de Interés 2", roles_disponibles, index=index_seguro(roles_disponibles, rol_2))
+        mot_int_2 = m2.text_input("Motivo", value=mot_2, key="mot2")
+        
+        r3, m3 = st.columns([1, 2])
+        rol_int_3 = r3.selectbox("Rol / Área de Interés 3", roles_disponibles, index=index_seguro(roles_disponibles, rol_3))
+        mot_int_3 = m3.text_input("Motivo", value=mot_3, key="mot3")
+        
+        st.write("")
+        st.markdown("<div style='background-color:#fef08a; padding:6px; color:#854d0e; font-weight:bold; text-align:center; border-radius:4px;'>Objetivo de Desarrollo (Colaborador y Líder)</div>", unsafe_allow_html=True)
+        st.write("")
+        
+        opciones_obj = ["Definir objetivo (Pendiente de catálogo MLA)...", "Desarrollo de Competencias Técnicas", "Desarrollo de Liderazgo", "Preparación para Siguiente Nivel", "Gestión de Proyectos", "Otro"]
+        if objetivo and objetivo not in opciones_obj: opciones_obj.append(objetivo)
+        obj_desarrollo = st.selectbox("Objetivo a Desarrollar:", opciones_obj, index=index_seguro(opciones_obj, objetivo))
+        
+        st.write("")
+        st.markdown("<div style='background-color:#1e40af; padding:8px; color:white; font-weight:bold; text-align:center; border-radius:4px;'>Plan de Desarrollo (Modelo 70-20-10)</div>", unsafe_allow_html=True)
+        st.write("")
+        
+        opciones_avance = ["0%", "25%", "50%", "75%", "100%"]
+        opciones_estatus = ["No Iniciado", "En proceso", "Completado", "Cancelado"]
+
+        def render_categoria(titulo, prefijo, lista_acciones):
+            st.markdown(f"**{titulo}**")
+            nuevas = []
+            for i in range(3):
+                a1, a2, a3, a4, a5, a6, a7 = st.columns([2, 1.5, 1.5, 1.5, 1, 1, 1])
+                acc = a1.text_area("Qué? / Acciones" if i==0 else "", value=lista_acciones[i]['acc'], key=f"{prefijo}_acc_{i}", height=68, label_visibility="visible" if i==0 else "collapsed")
+                comp = a2.text_input("Para qué? / Competencia" if i==0 else "", value=lista_acciones[i]['comp'], key=f"{prefijo}_comp_{i}", label_visibility="visible" if i==0 else "collapsed")
+                rec = a3.text_input("Quién? / Recursos" if i==0 else "", value=lista_acciones[i]['rec'], key=f"{prefijo}_rec_{i}", label_visibility="visible" if i==0 else "collapsed")
+                met = a4.text_input("Métricas" if i==0 else "", value=lista_acciones[i]['met'], key=f"{prefijo}_met_{i}", label_visibility="visible" if i==0 else "collapsed")
+                fec = a5.text_input("Fecha Ejecución" if i==0 else "", value=lista_acciones[i]['fec'], key=f"{prefijo}_fec_{i}", label_visibility="visible" if i==0 else "collapsed")
+                av = a6.selectbox("% Avance" if i==0 else "", opciones_avance, index=index_seguro(opciones_avance, lista_acciones[i]['av']), key=f"{prefijo}_av_{i}", label_visibility="visible" if i==0 else "collapsed")
+                est = a7.selectbox("Estatus" if i==0 else "", opciones_estatus, index=index_seguro(opciones_estatus, lista_acciones[i]['est']), key=f"{prefijo}_est_{i}", label_visibility="visible" if i==0 else "collapsed")
+                
+                nuevas.append({
+                    "Categoría Desarrollo": titulo, "Acción de Desarrollo": acc, "Competencia": comp,
+                    "Recursos": rec, "Métricas": met, "Fecha Cumplimiento": fec, "% de Avance": av, "Estatus": est
+                })
+            st.divider()
+            return nuevas
+
+        with st.expander("🔵 70% Desarrollo en el trabajo (Aprendizaje basado en experiencia directa)", expanded=True):
+            acciones_70_nuevas = render_categoria("70% Desarrollo en el trabajo", "70", acciones_70)
+            
+        with st.expander("🟡 20% Mentoring (Feedback, coaching, trabajo colaborativo)", expanded=True):
+            acciones_20_nuevas = render_categoria("20% Mentoring", "20", acciones_20)
+            
+        with st.expander("🔴 10% Formación Formal (Cursos, talleres, certificaciones)", expanded=True):
+            acciones_10_nuevas = render_categoria("10% Formación Formal", "10", acciones_10)
+            
+        btn_guardar_pdi = st.form_submit_button("💾 Guardar y Compartir mi PDI con mi Líder", use_container_width=True)
         
         if btn_guardar_pdi:
-            if nuevo_obj == "" or nuevo_acc == "":
-                st.warning("⚠️ El Objetivo y las Acciones son campos obligatorios para guardar tu avance.")
-            else:
-                with st.spinner("☁️ Sincronizando con Recursos Humanos..."):
-                    try:
-                        secretos = st.secrets["connections"]["gsheets"]
-                        credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
-                        cliente = gspread.authorize(credenciales)
-                        match = re.search(r'/d/([a-zA-Z0-9-_]+)', LINK_ARCHIVO)
-                        doc_id = match.group(1) if match else LINK_ARCHIVO
-                        archivo = cliente.open_by_key(doc_id)
-                        pestana_pdi_gs = archivo.worksheet("PDI")
-                        
-                        headers = pestana_pdi_gs.row_values(1)
-                        fila_datos = [""] * len(headers)
-                        
-                        for i, h in enumerate(headers):
-                            h_low = str(h).lower()
-                            if 'nombre' in h_low: fila_datos[i] = nombre_colab
-                            elif 'posicion' in h_low or 'puesto' in h_low: fila_datos[i] = puesto_aut
-                            elif 'direcc' in h_low: fila_datos[i] = dir_aut
-                            elif 'objetivo' in h_low: fila_datos[i] = nuevo_obj
-                            elif 'clasificaci' in h_low: fila_datos[i] = nuevo_clasif
-                            elif 'acci' in h_low or 'qué' in h_low: fila_datos[i] = nuevo_acc
-                            elif 'avance' in h_low: fila_datos[i] = f"{nuevo_av}%"
-                            elif 'estatus' in h_low: fila_datos[i] = nuevo_est
-                        
-                        if existe_pdi:
-                            idx_nombre = headers.index(next(h for h in headers if 'nombre' in str(h).lower()))
-                            nombres_col = pestana_pdi_gs.col_values(idx_nombre + 1)
-                            nombres_lower = [str(n).strip().lower() for n in nombres_col]
-                            fila_actualizar = nombres_lower.index(nombre_colab.strip().lower()) + 1
-                            pestana_pdi_gs.update(values=[fila_datos], range_name=f"A{fila_actualizar}")
-                        else:
-                            pestana_pdi_gs.append_row(fila_datos)
+            with st.spinner("☁️ Sincronizando con Base de Datos (Múltiples Filas)..."):
+                try:
+                    secretos = st.secrets["connections"]["gsheets"]
+                    credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
+                    cliente = gspread.authorize(credenciales)
+                    match = re.search(r'/d/([a-zA-Z0-9-_]+)', LINK_ARCHIVO)
+                    doc_id = match.group(1) if match else LINK_ARCHIVO
+                    archivo = cliente.open_by_key(doc_id)
+                    pestana_pdi_gs = archivo.worksheet("PDI")
+                    
+                    # 1. Asegurar que las columnas existan o crearlas virtualmente
+                    if df_pdi.empty: df_actual = pd.DataFrame(columns=COLUMNAS_PDI)
+                    else:
+                        df_actual = df_pdi.copy()
+                        for c in COLUMNAS_PDI:
+                            if c not in df_actual.columns: df_actual[c] = ""
                             
-                        archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
-                        st.cache_data.clear()
-                        st.success("✅ ¡PDI Guardado Exitosamente! Tu líder ya puede ver tu avance.")
-                        time.sleep(1.5)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Error al guardar en la nube de Google Sheets: {e}")
+                    # 2. Borrar las filas viejas del usuario en el dataframe temporal
+                    if not df_actual.empty and 'Nombre' in df_actual.columns:
+                        df_actual['Nombre_Cruce'] = df_actual['Nombre'].astype(str).str.strip().str.lower()
+                        df_resto = df_actual[df_actual['Nombre_Cruce'] != nombre_colab.strip().lower()].copy()
+                        if 'Nombre_Cruce' in df_resto.columns: df_resto = df_resto.drop(columns=['Nombre_Cruce'])
+                    else:
+                        df_resto = pd.DataFrame(columns=COLUMNAS_PDI)
+                        
+                    # 3. Construir las nuevas filas del usuario
+                    todas_las_acciones = acciones_70_nuevas + acciones_20_nuevas + acciones_10_nuevas
+                    nuevas_filas = []
+                    
+                    base_fila = {
+                        "Nómina": nomina_aut, "Nombre": nombre_colab, "Puesto": puesto_aut,
+                        "Dirección": dir_aut, "Líder": lider_aut, "Fecha Elaboración": fecha_input,
+                        "Departamento": depto_input, "Rol Interés 1": rol_int_1, "Motivo 1": mot_int_1,
+                        "Rol Interés 2": rol_int_2, "Motivo 2": mot_int_2, "Rol Interés 3": rol_int_3,
+                        "Motivo 3": mot_int_3, "Objetivo de Desarrollo": obj_desarrollo
+                    }
+                    
+                    for acc in todas_las_acciones:
+                        if acc['Acción de Desarrollo'].strip() != "":
+                            fila = base_fila.copy()
+                            fila.update(acc)
+                            nuevas_filas.append(fila)
+                            
+                    # Si borró todo, guardar al menos una fila vacía con sus expectativas
+                    if not nuevas_filas:
+                        fila = base_fila.copy()
+                        fila.update({"Categoría Desarrollo": "", "Acción de Desarrollo": "", "Competencia": "", "Recursos": "", "Métricas": "", "Fecha Cumplimiento": "", "% de Avance": "", "Estatus": ""})
+                        nuevas_filas.append(fila)
+                        
+                    df_nuevas = pd.DataFrame(nuevas_filas)
+                    df_final = pd.concat([df_resto, df_nuevas], ignore_index=True)[COLUMNAS_PDI]
+                    
+                    # 4. Sobrescribir toda la pestaña de forma segura y veloz
+                    datos_a_escribir = [df_final.columns.values.tolist()] + df_final.fillna("").values.tolist()
+                    pestana_pdi_gs.clear()
+                    pestana_pdi_gs.update(values=datos_a_escribir, range_name="A1")
+                    
+                    archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
+                    st.cache_data.clear()
+                    st.success("✅ ¡PDI Guardado Exitosamente! Tu base de datos multifila se actualizó.")
+                    time.sleep(1.5)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error al guardar en Google Sheets: {e}")
 
 # ==========================================
 # INTERFAZ PRINCIPAL DE LA PLATAFORMA WEB
@@ -615,7 +714,6 @@ def main():
                             except Exception as e:
                                 st.error(f"❌ Error técnico de conexión: {e}")
         st.stop()
-    # --------------------------------------------------------------
 
     if "vista_kpi" not in st.session_state: st.session_state["vista_kpi"] = None
         
@@ -643,7 +741,7 @@ def main():
         df_pdi = cargar_datos_csv(LINK_ARCHIVO, "PDI", current_timestamp)
         
         if df_completo.empty:
-            st.error("Error al conectar con la base de datos.")
+            st.error("Error al conectar con la base de datos principal.")
             st.stop()
             
         df_completo['Nombre'] = df_completo['Nombre'].astype(str).str.strip()
@@ -757,7 +855,6 @@ def main():
             html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_edr, f_riesgos, renderizar_mapa)
             
             if kpis is not None:
-                # AQUÍ ESTÁ LA MAGIA DE LA PESTAÑA HÍBRIDA PARA LÍDERES
                 if st.session_state["id_usuario"] == "admin":
                     tab_mapa, tab_sucesiones, tab_pdi_equipo, tab_mi_pdi, tab_admin = st.tabs([
                         "🗺️ Mapa Organizacional", "🔀 Planificador", "📈 Seguimiento de Equipo", "📝 Mi PDI", "⚙️ Panel de Administración"
@@ -935,15 +1032,6 @@ def main():
                         eng_c = clean_text(row_c.get(eng_key), 'N/A') if eng_key else 'N/A'
                         return {"puesto_actual": puesto_actual, "direccion": dir_candidato, "box": box_c, "enganche": eng_c, "edr": edr_c}
                     
-                    dict_pdi_textos = {}
-                    if not df_pdi.empty and 'Nombre' in df_pdi.columns:
-                        col_obj = next((c for c in df_pdi.columns if 'objetivo' in str(c).lower()), None)
-                        col_acciones = next((c for c in df_pdi.columns if 'acciones' in str(c).lower() or 'qué' in str(c).lower()), None)
-                        n_s = df_pdi['Nombre'].fillna('').astype(str).str.strip().str.lower()
-                        o_s = df_pdi[col_obj].fillna('').astype(str).str.strip() if col_obj else [''] * len(df_pdi)
-                        a_s = df_pdi[col_acciones].fillna('').astype(str).str.strip() if col_acciones else [''] * len(df_pdi)
-                        for n_val, o_val, a_val in zip(n_s, o_s, a_s): dict_pdi_textos[n_val] = f"{o_val} {a_val}"
-                            
                     def generar_sugerencias_ia(pos_destino, info_pos_destino):
                         if not pos_destino or df_completo.empty: return []
                         mla_destino = clean_text(info_pos_destino.get('Nivel MLA'), '')
@@ -958,7 +1046,12 @@ def main():
                             if puesto_act.lower() == pos_destino.lower(): continue
                             
                             contexto_cand_puesto = extraer_contexto(puesto_act)
-                            pdi_texto = dict_pdi_textos.get(nombre.lower(), "")
+                            # Extraer de la base de datos multifila
+                            pdi_texto = ""
+                            if not df_pdi.empty and 'Nombre' in df_pdi.columns:
+                                df_c = df_pdi[df_pdi['Nombre'].astype(str).str.strip().str.lower() == nombre.strip().lower()]
+                                for _, c_row in df_c.iterrows(): pdi_texto += f" {clean_text(c_row.get('Objetivo de Desarrollo', ''))} {clean_text(c_row.get('Acción de Desarrollo', ''))}"
+                            
                             contexto_cand_pdi = extraer_contexto(pdi_texto)
                             perfil_tecnico_candidato = contexto_cand_puesto.union(contexto_cand_pdi)
                             
@@ -970,7 +1063,7 @@ def main():
                             mla_cand = clean_text(row.get('Nivel MLA'))
                             score = 0; razones = []
                             
-                            if contexto_destino.intersection(contexto_cand_puesto): score += 5; razones.append("Afinidad técnica en puesto actual")
+                            if contexto_destino.intersection(contexto_cand_puesto): score += 5; razones.append("Afinidad técnica actual")
                             elif contexto_destino.intersection(contexto_cand_pdi): score += 4; razones.append("Desarrollando skills afines (PDI)")
                                 
                             if box in ['1', '2', '3', '5']: score += 4; razones.append("Alto Potencial (9-Box)")
@@ -978,7 +1071,7 @@ def main():
                                 
                             if mla_destino.isdigit() and mla_cand.isdigit():
                                 diff = int(mla_destino) - int(mla_cand)
-                                if diff == 1: score += 3; razones.append("Listo para ascenso (Nivel contiguo)")
+                                if diff == 1: score += 3; razones.append("Listo para ascenso")
                                 elif diff == 0: score += 2; razones.append("Movimiento lateral orgánico")
                                     
                             if score >= 7: candidatos_sugeridos.append({'nombre': nombre, 'puesto': puesto_act, 'direccion': clean_text(row.get('Dirección')), 'box': box, 'score': score, 'razon': " | ".join(razones)})
@@ -987,26 +1080,21 @@ def main():
 
                     def diagnosticar_pdi_ia(nombre_cand, puesto_destino, info_cand):
                         if not nombre_cand or nombre_cand == "Pendiente" or isinstance(info_cand, str) or not info_cand: return None
-                        if df_pdi.empty: return {"estatus": "SIN_DATOS", "msg": "No hay base de datos de PDI cargada."}
-                        match_pdi = df_pdi[df_pdi['Nombre_Cruce'] == nombre_cand.strip().lower()]
-                        if match_pdi.empty: return {"estatus": "SIN_PDI", "puesto_origen": info_cand['puesto_actual'], "recomendacion": f"🚨 **Acción Requerida:** El colaborador ocupa el puesto de *{info_cand['puesto_actual']}* pero NO tiene un PDI registrado. Se requiere crear un PDI enfocado en cerrar las brechas hacia la posición de *{puesto_destino}*."}
+                        if df_pdi.empty: return {"estatus": "SIN_DATOS", "msg": "No hay PDI registrado."}
                         
-                        col_obj = next((c for c in match_pdi.columns if 'objetivo' in str(c).lower()), None)
-                        col_avance = next((c for c in match_pdi.columns if 'avance' in str(c).lower()), None)
-                        col_acciones = next((c for c in match_pdi.columns if 'acciones' in str(c).lower() or 'qué' in str(c).lower()), None)
+                        match_pdi = df_pdi[df_pdi['Nombre'].astype(str).str.strip().str.lower() == nombre_cand.strip().lower()]
+                        if match_pdi.empty: return {"estatus": "SIN_PDI", "puesto_origen": info_cand['puesto_actual'], "recomendacion": f"🚨 **Acción Requerida:** El colaborador no tiene acciones en su PDI hacia *{puesto_destino}*."}
                         
-                        row_p = match_pdi.iloc[0]
-                        obj_pdi = clean_text(row_p.get(col_obj), 'Sin objetivo definido') if col_obj else 'Sin objetivo'
-                        avance_pdi = clean_text(row_p.get(col_avance), '0%') if col_avance else '0%'
-                        acciones_pdi = clean_text(row_p.get(col_acciones), 'Sin acciones descritas') if col_acciones else 'Sin acciones'
+                        obj_pdi = clean_text(match_pdi.iloc[0].get('Objetivo de Desarrollo', 'Sin objetivo definido'))
+                        acciones_pdi = " ".join([clean_text(r.get('Acción de Desarrollo', '')) for _, r in match_pdi.iterrows()])
                         
                         contexto_destino = extraer_contexto(puesto_destino)
                         contexto_pdi = extraer_contexto(obj_pdi + " " + acciones_pdi)
                         coincidencias = contexto_destino.intersection(contexto_pdi)
                         puesto_origen = info_cand['puesto_actual']
                         
-                        if len(coincidencias) > 0: return {"estatus": "ALINEADO", "icono": "✅", "titulo_estatus": "PDI Alineado a la Posición", "color_borde": "#16a34a", "bg_color": "#f0fdf4", "puesto_origen": puesto_origen, "objetivo": obj_pdi, "avance": avance_pdi, "acciones": acciones_pdi, "recomendacion": f"El PDI actual está **correctamente enfocado** en la posición de *{puesto_destino}*. Con un avance del **{avance_pdi}**, las acciones en curso cubren las competencias requeridas. Mantenimiento del plan actual."}
-                        else: return {"estatus": "REQUIERE_AJUSTE", "icono": "🟡", "titulo_estatus": "Ajuste Recomendado al PDI", "color_borde": "#ca8a04", "bg_color": "#fefce8", "puesto_origen": puesto_origen, "objetivo": obj_pdi, "avance": avance_pdi, "acciones": acciones_pdi, "recomendacion": f"💡 **Recomendación IA:** El candidato actualmente es *{puesto_origen}*. Su PDI está orientado a '_{obj_pdi}_'. Para asegurar su éxito hacia *{puesto_destino}*, se recomienda **actualizar sus Acciones de Desarrollo** agregando competencias técnicas específicas del nuevo puesto."}
+                        if len(coincidencias) > 0: return {"estatus": "ALINEADO", "icono": "✅", "titulo_estatus": "PDI Alineado", "color_borde": "#16a34a", "bg_color": "#f0fdf4", "puesto_origen": puesto_origen, "objetivo": obj_pdi, "avance": "Variado", "acciones": "Múltiples acciones registradas", "recomendacion": f"El PDI actual cubre competencias afines a *{puesto_destino}*."}
+                        else: return {"estatus": "REQUIERE_AJUSTE", "icono": "🟡", "titulo_estatus": "Ajuste Recomendado", "color_borde": "#ca8a04", "bg_color": "#fefce8", "puesto_origen": puesto_origen, "objetivo": obj_pdi, "avance": "Variado", "acciones": "Falta especificidad técnica", "recomendacion": f"💡 **Recomendación IA:** Se requiere actualizar las Acciones (70/20/10) agregando competencias técnicas específicas hacia el nuevo puesto."}
 
                     if pos_seleccionada:
                         df_ocupantes = df_posiciones_filtradas[df_posiciones_filtradas['Nombre de la Posición'].apply(clean_text) == pos_seleccionada]
@@ -1240,17 +1328,27 @@ def main():
                 
                 with tab_pdi_equipo:
                     st.markdown("### 📈 Seguimiento de PDI de mi Equipo")
+                    st.info("Gracias a la nueva arquitectura multifila, ahora puedes ver el estatus granular de cada acción del plan 70-20-10 de tus colaboradores.")
                     if not df_pdi.empty and 'Nombre' in df_pdi.columns:
                         nombres_visibles_limpios = [str(d['Nombre']).strip().lower() for d in kpis['data_total']]
                         df_pdi_filtrado = df_pdi.copy()
                         
                         if f_lid_plan != "Todos":
                             sub_limpios_pdi = [str(x).strip().lower() for x in subordinados_permitidos]
-                            df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre_Cruce'].isin(sub_limpios_pdi)]
+                            df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower().isin(sub_limpios_pdi)]
                         else:
-                            df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre_Cruce'].isin(nombres_visibles_limpios)]
+                            df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower().isin(nombres_visibles_limpios)]
                         
-                        columnas_deseadas = {"Nombre": "Nombre", "Posicion": "Posicion", "Dirección actual": "Dirección", "Objetivo a Desar": "Objetivo", "PDI": "PDI", "Clasificacion de": "Clasificacion", "Qué? / Acciones de Desarrollo": "Qué? / Acciones de Desarrollo", "% de Avance": "% de Avance", "Estatus": "Estatus"}
+                        # MAPEANDO LAS NUEVAS COLUMNAS
+                        columnas_deseadas = {
+                            "Nombre": "Colaborador",
+                            "Puesto": "Puesto Actual",
+                            "Categoría Desarrollo": "Categoría (70/20/10)",
+                            "Acción de Desarrollo": "Acción Clave",
+                            "% de Avance": "% de Avance",
+                            "Estatus": "Estatus"
+                        }
+                        
                         cols_reales = []; nombres_finales = []
                         for col_orig, nombre_nuevo in columnas_deseadas.items():
                             col_match = next((c for c in df_pdi_filtrado.columns if col_orig.lower() in str(c).lower()), None)
@@ -1259,27 +1357,29 @@ def main():
                         if cols_reales:
                             df_pdi_mostrar = df_pdi_filtrado[cols_reales].copy()
                             df_pdi_mostrar.columns = nombres_finales
-                            if direccion_permitida != "TODAS" and "Dirección" in df_pdi_mostrar.columns: df_pdi_mostrar = df_pdi_mostrar.drop(columns=["Dirección"])
+                            
+                            # Filtrar filas vacías
+                            if "Acción Clave" in df_pdi_mostrar.columns:
+                                df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Acción Clave'].str.strip() != ""]
                             
                             col_p1, col_p2, col_p3 = st.columns(3)
-                            if "Nombre" in df_pdi_mostrar.columns:
-                                lista_nombres_pdi = sorted(df_pdi_mostrar['Nombre'].dropna().astype(str).unique().tolist())
-                                filtro_nombre = col_p1.multiselect("👤 Filtrar por Nombre:", options=lista_nombres_pdi)
-                                if filtro_nombre: df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Nombre'].isin(filtro_nombre)]
-                            if "Clasificacion" in df_pdi_mostrar.columns:
-                                lista_clasif_pdi = sorted(df_pdi_mostrar['Clasificacion'].dropna().astype(str).unique().tolist())
-                                filtro_clasif = col_p2.multiselect("🏷️ Filtrar por Clasificación:", options=lista_clasif_pdi)
-                                if filtro_clasif: df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Clasificacion'].isin(filtro_clasif)]
+                            if "Colaborador" in df_pdi_mostrar.columns:
+                                lista_nombres_pdi = sorted(df_pdi_mostrar['Colaborador'].dropna().astype(str).unique().tolist())
+                                filtro_nombre = col_p1.multiselect("👤 Filtrar por Colaborador:", options=lista_nombres_pdi)
+                                if filtro_nombre: df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Colaborador'].isin(filtro_nombre)]
+                            if "Categoría (70/20/10)" in df_pdi_mostrar.columns:
+                                lista_clasif_pdi = sorted(df_pdi_mostrar['Categoría (70/20/10)'].dropna().astype(str).unique().tolist())
+                                filtro_clasif = col_p2.multiselect("🏷️ Filtrar por Categoría:", options=lista_clasif_pdi)
+                                if filtro_clasif: df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Categoría (70/20/10)'].isin(filtro_clasif)]
                             if "Estatus" in df_pdi_mostrar.columns:
                                 lista_estatus_pdi = sorted(df_pdi_mostrar['Estatus'].dropna().astype(str).unique().tolist())
                                 filtro_estatus = col_p3.multiselect("🚦 Filtrar por Estatus:", options=lista_estatus_pdi)
                                 if filtro_estatus: df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Estatus'].isin(filtro_estatus)]
                             
                             st.dataframe(df_pdi_mostrar, use_container_width=True, hide_index=True)
-                        else: st.warning("⚠️ No se encontraron las columnas especificadas en la hoja PDI. Revisa los nombres en tu Excel.")
-                    else: st.warning("⚠️ No se pudo cargar la información de la pestaña PDI (O está vacía).")
+                        else: st.warning("⚠️ Esperando el primer guardado para construir la tabla de seguimiento.")
+                    else: st.warning("⚠️ No hay planes de desarrollo registrados en el equipo todavía.")
                 
-                # LA NUEVA MAGIA: PESTAÑA PERSONAL DEL LÍDER
                 with tab_mi_pdi:
                     renderizar_mi_pdi(df_completo, df_pdi)
                 
