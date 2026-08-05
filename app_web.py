@@ -385,7 +385,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         
         eng = info['enganche_ind']
         color_sombreado = 'rgba(22, 163, 74, 0.8)' if eng >= 4 else ('rgba(234, 179, 8, 0.8)' if eng >= 3 else ('rgba(249, 115, 22, 0.8)' if eng >= 2 else ('rgba(220, 38, 38, 0.8)' if eng > 0 else 'rgba(0, 0, 0, 0.2)')))
-        dispersion_offset = (((sum(ord(ch) for str(emp)) % 9) / 8.0) * 0.4) - 0.2 
+        dispersion_offset = (((sum(ord(ch) for ch in str(emp)) % 9) / 8.0) * 0.4) - 0.2 
         
         G.add_node(
             emp, label=f"{prefijo}{acortar_nombre(info['nombre'])}\n({acortar_puesto(info['puesto'])})", 
@@ -1380,6 +1380,7 @@ def main():
                         else: st.warning("⚠️ Esperando el primer guardado para construir la tabla de seguimiento.")
                     else: st.warning("⚠️ No hay planes de desarrollo registrados en el equipo todavía.")
                 
+                # LA NUEVA MAGIA: PESTAÑA PERSONAL DEL LÍDER
                 with tab_mi_pdi:
                     renderizar_mi_pdi(df_completo, df_pdi)
                 
