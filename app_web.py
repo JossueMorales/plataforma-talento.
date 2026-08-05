@@ -19,6 +19,7 @@ from config_ui import (
 
 # VARIABLE GLOBAL DE BASE DE DATOS
 LINK_ARCHIVO = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit"
+PASSWORD_POR_DEFECTO = "Ayvi2026" # <-- Esta es la clave que forzará el cambio automático
 
 # ==========================================
 # SISTEMA DE CACHÉ INTELIGENTE Y DESCARGA
@@ -95,6 +96,8 @@ def login():
                     st.session_state["id_usuario"] = usuario
                     st.session_state["direccion_permitida"] = usuarios_autorizados[usuario]["direccion"]
                     st.session_state["lider_permitido"] = usuarios_autorizados[usuario].get("lider", "TODOS")
+                    st.session_state["password_actual"] = password # Guardamos la clave para el interceptor
+                    
                     if st.session_state["lider_permitido"] == "": st.session_state["lider_permitido"] = "TODOS"
                     st.rerun()
                 else: 
@@ -420,7 +423,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         'data_enganche': data_enganche, 'data_edr': data_edr
     }
     
-    # --- LAZY LOADING: SI NO DEBE RENDERIZAR MAPA, SALIMOS AQUÍ ---
     if not renderizar_mapa:
         html_placeholder = """
         <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 750px; background-color: #f8f9fa; border-radius: 12px; border: 3px dashed #cbd5e1; font-family: Arial, sans-serif;">
@@ -430,7 +432,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         </div>
         """
         return html_placeholder, pd.DataFrame(alertas_tabla), kpis
-    # --------------------------------------------------------------
     
     net = Network(height='750px', width='100%', bgcolor='#ffffff', font_color='#333333', directed=True, cdn_resources='remote')
     net.from_nx(G)
@@ -444,6 +445,58 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
 # ==========================================
 def main():
     if not login(): st.stop()
+    
+    # --- INTERCEPTOR DE SEGURIDAD (FORZAR CAMBIO DE PASSWORD) ---
+    if st.session_state.get("password_actual") == PASSWORD_POR_DEFECTO:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        col_espacio1, col_centro, col_espacio3 = st.columns([1, 2, 1])
+        with col_centro:
+            st.markdown("<h2 style='text-align:center; color:#1e3a8a;'>🔒 Actualización de Seguridad Requerida</h2>", unsafe_allow_html=True)
+            st.info("¡Bienvenido(a) a tu Portal de Talento! Al ser tu primer ingreso, por políticas corporativas debes cambiar tu contraseña temporal antes de continuar.")
+            
+            with st.form("cambio_pass_form"):
+                n_pass1 = st.text_input("Ingresa tu nueva contraseña", type="password")
+                n_pass2 = st.text_input("Confirma tu nueva contraseña", type="password")
+                
+                if st.form_submit_button("💾 Guardar Contraseña y Entrar", use_container_width=True):
+                    if n_pass1 != n_pass2:
+                        st.error("❌ Las contraseñas no coinciden. Inténtalo de nuevo.")
+                    elif len(n_pass1) < 5:
+                        st.error("❌ La contraseña debe tener al menos 5 caracteres.")
+                    elif n_pass1 == PASSWORD_POR_DEFECTO:
+                        st.error("❌ Debes elegir una contraseña diferente a la temporal.")
+                    else:
+                        with st.spinner("Actualizando seguridad en la base de datos..."):
+                            try:
+                                secretos = st.secrets["connections"]["gsheets"]
+                                credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
+                                cliente = gspread.authorize(credenciales)
+                                match = re.search(r'/d/([a-zA-Z0-9-_]+)', LINK_ARCHIVO)
+                                doc_id = match.group(1) if match else LINK_ARCHIVO
+                                archivo = cliente.open_by_key(doc_id)
+                                pestana_users = archivo.worksheet("Usuarios")
+                                
+                                # Encontrar la fila del usuario y actualizar (Columna C / 3 es Password)
+                                usuarios_col = pestana_users.col_values(1)
+                                try:
+                                    fila_usuario = usuarios_col.index(st.session_state["id_usuario"]) + 1 
+                                    pestana_users.update_cell(fila_usuario, 3, n_pass1)
+                                    
+                                    # Limpiar caché global
+                                    archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
+                                    
+                                    st.session_state["password_actual"] = n_pass1
+                                    st.cache_data.clear()
+                                    st.success("✅ ¡Contraseña actualizada exitosamente! Entrando al portal...")
+                                    time.sleep(1.5)
+                                    st.rerun()
+                                except ValueError:
+                                    st.error("❌ Ocurrió un error. Tu usuario no se encontró en la matriz de la base de datos.")
+                            except Exception as e:
+                                st.error(f"❌ Error técnico de conexión: {e}")
+        st.stop() # Congela el resto de la app hasta que cambien la clave
+    # --------------------------------------------------------------
+
     if "vista_kpi" not in st.session_state: st.session_state["vista_kpi"] = None
         
     st.markdown("""
@@ -559,9 +612,7 @@ def main():
         with col_chk1:
             f_riesgos = st.checkbox("🚨 Mostrar Solo Colaboradores con Riesgos Detectados")
             
-        # --- LÓGICA DE CARGA PEREZOSA (LAZY LOADING) ---
         renderizar_mapa = True
-        # Si el usuario NO ha filtrado nada, apagar el mapa para evitar saturar el navegador
         if f_dir == "Todas" and f_lid == "Todos":
             renderizar_mapa = False
             
@@ -1101,7 +1152,7 @@ def main():
                         st.markdown("#### Agregar Nuevo Perfil")
                         n_user = st.text_input("ID de Usuario (ej. d.marketing)")
                         n_nombre = st.text_input("Nombre / Título del Perfil (ej. Director de Marketing)")
-                        n_pass = st.text_input("Contraseña de acceso", type="password")
+                        n_pass = st.text_input("Contraseña temporal (Sugerencia: Ayvi2026)")
                         n_dir = st.selectbox("Dirección Permitida (Elige 'TODAS' para RH o Dirección General)", ["TODAS"] + dirs)
                         
                         lideres_para_admin = sorted(df_completo['Nombre'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
