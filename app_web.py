@@ -1242,25 +1242,30 @@ def main():
                         opciones_sucesores = ["Pendiente"] + nombres_empleados
                         opciones_tiempo = ["Pendiente", "Inmediato", "1 a 3 años", "Más de 3 años"]
                         
-                        c_suc_emergencia = clean_text(info_pos.get('Sucesor de emergencia', 'Pendiente')) or "Pendiente"
-                        c_suc1 = clean_text(info_pos.get('Sucesor P.1', 'Pendiente')) or "Pendiente"
-                        c_read1 = clean_text(info_pos.get('Tiempo de Readiness 1', 'Pendiente')) or "Pendiente"
+                        # --- NUEVA LECTURA ULTRA-SEGURA (Ignora mayúsculas y espacios extra) ---
+                        def leer_campo(nombre_col):
+                            col_match = next((c for c in info_pos.index if str(nombre_col).strip().lower() == str(c).strip().lower()), None)
+                            val = info_pos[col_match] if col_match else ""
+                            return clean_text(val) if pd.notna(val) else ""
+
+                        c_suc_emergencia = leer_campo('Sucesor de emergencia') or "Pendiente"
+                        c_suc1 = leer_campo('Sucesor P.1') or "Pendiente"
+                        c_read1 = leer_campo('Tiempo de Readiness 1') or "Pendiente"
                         
-                        # --- NUEVA LECTURA DE COMENTARIOS CON NOMBRES EXACTOS ---
-                        c_pos1 = clean_text(info_pos.get('Positivo 1', ''))
-                        c_opo1 = clean_text(info_pos.get('Oportunidad 1', ''))
+                        c_pos1 = leer_campo('Positivo 1')
+                        c_opo1 = leer_campo('Oportunidad 1')
                         
-                        c_suc2 = clean_text(info_pos.get('Sucesor P.2', 'Pendiente')) or "Pendiente"
-                        c_read2 = clean_text(info_pos.get('Tiempo de Readiness 2', 'Pendiente')) or "Pendiente"
+                        c_suc2 = leer_campo('Sucesor P.2') or "Pendiente"
+                        c_read2 = leer_campo('Tiempo de Readiness 2') or "Pendiente"
                         
-                        c_pos2 = clean_text(info_pos.get('Positivo 2', ''))
-                        c_opo2 = clean_text(info_pos.get('Oportunidad 2', ''))
+                        c_pos2 = leer_campo('Positivo 2')
+                        c_opo2 = leer_campo('Oportunidad 2')
                         
-                        c_suc3 = clean_text(info_pos.get('Sucesor P.3', 'Pendiente')) or "Pendiente"
-                        c_read3 = clean_text(info_pos.get('Tiempo de Readiness 3', 'Pendiente')) or "Pendiente"
+                        c_suc3 = leer_campo('Sucesor P.3') or "Pendiente"
+                        c_read3 = leer_campo('Tiempo de Readiness 3') or "Pendiente"
                         
-                        c_pos3 = clean_text(info_pos.get('Positivo 3', ''))
-                        c_opo3 = clean_text(info_pos.get('Oportunidad 3', ''))
+                        c_pos3 = leer_campo('Positivo 3')
+                        c_opo3 = leer_campo('Oportunidad 3')
                         
                         if c_suc_emergencia not in opciones_sucesores: opciones_sucesores.append(c_suc_emergencia)
                         if c_suc1 not in opciones_sucesores: opciones_sucesores.append(c_suc1)
@@ -1335,8 +1340,7 @@ def main():
                         st.markdown("#### 📋 Plan de Acción / Comentarios Adicionales")
                         st.info("Utiliza este espacio para justificar si no hay sucesores o detallar el plan a seguir.")
                         
-                        # Corrección: Leer la columna directamente por su nombre
-                        c_plan_accion = clean_text(info_pos.get('Plan de Acción', '')) 
+                        c_plan_accion = leer_campo('Plan de Acción') 
                         n_plan_accion = st.text_area("Comentarios del Plan de Acción:", value=c_plan_accion, height=100, key=f"t_plan_accion_{pos_seleccionada}")
                         
                         st.write("")
@@ -1353,9 +1357,14 @@ def main():
                                     archivo = cliente.open_by_key(doc_id)
                                     pestana = archivo.worksheet("Base de datos")
                                     
-                                    # ENCONTRAR COLUMNAS PARA GUARDAR CON NOMBRES EXACTOS
+                                    # ESCRITURA ULTRA-SEGURA (Ignora mayúsculas y espacios extra en Excel)
                                     headers_bd = pestana.row_values(1)
-                                    def idx_col(nombre): return headers_bd.index(nombre) + 1 if nombre in headers_bd else None
+                                    
+                                    def idx_col(nombre):
+                                        for i, header in enumerate(headers_bd):
+                                            if str(header).strip().lower() == str(nombre).strip().lower():
+                                                return i + 1
+                                        return None
                                     
                                     idx_emergencia = idx_col('Sucesor de emergencia')
                                     idx_suc1 = idx_col('Sucesor P.1')
@@ -1373,7 +1382,6 @@ def main():
                                     idx_pos3 = idx_col('Positivo 3')
                                     idx_opo3 = idx_col('Oportunidad 3')
                                     
-                                    # NUEVO: Buscar la columna del Plan de Acción
                                     idx_plan_accion = idx_col('Plan de Acción')
                                     
                                     for idx_p in df_ocupantes.index:
@@ -1400,7 +1408,7 @@ def main():
                                         if idx_pos3: pestana.update_cell(idx_excel, idx_pos3, n_pos3)
                                         if idx_opo3: pestana.update_cell(idx_excel, idx_opo3, n_opo3)
                                         
-                                        # NUEVO: Guardar el Plan de Acción
+                                        # ACT. PLAN DE ACCION
                                         if idx_plan_accion: pestana.update_cell(idx_excel, idx_plan_accion, n_plan_accion)
                                         
                                         time.sleep(0.5) 
