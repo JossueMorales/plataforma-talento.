@@ -744,7 +744,7 @@ def main():
             st.error("Error al conectar con la base de datos principal.")
             st.stop()
             
-# =========================================================================
+        # =========================================================================
         # ENRUTAMIENTO DINÁMICO (BYPASS DE ESTATUS "BAJA")
         # =========================================================================
         # 1. Búsqueda inteligente de la columna Estatus (ignora mayúsculas o espacios extra)
@@ -774,8 +774,14 @@ def main():
         # 2. Filtrado seguro: Solo lo hace si encontró la columna
         if col_estatus:
             df_completo = df_completo[~df_completo[col_estatus].astype(str).str.strip().str.lower().isin(['baja'])]
-            if not match_nomina.empty:
-                st.session_state["nombre_usuario"] = clean_text(match_nomina.iloc[0]['Nombre'])
+        
+        # --- EXTRACCIÓN AUTOMÁTICA DEL NOMBRE VÍA NÓMINA (UI/UX) ---
+        match_nomina = pd.DataFrame() # <-- Blindaje: Inicializamos la variable vacía por defecto!
+        if st.session_state["id_usuario"] != "admin":
+            match_nomina = df_completo[df_completo['id Empleado'].apply(clean_id) == clean_id(st.session_state["id_usuario"])]
+            
+        if not match_nomina.empty:
+            st.session_state["nombre_usuario"] = clean_text(match_nomina.iloc[0]['Nombre'])
                 
         df_completo['Nombre'] = df_completo['Nombre'].astype(str).str.strip()
         df_completo['Nombre_Cruce'] = df_completo['Nombre'].str.lower()
