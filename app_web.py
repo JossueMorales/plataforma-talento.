@@ -812,7 +812,7 @@ def main():
             df_completo = df_completo[~df_completo[col_estatus].astype(str).str.strip().str.lower().isin(['baja'])]
         
         # --- EXTRACCIÓN AUTOMÁTICA DEL NOMBRE VÍA NÓMINA (UI/UX) ---
-        match_nomina = pd.DataFrame() # <-- Blindaje: Inicializamos la variable vacía por defecto!
+        match_nomina = pd.DataFrame() 
         if st.session_state["id_usuario"] != "admin":
             match_nomina = df_completo[df_completo['id Empleado'].apply(clean_id) == clean_id(st.session_state["id_usuario"])]
             
@@ -1121,7 +1121,14 @@ def main():
                         if not pos_destino or df_completo.empty: return []
                         mla_destino = clean_text(info_pos_destino.get('Nivel MLA'), '')
                         ocupante_destino = clean_text(info_pos_destino.get('Nombre'), '').lower()
+                        
                         contexto_destino = extraer_contexto(pos_destino)
+                        
+                        # FILTRO ANTI-GENÉRICOS (Blindaje IA)
+                        basura_ia = {"coordinador", "jefe", "gerente", "director", "supervisor", "analista", "especialista", "encargado", "auxiliar", "sr", "jr", "tecnicos", "conocimientos", "desarrollo", "gestión"}
+                        ctx_dest_puro = {w for w in contexto_destino if w not in basura_ia}
+                        if not ctx_dest_puro: ctx_dest_puro = contexto_destino
+                        
                         candidatos_sugeridos = []
                         
                         for row in df_completo.to_dict('records'):
@@ -1145,7 +1152,8 @@ def main():
                             contexto_cand_pdi = extraer_contexto(pdi_texto)
                             perfil_tecnico_candidato = contexto_cand_puesto.union(contexto_cand_pdi)
                             
-                            if not contexto_destino.intersection(perfil_tecnico_candidato): continue 
+                            # APLICAR EL FILTRO ANTI-GENÉRICOS AL COMPARAR
+                            if not ctx_dest_puro.intersection(perfil_tecnico_candidato): continue 
                             
                             box = clean_text(row.get('Resultado 9 box')).upper()
                             if box not in ['1', '2', '3', '4', '5', '6']: continue 
@@ -1153,8 +1161,8 @@ def main():
                             mla_cand = clean_text(row.get('Nivel MLA'))
                             score = 0; razones = []
                             
-                            if contexto_destino.intersection(contexto_cand_puesto): score += 5; razones.append("Afinidad técnica actual")
-                            elif contexto_destino.intersection(contexto_cand_pdi): score += 4; razones.append("Desarrollando skills afines (PDI)")
+                            if ctx_dest_puro.intersection(contexto_cand_puesto): score += 5; razones.append("Afinidad técnica actual")
+                            elif ctx_dest_puro.intersection(contexto_cand_pdi): score += 4; razones.append("Desarrollando skills afines (PDI)")
                                 
                             if box in ['1', '2', '3', '5']: score += 4; razones.append("Alto Potencial (9-Box)")
                             elif box in ['4', '6']: score += 2; razones.append("Desempeño Sólido")
@@ -1183,8 +1191,14 @@ def main():
                         acciones_pdi = " ".join([clean_text(r[col_acc]) for _, r in match_pdi.iterrows()]) if col_acc else ""
                         
                         contexto_destino = extraer_contexto(puesto_destino)
+                        
+                        # FILTRO ANTI-GENÉRICOS PARA EL DICTAMEN
+                        basura_ia = {"coordinador", "jefe", "gerente", "director", "supervisor", "analista", "especialista", "encargado", "auxiliar", "sr", "jr", "tecnicos", "conocimientos", "desarrollo", "gestión"}
+                        ctx_dest_puro = {w for w in contexto_destino if w not in basura_ia}
+                        if not ctx_dest_puro: ctx_dest_puro = contexto_destino
+                        
                         contexto_pdi = extraer_contexto(obj_pdi + " " + acciones_pdi)
-                        coincidencias = contexto_destino.intersection(contexto_pdi)
+                        coincidencias = ctx_dest_puro.intersection(contexto_pdi)
                         puesto_origen = info_cand['puesto_actual']
                         
                         if len(coincidencias) > 0: return {"estatus": "ALINEADO", "icono": "✅", "titulo_estatus": "PDI Alineado", "color_borde": "#16a34a", "bg_color": "#f0fdf4", "puesto_origen": puesto_origen, "objetivo": obj_pdi, "avance": "Variado", "acciones": "Múltiples acciones registradas", "recomendacion": f"El PDI actual cubre competencias afines a *{puesto_destino}*."}
