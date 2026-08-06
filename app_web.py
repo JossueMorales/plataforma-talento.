@@ -471,7 +471,7 @@ def renderizar_mi_pdi(df_completo, df_pdi):
         nomina_aut, puesto_aut, dir_aut, lider_aut = "N/A", "N/A", "N/A", "N/A"
         st.warning("⚠️ No pudimos encontrar tus datos exactos en la base principal. Habla con RH.")
 
-    # --- BÚSQUEDA DEL PDI PREVIO EN LA BASE MULTI-FILA (PDI 2027) ---
+    # --- BÚSQUEDA DEL PDI PREVIO EN LA BASE MULTI-FILA (PDI 2026) ---
     datos_pdi_usuario = pd.DataFrame()
     if not df_pdi.empty and 'Nombre' in df_pdi.columns:
         df_pdi['Nombre_Cruce'] = df_pdi['Nombre'].astype(str).str.strip().str.lower()
