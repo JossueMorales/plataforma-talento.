@@ -1334,7 +1334,9 @@ def main():
                         st.write("---")
                         st.markdown("#### 📋 Plan de Acción / Comentarios Adicionales")
                         st.info("Utiliza este espacio para justificar si no hay sucesores o detallar el plan a seguir.")
-                        c_plan_accion = clean_text(info_pos.iloc[25]) if len(info_pos) > 25 else ""
+                        
+                        # Corrección: Leer la columna directamente por su nombre
+                        c_plan_accion = clean_text(info_pos.get('Plan de Acción', '')) 
                         n_plan_accion = st.text_area("Comentarios del Plan de Acción:", value=c_plan_accion, height=100, key=f"t_plan_accion_{pos_seleccionada}")
                         
                         st.write("")
@@ -1371,6 +1373,9 @@ def main():
                                     idx_pos3 = idx_col('Positivo 3')
                                     idx_opo3 = idx_col('Oportunidad 3')
                                     
+                                    # NUEVO: Buscar la columna del Plan de Acción
+                                    idx_plan_accion = idx_col('Plan de Acción')
+                                    
                                     for idx_p in df_ocupantes.index:
                                         idx_excel = idx_p + 2 
                                         
@@ -1394,6 +1399,9 @@ def main():
                                         if idx_read3: pestana.update_cell(idx_excel, idx_read3, "Pendiente" if n_read3 == "Pendiente" else n_read3)
                                         if idx_pos3: pestana.update_cell(idx_excel, idx_pos3, n_pos3)
                                         if idx_opo3: pestana.update_cell(idx_excel, idx_opo3, n_opo3)
+                                        
+                                        # NUEVO: Guardar el Plan de Acción
+                                        if idx_plan_accion: pestana.update_cell(idx_excel, idx_plan_accion, n_plan_accion)
                                         
                                         time.sleep(0.5) 
                                     
