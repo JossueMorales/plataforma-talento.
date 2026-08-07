@@ -36,9 +36,10 @@ COLUMNAS_PDI = [
 ]
 
 # ==========================================
-# SISTEMA DE CACHÉ INTELIGENTE Y DESCARGA
+# SISTEMA DE CACHÉ INTELIGENTE Y DESCARGA (OPTIMIZADO)
 # ==========================================
-@st.cache_data(ttl=30, show_spinner=False)
+# TTL aumentado a 300 segundos (5 minutos) para evitar pings innecesarios a Google
+@st.cache_data(ttl=300, show_spinner=False)
 def obtener_timestamp_actualizacion(url_sheets):
     try:
         secretos = st.secrets["connections"]["gsheets"]
@@ -1045,22 +1046,21 @@ def main():
                         (~df_posiciones_filtradas['Nombre de la Posición'].astype(str).str.upper().str.contains('DIRECTOR GENERAL'))
                     ]
                     
-                    # --- NUEVO KPI: SALUD DE LA BANCADA (Readiness interactivo con %) ---
-                    r_inm = 0; r_1_3 = 0; r_mas_3 = 0
+                    # --- NUEVO KPI: SALUD DE LA BANCADA (Vectorizado para máximo rendimiento) ---
                     col_r1 = next((c for c in df_posiciones_filtradas.columns if 'readiness 1' in str(c).lower()), None)
                     col_r2 = next((c for c in df_posiciones_filtradas.columns if 'readiness 2' in str(c).lower()), None)
                     col_r3 = next((c for c in df_posiciones_filtradas.columns if 'readiness 3' in str(c).lower()), None)
                     
+                    r_inm = r_1_3 = r_mas_3 = 0
                     if not df_posiciones_filtradas.empty:
-                        for idx, row in df_posiciones_filtradas.iterrows():
-                            v1 = clean_text(row.get(col_r1, '')).lower() if col_r1 and pd.notna(row.get(col_r1)) else ""
-                            v2 = clean_text(row.get(col_r2, '')).lower() if col_r2 and pd.notna(row.get(col_r2)) else ""
-                            v3 = clean_text(row.get(col_r3, '')).lower() if col_r3 and pd.notna(row.get(col_r3)) else ""
-                            
-                            for v in [v1, v2, v3]:
-                                if 'inmediato' in v: r_inm += 1
-                                elif '1 a 3' in v: r_1_3 += 1
-                                elif 'mas de 3' in v or 'más de 3' in v: r_mas_3 += 1
+                        s1 = df_posiciones_filtradas[col_r1].astype(str).str.lower().fillna('') if col_r1 else pd.Series(['']*len(df_posiciones_filtradas))
+                        s2 = df_posiciones_filtradas[col_r2].astype(str).str.lower().fillna('') if col_r2 else pd.Series(['']*len(df_posiciones_filtradas))
+                        s3 = df_posiciones_filtradas[col_r3].astype(str).str.lower().fillna('') if col_r3 else pd.Series(['']*len(df_posiciones_filtradas))
+                        
+                        todas_readiness = pd.concat([s1, s2, s3])
+                        r_inm = int(todas_readiness.str.contains('inmediato').sum())
+                        r_1_3 = int(todas_readiness.str.contains('1 a 3').sum())
+                        r_mas_3 = int(todas_readiness.str.contains('mas de 3|más de 3').sum())
                     
                     total_sucesores_mapeados = r_inm + r_1_3 + r_mas_3
                     pct_inm = round((r_inm / total_sucesores_mapeados) * 100, 1) if total_sucesores_mapeados > 0 else 0.0
@@ -1600,7 +1600,7 @@ def main():
                             if col_acc_tabla:
                                 df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar[col_acc_tabla].astype(str).str.strip() != ""]
                                 
-                            # --- NUEVA LÓGICA DE KPIs (Matemática Pura y Promedios) ---
+                            # --- LÓGICA DE KPIs (Matemática Pura y Promedios) ---
                             total_acciones = len(df_pdi_mostrar)
                             col_pdi_kpi = next((c for c in df_pdi_mostrar.columns if 'PDI (70/20/10)' == c), None)
                             col_av_tabla = next((c for c in df_pdi_mostrar.columns if 'Avance' in c), None)
