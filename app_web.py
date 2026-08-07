@@ -377,9 +377,25 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             if not es_andres:
                 data_edr.append({"Nombre": info['nombre'], "Puesto": info['puesto'], "Dirección": info['direccion'], "Resultado EDR": info['edr']})
                 if info['critica'].lower() == 'si':
-                    target_id = info['suc1_id']
-                    puesto_suc = info_nodos[target_id]['puesto'] if target_id in info_nodos else (target_id if target_id else "Pendiente")
-                    data_sucesores.append({"Ocupante Actual": info['nombre'], "Posición Crítica": info['puesto'], "Dirección": info['direccion'], "Nombre del Sucesor": nom_suc1 if nom_suc1 else "Pendiente", "Puesto del Sucesor": puesto_suc, "Tiempo de Sucesión": info['read1'] if info['read1'] else "Pendiente"})
+                    # MODIFICACIÓN: Extraer los 3 sucesores para la tabla de KPIs
+                    target_id1 = info['suc1_id']
+                    puesto_suc1 = info_nodos[target_id1]['puesto'] if target_id1 in info_nodos else (target_id1 if target_id1 else "Pendiente")
+                    target_id2 = info['suc2_id']
+                    puesto_suc2 = info_nodos[target_id2]['puesto'] if target_id2 in info_nodos else (target_id2 if target_id2 else "Pendiente")
+                    target_id3 = info['suc3_id']
+                    puesto_suc3 = info_nodos[target_id3]['puesto'] if target_id3 in info_nodos else (target_id3 if target_id3 else "Pendiente")
+                    
+                    data_sucesores.append({
+                        "Ocupante Actual": info['nombre'], 
+                        "Posición Crítica": info['puesto'], 
+                        "Dirección": info['direccion'], 
+                        "Sucesor 1": nom_suc1 if nom_suc1 else "Pendiente", 
+                        "Readiness 1": info['read1'] if info['read1'] else "Pendiente",
+                        "Sucesor 2": nom_suc2 if nom_suc2 else "Pendiente", 
+                        "Readiness 2": info['read2'] if info['read2'] else "Pendiente",
+                        "Sucesor 3": nom_suc3 if nom_suc3 else "Pendiente", 
+                        "Readiness 3": info['read3'] if info['read3'] else "Pendiente"
+                    })
                 if info['es_lider']: data_enganche.append({"Líder": info['nombre'], "Puesto": info['puesto'], "Dirección": info['direccion'], "Enganche Individual": info['enganche_ind'] if info['enganche_ind'] > 0 else "N/A", "Enganche del Área": info['enganche_area'] if info['enganche_area'] > 0 else "N/A"})
                 for r in info['riesgos_lista']: alertas_tabla.append({"Colaborador": info['nombre'], "Líder Directo": info['lider'], "Puesto": info['puesto'], "Dirección": info['direccion'], "Alerta Detectada por IA": r})
             
@@ -439,7 +455,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
     
     if not renderizar_mapa:
         html_placeholder = """
-        <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 750px; background-color: #f8f9fa; border-radius: 12px; border: 3px dashed #cbd5e1; font-family: Arial, sans-serif;">
+        <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 550px; background-color: #f8f9fa; border-radius: 12px; border: 3px dashed #cbd5e1; font-family: Arial, sans-serif;">
             <div style="font-size: 50px; margin-bottom: 15px;">⚡</div>
             <h2 style="color: #3b82f6; margin: 0 0 10px 0;">Modo Rápido Activado</h2>
             <p style="color: #64748b; font-size: 15px; text-align: center; max-width: 450px;">El cálculo de los <b>KPIs</b> se ha realizado instantáneamente con éxito.<br><br>Para evitar sobrecargar tu navegador, selecciona una <b>Dirección</b> o un <b>Líder</b> en los filtros de arriba para generar el grafo visual.</p>
@@ -447,7 +463,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         """
         return html_placeholder, pd.DataFrame(alertas_tabla), kpis
     
-    net = Network(height='750px', width='100%', bgcolor='#ffffff', font_color='#333333', directed=True, cdn_resources='remote')
+    net = Network(height='550px', width='100%', bgcolor='#ffffff', font_color='#333333', directed=True, cdn_resources='remote')
     net.from_nx(G)
     net.set_options(OPCIONES_PYVIS)
     html = net.generate_html().replace('</body>', INYECCION_HTML_JS + '\n' + SCRIPT_ANILLOS + f'\n<script>\nwindow.targetNodeId = "{nodo_central_id}";\n</script>\n</body>')
@@ -783,7 +799,6 @@ def main():
         # =========================================================================
         # ENRUTAMIENTO DINÁMICO (BYPASS DE ESTATUS "BAJA")
         # =========================================================================
-        # 1. Búsqueda inteligente de la columna Estatus (ignora mayúsculas o espacios extra)
         col_estatus = next((c for c in df_completo_raw.columns if 'estatus' in str(c).lower()), None)
         
         if col_estatus:
@@ -807,7 +822,6 @@ def main():
         df_completo = df_completo_raw.copy()
         df_completo['ID Del Jefe'] = df_completo['id Empleado'].apply(lambda x: get_active_boss_global(clean_id(x)))
         
-        # 2. Filtrado seguro: Solo lo hace si encontró la columna
         if col_estatus:
             df_completo = df_completo[~df_completo[col_estatus].astype(str).str.strip().str.lower().isin(['baja'])]
         
@@ -834,15 +848,9 @@ def main():
             
         lider_permitido = st.session_state.get("lider_permitido", "TODOS")
         
-        # =========================================================================
-        # VISTA 1: COLABORADORES INDIVIDUALES (SOLO VEN SU PDI)
-        # =========================================================================
         if es_colaborador:
             renderizar_mi_pdi(df_completo, df_pdi)
                                 
-        # =========================================================================
-        # VISTA 2: DIRECTORES, LÍDERES Y ADMINS (VEN TODO + SU PROPIO PDI AL FINAL)
-        # =========================================================================
         else:
             if direccion_permitida != "TODAS":
                 df_seguro = df_completo[(df_completo['Dirección'].astype(str).str.upper().str.contains(direccion_permitida)) | (df_completo['Nivel MLA'].astype(str).str.strip() == '5')]
@@ -880,14 +888,13 @@ def main():
             else:
                 st.session_state['nombres_permitidos_limpios'] = []
 
-            # --- OCULTAR NODO RAÍZ (ANDRÉS) DE FILTROS ---
             df_filtros = df_seguro
             if st.session_state["id_usuario"] != "admin":
                 df_filtros = df_seguro[~df_seguro['Nivel MLA'].astype(str).str.strip().isin(['5'])]
 
             col_head1, col_head2 = st.columns([2, 1])
             with col_head1:
-                st.markdown("### 🎛️ Filtros Globales (Controlan Mapa, KPIs y Tablas)")
+                st.markdown("### 🎛️ Filtros Globales")
                 if st.button("🔄 Forzar Sincronización con Excel", help="Usa este botón si hiciste cambios manuales directamente en el archivo de Google Sheets"):
                     st.cache_data.clear(); st.rerun()
                 
@@ -942,39 +949,43 @@ def main():
             if kpis is not None:
                 if st.session_state["id_usuario"] == "admin":
                     tab_mapa, tab_sucesiones, tab_pdi_equipo, tab_mi_pdi, tab_admin = st.tabs([
-                        "🗺️ Mapa Organizacional", "🔀 Planificador", "📈 Seguimiento de Equipo", "📝 Mi PDI", "⚙️ Panel de Administración"
+                        "🗺️ Mapa Organizacional", "🔀 Sucesión", "📈 Seguimiento de PDI", "📝 Mi PDI", "⚙️ Panel de Administración"
                     ])
                 else:
                     tab_mapa, tab_sucesiones, tab_pdi_equipo, tab_mi_pdi = st.tabs([
-                        "🗺️ Mapa Organizacional", "🔀 Planificador", "📈 Seguimiento de Equipo", "📝 Mi PDI"
+                        "🗺️ Mapa Organizacional", "🔀 Sucesión", "📈 Seguimiento de PDI", "📝 Mi PDI"
                     ])
                 
                 with tab_mapa:
-                    col_mapa, col_datos = st.columns([7, 3])
-                    with col_mapa: components.html(html_mapa, height=750, scrolling=False)
+                    st.markdown("### 📊 KPIs de Talento")
+                    k1, k2, k3, k4, k5, k6 = st.columns(6)
+                    with k1:
+                        st.markdown(crear_tarjeta_kpi("Total<br>Colab.", kpis['total'], "#3b82f6", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
+                        if st.button("🔍 Ver", key="b_tot", use_container_width=True): st.session_state["vista_kpi"] = "total"; st.rerun()
+                    with k2:
+                        st.markdown(crear_tarjeta_kpi("Sucesión<br>(Pos. Críticas)", kpis['sucesores'], "#8b5cf6", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
+                        if st.button("🔍 Ver", key="b_suc", use_container_width=True): st.session_state["vista_kpi"] = "sucesores"; st.rerun()
+                    with k3:
+                        st.markdown(crear_tarjeta_kpi("Desempeño<br>(EDR)", kpis['edr_count'], "#0284c7", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
+                        if st.button("🔍 Ver", key="b_edr", use_container_width=True): st.session_state["vista_kpi"] = "edr"; st.rerun()
+                    with k4:
+                        st.markdown(crear_tarjeta_kpi("Resultados<br>(9-Box)", kpis['nueve_box_count'], "#eab308", "#64748b", "#fefce8"), unsafe_allow_html=True)
+                        if st.button("🔍 Ver", key="b_9box", use_container_width=True): st.session_state["vista_kpi"] = "nueve_box"; st.rerun()
+                    with k5:
+                        st.markdown(crear_tarjeta_kpi("Alertas<br>Detect.", kpis['alertas'], "#e11d48", "#9f1239", "#fff1f2"), unsafe_allow_html=True)
+                        if st.button("🔍 Ver", key="b_ale", use_container_width=True): st.session_state["vista_kpi"] = "alertas"; st.rerun()
+                    with k6:
+                        st.markdown(crear_tarjeta_kpi("Promedio<br>Enganche", kpis['enganche_promedio'], "#14b8a6", "#0f766e", "#f0fdfa"), unsafe_allow_html=True)
+                        if st.button("🔍 Ver", key="b_eng", use_container_width=True): st.session_state["vista_kpi"] = "enganche"; st.rerun()
+                    
+                    st.write("---")
+                    
+                    # DASHBOARD TOP-DOWN: Mapa a la izquierda, Tablas a la derecha
+                    col_mapa, col_datos = st.columns([5, 5])
+                    with col_mapa: 
+                        components.html(html_mapa, height=550, scrolling=False)
                     with col_datos:
-                        st.markdown("### 📊 KPIs de Talento")
-                        k1, k2, k3, k4, k5, k6 = st.columns(6)
-                        with k1:
-                            st.markdown(crear_tarjeta_kpi("Total<br>Colab.", kpis['total'], "#3b82f6", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
-                            if st.button("🔍 Ver", key="b_tot", use_container_width=True): st.session_state["vista_kpi"] = "total"
-                        with k2:
-                            st.markdown(crear_tarjeta_kpi("Sucesión<br>(Pos. Críticas)", kpis['sucesores'], "#8b5cf6", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
-                            if st.button("🔍 Ver", key="b_suc", use_container_width=True): st.session_state["vista_kpi"] = "sucesores"
-                        with k3:
-                            st.markdown(crear_tarjeta_kpi("Desempeño<br>(EDR)", kpis['edr_count'], "#0284c7", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
-                            if st.button("🔍 Ver", key="b_edr", use_container_width=True): st.session_state["vista_kpi"] = "edr"
-                        with k4:
-                            st.markdown(crear_tarjeta_kpi("Resultados<br>(9-Box)", kpis['nueve_box_count'], "#eab308", "#64748b", "#fefce8"), unsafe_allow_html=True)
-                            if st.button("🔍 Ver", key="b_9box", use_container_width=True): st.session_state["vista_kpi"] = "nueve_box"
-                        with k5:
-                            st.markdown(crear_tarjeta_kpi("Alertas<br>Detect.", kpis['alertas'], "#e11d48", "#9f1239", "#fff1f2"), unsafe_allow_html=True)
-                            if st.button("🔍 Ver", key="b_ale", use_container_width=True): st.session_state["vista_kpi"] = "alertas"
-                        with k6:
-                            st.markdown(crear_tarjeta_kpi("Promedio<br>Enganche", kpis['enganche_promedio'], "#14b8a6", "#0f766e", "#f0fdfa"), unsafe_allow_html=True)
-                            if st.button("🔍 Ver", key="b_eng", use_container_width=True): st.session_state["vista_kpi"] = "enganche"
-                        
-                        if st.session_state["vista_kpi"]:
+                        if st.session_state.get("vista_kpi"):
                             vista = st.session_state["vista_kpi"]
                             titulos_kpi = {"total": "Total de Colaboradores", "sucesores": "Sucesión de Posiciones Críticas", "edr": "Evaluación de Desempeño y Resultados (EDR)", "nueve_box": "Evaluaciones 9-Box", "alertas": "Colaboradores con Riesgos / Alertas", "enganche": "Nivel de Enganche de Líderes"}
                             st.markdown(f"#### 📋 {titulos_kpi[vista]}")
@@ -985,6 +996,8 @@ def main():
                                 st.dataframe(df_lista, use_container_width=True, hide_index=True)
                             else: st.info("No hay registros en esta categoría.")
                             if st.button("❌ Cerrar Lista", use_container_width=True): st.session_state["vista_kpi"] = None; st.rerun()
+                        else:
+                            st.info("👆 Selecciona el botón 'Ver' en cualquier KPI superior para desplegar la información a detalle en esta área.")
                 
                 with tab_sucesiones:
                     st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
@@ -1032,6 +1045,28 @@ def main():
                         (~df_posiciones_filtradas['Nombre de la Posición'].astype(str).str.upper().str.contains('DIRECTOR GENERAL'))
                     ]
                     
+                    # --- NUEVO KPI: SALUD DE LA BANCADA (Readiness) ---
+                    r_inm = 0; r_1_3 = 0; r_mas_3 = 0
+                    if not df_posiciones_filtradas.empty:
+                        for idx, row in df_posiciones_filtradas.iterrows():
+                            def rc(keyword):
+                                c = next((col for col in df_posiciones_filtradas.columns if keyword.lower() in str(col).lower()), None)
+                                return clean_text(row[c]).lower() if c and pd.notna(row[c]) else ""
+                            
+                            v1, v2, v3 = rc('readiness 1'), rc('readiness 2'), rc('readiness 3')
+                            for v in [v1, v2, v3]:
+                                if 'inmediato' in v: r_inm += 1
+                                elif '1 a 3' in v: r_1_3 += 1
+                                elif 'mas de 3' in v or 'más de 3' in v: r_mas_3 += 1
+                    
+                    st.write("")
+                    st.markdown("#### 🩺 Salud de la Bancada (Readiness Global)")
+                    rk1, rk2, rk3 = st.columns(3)
+                    rk1.markdown(crear_tarjeta_kpi("Inmediato", r_inm, "#16a34a", "#15803d", "#f0fdf4"), unsafe_allow_html=True)
+                    rk2.markdown(crear_tarjeta_kpi("1 a 3 años", r_1_3, "#ca8a04", "#a16207", "#fefce8"), unsafe_allow_html=True)
+                    rk3.markdown(crear_tarjeta_kpi("Más de 3 años", r_mas_3, "#2563eb", "#1d4ed8", "#eff6ff"), unsafe_allow_html=True)
+                    st.write("---")
+                    
                     if not df_posiciones_filtradas.empty:
                         col_suc = 'Sucesor P.1' if 'Sucesor P.1' in df_posiciones_filtradas.columns else 'Sucesor 1'
                         sucs = df_posiciones_filtradas[col_suc].fillna('').astype(str).str.strip().str.lower()
@@ -1048,9 +1083,9 @@ def main():
                     with col_k1:
                         if st.button(f"📘 TOTAL CRÍTICAS: {total_criticas}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'todas'
                     with col_k2:
-                        if st.button(f"✅ CON SUCESOR: {sucesores_definidos}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'con_sucesor'
+                        if st.button(f"✅ CON SUCESOR P.1: {sucesores_definidos}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'con_sucesor'
                     with col_k3:
-                        if st.button(f"🚨 PENDIENTES: {sucesores_pendientes}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'pendientes'
+                        if st.button(f"🚨 PENDIENTES P.1: {sucesores_pendientes}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'pendientes'
                     
                     if 'filtro_kpi_plan' in st.session_state and st.session_state['filtro_kpi_plan']:
                         modo = st.session_state['filtro_kpi_plan']
@@ -1511,6 +1546,30 @@ def main():
                             col_acc_tabla = next((c for c in df_pdi_mostrar.columns if 'Acciones' in c), None)
                             if col_acc_tabla:
                                 df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar[col_acc_tabla].astype(str).str.strip() != ""]
+                                
+                            # --- NUEVOS KPIs DE PDI (Auditoría 70-20-10) ---
+                            total_acciones = len(df_pdi_mostrar)
+                            col_cat_tabla = next((c for c in df_pdi_mostrar.columns if 'Categoría' in c or 'Clasificación' in c), None)
+                            c_70 = c_20 = c_10 = 0
+                            if col_cat_tabla:
+                                c_70 = df_pdi_mostrar[col_cat_tabla].astype(str).str.contains('70', case=False, na=False).sum()
+                                c_20 = df_pdi_mostrar[col_cat_tabla].astype(str).str.contains('20', case=False, na=False).sum()
+                                c_10 = df_pdi_mostrar[col_cat_tabla].astype(str).str.contains('10', case=False, na=False).sum()
+                                
+                            col_av_tabla = next((c for c in df_pdi_mostrar.columns if 'Avance' in c), None)
+                            promedio_avance = 0
+                            if col_av_tabla and total_acciones > 0:
+                                avances_limpios = df_pdi_mostrar[col_av_tabla].astype(str).str.replace('%', '', regex=False).str.extract(r'(\d+)').astype(float)
+                                promedio_avance = round(avances_limpios[0].mean(), 1) if not avances_limpios.isna().all().all() else 0
+                                
+                            st.markdown("#### 📊 Análisis Global del Modelo 70-20-10")
+                            pk1, pk2, pk3, pk4, pk5 = st.columns(5)
+                            pk1.markdown(crear_tarjeta_kpi("Total Acciones", total_acciones, "#4f46e5", "#4338ca", "#eef2ff"), unsafe_allow_html=True)
+                            pk2.markdown(crear_tarjeta_kpi("Avance Prom.", f"{promedio_avance}%", "#059669", "#047857", "#ecfdf5"), unsafe_allow_html=True)
+                            pk3.markdown(crear_tarjeta_kpi("Experiencia (70%)", c_70, "#2563eb", "#1d4ed8", "#eff6ff"), unsafe_allow_html=True)
+                            pk4.markdown(crear_tarjeta_kpi("Mentoring (20%)", c_20, "#d97706", "#b45309", "#fffbeb"), unsafe_allow_html=True)
+                            pk5.markdown(crear_tarjeta_kpi("Formación (10%)", c_10, "#dc2626", "#b91c1c", "#fef2f2"), unsafe_allow_html=True)
+                            st.write("---")
                             
                             col_p1, col_p2, col_p3 = st.columns(3)
                             if "Colaborador" in df_pdi_mostrar.columns:
@@ -1518,7 +1577,6 @@ def main():
                                 filtro_nombre = col_p1.multiselect("👤 Filtrar por Colaborador:", options=lista_nombres_pdi)
                                 if filtro_nombre: df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Colaborador'].isin(filtro_nombre)]
                             
-                            col_cat_tabla = next((c for c in df_pdi_mostrar.columns if 'Clasificación' in c), None)
                             if col_cat_tabla:
                                 lista_clasif_pdi = sorted(df_pdi_mostrar[col_cat_tabla].dropna().astype(str).unique().tolist())
                                 filtro_clasif = col_p2.multiselect("🏷️ Filtrar por Categoría:", options=lista_clasif_pdi)
