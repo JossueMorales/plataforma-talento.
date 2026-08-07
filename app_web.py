@@ -377,6 +377,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             if not es_andres:
                 data_edr.append({"Nombre": info['nombre'], "Puesto": info['puesto'], "Dirección": info['direccion'], "Resultado EDR": info['edr']})
                 if info['critica'].lower() == 'si':
+                    # MODIFICACIÓN: Extraer los 3 sucesores para la tabla de KPIs
                     target_id1 = info['suc1_id']
                     puesto_suc1 = info_nodos[target_id1]['puesto'] if target_id1 in info_nodos else (target_id1 if target_id1 else "Pendiente")
                     target_id2 = info['suc2_id']
@@ -1548,12 +1549,20 @@ def main():
                                 
                             # --- NUEVOS KPIs DE PDI (Auditoría 70-20-10) ---
                             total_acciones = len(df_pdi_mostrar)
-                            col_cat_tabla = next((c for c in df_pdi_mostrar.columns if 'Categoría' in c or 'Clasificación' in c), None)
                             c_70 = c_20 = c_10 = 0
-                            if col_cat_tabla:
-                                c_70 = df_pdi_mostrar[col_cat_tabla].astype(str).str.contains('70', case=False, na=False).sum()
-                                c_20 = df_pdi_mostrar[col_cat_tabla].astype(str).str.contains('20', case=False, na=False).sum()
-                                c_10 = df_pdi_mostrar[col_cat_tabla].astype(str).str.contains('10', case=False, na=False).sum()
+                            
+                            col_cat_tabla = next((c for c in df_pdi_mostrar.columns if 'Categoría' in c or 'Clasificación' in c), None)
+                            col_acc_tabla_kpi = next((c for c in df_pdi_mostrar.columns if 'Acción' in c or 'Qué' in c), None)
+                            
+                            if total_acciones > 0:
+                                serie_cat = df_pdi_mostrar[col_cat_tabla].astype(str).str.lower() if col_cat_tabla else pd.Series([""] * total_acciones)
+                                serie_acc = df_pdi_mostrar[col_acc_tabla_kpi].astype(str).str.lower() if col_acc_tabla_kpi else pd.Series([""] * total_acciones)
+                                
+                                texto_combinado = serie_cat + " " + serie_acc
+                                
+                                c_70 = texto_combinado.str.contains('70').sum()
+                                c_20 = texto_combinado.str.contains('20').sum()
+                                c_10 = texto_combinado.str.contains('10').sum()
                                 
                             col_av_tabla = next((c for c in df_pdi_mostrar.columns if 'Avance' in c), None)
                             promedio_avance = 0
