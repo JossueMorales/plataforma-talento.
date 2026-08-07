@@ -958,24 +958,26 @@ def main():
                 with tab_mapa:
                     st.markdown("### 📊 KPIs de Talento")
                     k1, k2, k3, k4, k5, k6 = st.columns(6)
+                    
+                    # DASHBOARD TOP-DOWN: Botones Interactivos Nativos
                     with k1:
-                        st.markdown(crear_tarjeta_kpi("Total<br>Colab.", kpis['total'], "#3b82f6", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
-                        if st.button("🔍 Ver", key="b_tot", use_container_width=True): st.session_state["vista_kpi"] = "total"; st.rerun()
+                        if st.button(f"👥 Total Colab.\n\n{kpis['total']}", key="b_tot", use_container_width=True): 
+                            st.session_state["vista_kpi"] = "total"; st.rerun()
                     with k2:
-                        st.markdown(crear_tarjeta_kpi("Sucesión<br>(Pos. Críticas)", kpis['sucesores'], "#8b5cf6", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
-                        if st.button("🔍 Ver", key="b_suc", use_container_width=True): st.session_state["vista_kpi"] = "sucesores"; st.rerun()
+                        if st.button(f"🔀 Sucesión (Críticas)\n\n{kpis['sucesores']}", key="b_suc", use_container_width=True): 
+                            st.session_state["vista_kpi"] = "sucesores"; st.rerun()
                     with k3:
-                        st.markdown(crear_tarjeta_kpi("Desempeño<br>(EDR)", kpis['edr_count'], "#0284c7", "#64748b", "#f8f9fa"), unsafe_allow_html=True)
-                        if st.button("🔍 Ver", key="b_edr", use_container_width=True): st.session_state["vista_kpi"] = "edr"; st.rerun()
+                        if st.button(f"📈 Desempeño (EDR)\n\n{kpis['edr_count']}", key="b_edr", use_container_width=True): 
+                            st.session_state["vista_kpi"] = "edr"; st.rerun()
                     with k4:
-                        st.markdown(crear_tarjeta_kpi("Resultados<br>(9-Box)", kpis['nueve_box_count'], "#eab308", "#64748b", "#fefce8"), unsafe_allow_html=True)
-                        if st.button("🔍 Ver", key="b_9box", use_container_width=True): st.session_state["vista_kpi"] = "nueve_box"; st.rerun()
+                        if st.button(f"📊 Resultados (9-Box)\n\n{kpis['nueve_box_count']}", key="b_9box", use_container_width=True): 
+                            st.session_state["vista_kpi"] = "nueve_box"; st.rerun()
                     with k5:
-                        st.markdown(crear_tarjeta_kpi("Alertas<br>Detect.", kpis['alertas'], "#e11d48", "#9f1239", "#fff1f2"), unsafe_allow_html=True)
-                        if st.button("🔍 Ver", key="b_ale", use_container_width=True): st.session_state["vista_kpi"] = "alertas"; st.rerun()
+                        if st.button(f"🚨 Alertas Detect.\n\n{kpis['alertas']}", key="b_ale", use_container_width=True): 
+                            st.session_state["vista_kpi"] = "alertas"; st.rerun()
                     with k6:
-                        st.markdown(crear_tarjeta_kpi("Promedio<br>Enganche", kpis['enganche_promedio'], "#14b8a6", "#0f766e", "#f0fdfa"), unsafe_allow_html=True)
-                        if st.button("🔍 Ver", key="b_eng", use_container_width=True): st.session_state["vista_kpi"] = "enganche"; st.rerun()
+                        if st.button(f"🔥 Prom. Enganche\n\n{kpis['enganche_promedio']}", key="b_eng", use_container_width=True): 
+                            st.session_state["vista_kpi"] = "enganche"; st.rerun()
                     
                     st.write("---")
                     
@@ -995,7 +997,7 @@ def main():
                             else: st.info("No hay registros en esta categoría.")
                             if st.button("❌ Cerrar Lista", use_container_width=True): st.session_state["vista_kpi"] = None; st.rerun()
                         else:
-                            st.info("👆 Selecciona el botón 'Ver' en cualquier KPI superior para desplegar la información a detalle en esta área.")
+                            st.info("👆 Selecciona cualquier KPI superior para desplegar la información a detalle en esta área.")
                 
                 with tab_sucesiones:
                     st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
@@ -1043,14 +1045,18 @@ def main():
                         (~df_posiciones_filtradas['Nombre de la Posición'].astype(str).str.upper().str.contains('DIRECTOR GENERAL'))
                     ]
                     
+                    # --- NUEVO KPI: SALUD DE LA BANCADA (Readiness interactivo) ---
                     r_inm = 0; r_1_3 = 0; r_mas_3 = 0
+                    col_r1 = next((c for c in df_posiciones_filtradas.columns if 'readiness 1' in str(c).lower()), None)
+                    col_r2 = next((c for c in df_posiciones_filtradas.columns if 'readiness 2' in str(c).lower()), None)
+                    col_r3 = next((c for c in df_posiciones_filtradas.columns if 'readiness 3' in str(c).lower()), None)
+                    
                     if not df_posiciones_filtradas.empty:
                         for idx, row in df_posiciones_filtradas.iterrows():
-                            def rc(keyword):
-                                c = next((col for col in df_posiciones_filtradas.columns if keyword.lower() in str(col).lower()), None)
-                                return clean_text(row[c]).lower() if c and pd.notna(row[c]) else ""
+                            v1 = clean_text(row.get(col_r1, '')).lower() if col_r1 and pd.notna(row.get(col_r1)) else ""
+                            v2 = clean_text(row.get(col_r2, '')).lower() if col_r2 and pd.notna(row.get(col_r2)) else ""
+                            v3 = clean_text(row.get(col_r3, '')).lower() if col_r3 and pd.notna(row.get(col_r3)) else ""
                             
-                            v1, v2, v3 = rc('readiness 1'), rc('readiness 2'), rc('readiness 3')
                             for v in [v1, v2, v3]:
                                 if 'inmediato' in v: r_inm += 1
                                 elif '1 a 3' in v: r_1_3 += 1
@@ -1059,9 +1065,15 @@ def main():
                     st.write("")
                     st.markdown("#### 🩺 Salud de la Bancada (Readiness Global)")
                     rk1, rk2, rk3 = st.columns(3)
-                    rk1.markdown(crear_tarjeta_kpi("Inmediato", r_inm, "#16a34a", "#15803d", "#f0fdf4"), unsafe_allow_html=True)
-                    rk2.markdown(crear_tarjeta_kpi("1 a 3 años", r_1_3, "#ca8a04", "#a16207", "#fefce8"), unsafe_allow_html=True)
-                    rk3.markdown(crear_tarjeta_kpi("Más de 3 años", r_mas_3, "#2563eb", "#1d4ed8", "#eff6ff"), unsafe_allow_html=True)
+                    with rk1:
+                        if st.button(f"🟢 Inmediato\n\n{r_inm}", key="b_read_inm", use_container_width=True):
+                            st.session_state['filtro_kpi_plan'] = 'inmediato'; st.rerun()
+                    with rk2:
+                        if st.button(f"🟡 1 a 3 años\n\n{r_1_3}", key="b_read_1_3", use_container_width=True):
+                            st.session_state['filtro_kpi_plan'] = '1_3_anos'; st.rerun()
+                    with rk3:
+                        if st.button(f"🔵 Más de 3 años\n\n{r_mas_3}", key="b_read_mas_3", use_container_width=True):
+                            st.session_state['filtro_kpi_plan'] = 'mas_3_anos'; st.rerun()
                     st.write("---")
                     
                     if not df_posiciones_filtradas.empty:
@@ -1078,18 +1090,42 @@ def main():
                     
                     col_k1, col_k2, col_k3 = st.columns(3)
                     with col_k1:
-                        if st.button(f"📘 TOTAL CRÍTICAS: {total_criticas}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'todas'
+                        if st.button(f"📘 TOTAL CRÍTICAS\n\n{total_criticas}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'todas'
                     with col_k2:
-                        if st.button(f"✅ CON SUCESOR: {sucesores_definidos}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'con_sucesor'
+                        if st.button(f"✅ CON SUCESOR\n\n{sucesores_definidos}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'con_sucesor'
                     with col_k3:
-                        if st.button(f"🚨 PENDIENTES: {sucesores_pendientes}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'pendientes'
+                        if st.button(f"🚨 PENDIENTES\n\n{sucesores_pendientes}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'pendientes'
                     
                     if 'filtro_kpi_plan' in st.session_state and st.session_state['filtro_kpi_plan']:
                         modo = st.session_state['filtro_kpi_plan']
-                        if modo == 'todas': df_mostrar = df_posiciones_filtradas; titulo_lista = "Todas las Posiciones Críticas"
-                        elif modo == 'con_sucesor': df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 1]; titulo_lista = "Posiciones con Sucesor Asignado"
-                        else: df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 0]; titulo_lista = "Posiciones Pendientes de Sucesor"
                         
+                        def has_readiness(row, term1, term2=""):
+                            v1 = clean_text(row.get(col_r1, '')).lower() if col_r1 else ""
+                            v2 = clean_text(row.get(col_r2, '')).lower() if col_r2 else ""
+                            v3 = clean_text(row.get(col_r3, '')).lower() if col_r3 else ""
+                            for v in [v1, v2, v3]:
+                                if term1 in v or (term2 and term2 in v):
+                                    return True
+                            return False
+                            
+                        if modo == 'todas': 
+                            df_mostrar = df_posiciones_filtradas; titulo_lista = "Todas las Posiciones Críticas"
+                        elif modo == 'con_sucesor': 
+                            df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 1]; titulo_lista = "Posiciones con Sucesor Asignado"
+                        elif modo == 'pendientes': 
+                            df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 0]; titulo_lista = "Posiciones Pendientes de Sucesor"
+                        elif modo == 'inmediato':
+                            df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas.apply(lambda r: has_readiness(r, 'inmediato'), axis=1)]
+                            titulo_lista = "Posiciones con Sucesor Inmediato"
+                        elif modo == '1_3_anos':
+                            df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas.apply(lambda r: has_readiness(r, '1 a 3'), axis=1)]
+                            titulo_lista = "Posiciones con Sucesor de 1 a 3 años"
+                        elif modo == 'mas_3_anos':
+                            df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas.apply(lambda r: has_readiness(r, 'mas de 3', 'más de 3'), axis=1)]
+                            titulo_lista = "Posiciones con Sucesor a Más de 3 años"
+                        else:
+                            df_mostrar = df_posiciones_filtradas; titulo_lista = "Posiciones Críticas"
+
                         with st.container():
                             st.markdown(f"#### 📋 {titulo_lista} (Haz clic para cargar)")
                             if df_mostrar.empty: st.info("No hay posiciones en esta categoría.")
