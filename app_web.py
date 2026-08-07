@@ -531,7 +531,6 @@ def renderizar_mi_pdi(df_completo, df_pdi):
         mot_3 = str(primer_row.get(col_mot3, ''))
         objetivo = str(primer_row.get(col_obj, ''))
         
-        # EL PARCHE ESTÁ AQUÍ: RASTREAR LA COLUMNA LLAMADA "PDI"
         col_cat = fc('pdi') or fc('clasificacion') or fc('categoría') or 'PDI'
         col_acc = fc('qué') or fc('acción') or 'Qué? / Acciones de Desarrollo'
         col_comp = fc('para qué') or fc('competencia') or '¿Para qué? / Competencia'
@@ -624,9 +623,8 @@ def renderizar_mi_pdi(df_completo, df_pdi):
                 av = a6.selectbox("% Avance" if i==0 else "", opciones_avance, index=index_seguro(opciones_avance, lista_acciones[i]['av']), key=f"{prefijo}_av_{i}", label_visibility="visible" if i==0 else "collapsed")
                 est = a7.selectbox("Estatus" if i==0 else "", opciones_estatus, index=index_seguro(opciones_estatus, lista_acciones[i]['est']), key=f"{prefijo}_est_{i}", label_visibility="visible" if i==0 else "collapsed")
                 
-                # LA MAGIA DEL GUARDADO AL EXCEL
                 nuevas.append({
-                    "PDI": titulo, # <-- Ahora apunta y escribe directo en la columna "PDI"
+                    "PDI": titulo, 
                     "Qué? / Acciones de Desarrollo": acc, 
                     "¿Para qué? / Competencia": comp,
                     "¿Quién? / Recursos": rec, 
@@ -981,7 +979,6 @@ def main():
                     
                     st.write("---")
                     
-                    # DASHBOARD TOP-DOWN: Mapa a la izquierda, Tablas a la derecha
                     col_mapa, col_datos = st.columns([5, 5])
                     with col_mapa: 
                         components.html(html_mapa, height=550, scrolling=False)
@@ -1046,7 +1043,6 @@ def main():
                         (~df_posiciones_filtradas['Nombre de la Posición'].astype(str).str.upper().str.contains('DIRECTOR GENERAL'))
                     ]
                     
-                    # --- NUEVO KPI: SALUD DE LA BANCADA (Readiness) ---
                     r_inm = 0; r_1_3 = 0; r_mas_3 = 0
                     if not df_posiciones_filtradas.empty:
                         for idx, row in df_posiciones_filtradas.iterrows():
@@ -1160,7 +1156,6 @@ def main():
                         
                         contexto_destino = extraer_contexto(pos_destino)
                         
-                        # FILTRO ANTI-GENÉRICOS (Blindaje IA)
                         basura_ia = {"coordinador", "jefe", "gerente", "director", "supervisor", "analista", "especialista", "encargado", "auxiliar", "sr", "jr", "tecnicos", "conocimientos", "desarrollo", "gestión"}
                         ctx_dest_puro = {w for w in contexto_destino if w not in basura_ia}
                         if not ctx_dest_puro: ctx_dest_puro = contexto_destino
@@ -1174,7 +1169,6 @@ def main():
                             if puesto_act.lower() == pos_destino.lower(): continue
                             
                             contexto_cand_puesto = extraer_contexto(puesto_act)
-                            # EXTRACCIÓN INTELIGENTE DE PDI PARA IA
                             pdi_texto = ""
                             if not df_pdi.empty and 'Nombre' in df_pdi.columns:
                                 df_c = df_pdi[df_pdi['Nombre'].astype(str).str.strip().str.lower() == nombre.strip().lower()]
@@ -1188,7 +1182,6 @@ def main():
                             contexto_cand_pdi = extraer_contexto(pdi_texto)
                             perfil_tecnico_candidato = contexto_cand_puesto.union(contexto_cand_pdi)
                             
-                            # APLICAR EL FILTRO ANTI-GENÉRICOS AL COMPARAR
                             if not ctx_dest_puro.intersection(perfil_tecnico_candidato): continue 
                             
                             box = clean_text(row.get('Resultado 9 box')).upper()
@@ -1219,7 +1212,6 @@ def main():
                         match_pdi = df_pdi[df_pdi['Nombre'].astype(str).str.strip().str.lower() == nombre_cand.strip().lower()]
                         if match_pdi.empty: return {"estatus": "SIN_PDI", "puesto_origen": info_cand['puesto_actual'], "recomendacion": f"🚨 **Acción Requerida:** El colaborador no tiene acciones en su PDI hacia *{puesto_destino}*."}
                         
-                        # EXTRACCIÓN INTELIGENTE DE COLUMNAS PDI PARA EL DICTAMEN IA
                         col_obj = next((c for c in match_pdi.columns if 'objetivo' in clean_text(str(c)).lower()), None)
                         col_acc = next((c for c in match_pdi.columns if 'qué' in clean_text(str(c)).lower() or 'acci' in clean_text(str(c)).lower()), None)
                         
@@ -1228,7 +1220,6 @@ def main():
                         
                         contexto_destino = extraer_contexto(puesto_destino)
                         
-                        # FILTRO ANTI-GENÉRICOS PARA EL DICTAMEN
                         basura_ia = {"coordinador", "jefe", "gerente", "director", "supervisor", "analista", "especialista", "encargado", "auxiliar", "sr", "jr", "tecnicos", "conocimientos", "desarrollo", "gestión"}
                         ctx_dest_puro = {w for w in contexto_destino if w not in basura_ia}
                         if not ctx_dest_puro: ctx_dest_puro = contexto_destino
@@ -1517,12 +1508,13 @@ def main():
                         else:
                             df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower().isin(nombres_visibles_limpios)]
                         
-                        # MAPEANDO LAS NUEVAS COLUMNAS CON BÚSQUEDA FUZZY
+                        # MAPEANDO LAS NUEVAS COLUMNAS CON BÚSQUEDA FUZZY MEJORADA
                         columnas_busqueda = [
                             ("nómina", "Nómina"),
                             ("nombre", "Colaborador"),
                             ("roles", "Roles / Áreas de Interés"),
                             ("objetivo", "Objetivo PDI"),
+                            ("pdi", "PDI (70/20/10)"), 
                             ("clasificacion", "Clasificación de Competencia"),
                             ("qué", "Qué? / Acciones"),
                             ("para qué", "¿Para qué? / Competencia"),
@@ -1534,8 +1526,15 @@ def main():
                         ]
                         cols_reales = []; nombres_finales = []
                         for clave, nombre_nuevo in columnas_busqueda:
-                            col_match = next((c for c in df_pdi_filtrado.columns if clean_text(clave).lower() in clean_text(str(c)).lower()), None)
-                            if col_match: 
+                            col_match = None
+                            if clave == "pdi":
+                                col_match = next((c for c in df_pdi_filtrado.columns if clean_text(str(c)).lower() == "pdi"), None)
+                                if not col_match:
+                                    col_match = next((c for c in df_pdi_filtrado.columns if 'pdi' in clean_text(str(c)).lower() and 'objetivo' not in clean_text(str(c)).lower()), None)
+                            else:
+                                col_match = next((c for c in df_pdi_filtrado.columns if clean_text(clave).lower() in clean_text(str(c)).lower() and c not in cols_reales), None)
+                            
+                            if col_match and col_match not in cols_reales: 
                                 cols_reales.append(col_match)
                                 nombres_finales.append(nombre_nuevo)
                         
@@ -1552,18 +1551,13 @@ def main():
                             total_acciones = len(df_pdi_mostrar)
                             c_70 = c_20 = c_10 = 0
                             
-                            col_cat_tabla = next((c for c in df_pdi_mostrar.columns if 'Categoría' in c or 'Clasificación' in c), None)
-                            col_acc_tabla_kpi = next((c for c in df_pdi_mostrar.columns if 'Acción' in c or 'Qué' in c), None)
+                            col_pdi_kpi = next((c for c in df_pdi_mostrar.columns if 'PDI (70/20/10)' == c), None)
                             
-                            if total_acciones > 0:
-                                serie_cat = df_pdi_mostrar[col_cat_tabla].astype(str).str.lower() if col_cat_tabla else pd.Series([""] * total_acciones)
-                                serie_acc = df_pdi_mostrar[col_acc_tabla_kpi].astype(str).str.lower() if col_acc_tabla_kpi else pd.Series([""] * total_acciones)
-                                
-                                texto_combinado = serie_cat + " " + serie_acc
-                                
-                                c_70 = texto_combinado.str.contains('70').sum()
-                                c_20 = texto_combinado.str.contains('20').sum()
-                                c_10 = texto_combinado.str.contains('10').sum()
+                            if total_acciones > 0 and col_pdi_kpi:
+                                serie_pdi = df_pdi_mostrar[col_pdi_kpi].astype(str).str.lower()
+                                c_70 = serie_pdi.str.contains('70').sum()
+                                c_20 = serie_pdi.str.contains('20').sum()
+                                c_10 = serie_pdi.str.contains('10').sum()
                                 
                             col_av_tabla = next((c for c in df_pdi_mostrar.columns if 'Avance' in c), None)
                             promedio_avance = 0
@@ -1586,10 +1580,11 @@ def main():
                                 filtro_nombre = col_p1.multiselect("👤 Filtrar por Colaborador:", options=lista_nombres_pdi)
                                 if filtro_nombre: df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Colaborador'].isin(filtro_nombre)]
                             
-                            if col_cat_tabla:
-                                lista_clasif_pdi = sorted(df_pdi_mostrar[col_cat_tabla].dropna().astype(str).unique().tolist())
-                                filtro_clasif = col_p2.multiselect("🏷️ Filtrar por Categoría:", options=lista_clasif_pdi)
-                                if filtro_clasif: df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar[col_cat_tabla].isin(filtro_clasif)]
+                            col_filtro_cat = col_pdi_kpi if col_pdi_kpi else next((c for c in df_pdi_mostrar.columns if 'Clasificación' in c), None)
+                            if col_filtro_cat:
+                                lista_clasif_pdi = sorted(df_pdi_mostrar[col_filtro_cat].dropna().astype(str).unique().tolist())
+                                filtro_clasif = col_p2.multiselect("🏷️ Filtrar por Categoría / PDI:", options=lista_clasif_pdi)
+                                if filtro_clasif: df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar[col_filtro_cat].isin(filtro_clasif)]
                             
                             if "Estatus" in df_pdi_mostrar.columns:
                                 lista_estatus_pdi = sorted(df_pdi_mostrar['Estatus'].dropna().astype(str).unique().tolist())
