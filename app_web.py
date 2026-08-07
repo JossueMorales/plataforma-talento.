@@ -377,7 +377,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             if not es_andres:
                 data_edr.append({"Nombre": info['nombre'], "Puesto": info['puesto'], "Dirección": info['direccion'], "Resultado EDR": info['edr']})
                 if info['critica'].lower() == 'si':
-                    # MODIFICACIÓN: Extraer los 3 sucesores para la tabla de KPIs
                     target_id1 = info['suc1_id']
                     puesto_suc1 = info_nodos[target_id1]['puesto'] if target_id1 in info_nodos else (target_id1 if target_id1 else "Pendiente")
                     target_id2 = info['suc2_id']
@@ -1083,9 +1082,9 @@ def main():
                     with col_k1:
                         if st.button(f"📘 TOTAL CRÍTICAS: {total_criticas}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'todas'
                     with col_k2:
-                        if st.button(f"✅ CON SUCESOR P.1: {sucesores_definidos}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'con_sucesor'
+                        if st.button(f"✅ CON SUCESOR: {sucesores_definidos}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'con_sucesor'
                     with col_k3:
-                        if st.button(f"🚨 PENDIENTES P.1: {sucesores_pendientes}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'pendientes'
+                        if st.button(f"🚨 PENDIENTES: {sucesores_pendientes}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'pendientes'
                     
                     if 'filtro_kpi_plan' in st.session_state and st.session_state['filtro_kpi_plan']:
                         modo = st.session_state['filtro_kpi_plan']
