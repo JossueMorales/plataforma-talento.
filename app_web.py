@@ -30,7 +30,7 @@ PASSWORD_POR_DEFECTO = "Ayvi2026"
 COLUMNAS_PDI = [
     "Nómina", "Nombre", "Puesto", "Dirección", "Líder", "Fecha Elaboración", "Departamento",
     "Rol Interés 1", "Motivo 1", "Rol Interés 2", "Motivo 2", "Rol Interés 3", "Motivo 3",
-    "Objetivo PDI", "Clasificacion de Competencia", "Qué? / Acciones de Desarrollo", 
+    "Objetivo PDI", "PDI", "Qué? / Acciones de Desarrollo", 
     "¿Para qué? / Competencia", "¿Quién? / Recursos", "¿Cómo sabremos que se logró? / Métricas", 
     "¿Cuándo? / Fechas", "% de Avance", "Estatus"
 ]
@@ -377,7 +377,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             if not es_andres:
                 data_edr.append({"Nombre": info['nombre'], "Puesto": info['puesto'], "Dirección": info['direccion'], "Resultado EDR": info['edr']})
                 if info['critica'].lower() == 'si':
-                    # MODIFICACIÓN: Extraer los 3 sucesores para la tabla de KPIs
                     target_id1 = info['suc1_id']
                     puesto_suc1 = info_nodos[target_id1]['puesto'] if target_id1 in info_nodos else (target_id1 if target_id1 else "Pendiente")
                     target_id2 = info['suc2_id']
@@ -532,7 +531,8 @@ def renderizar_mi_pdi(df_completo, df_pdi):
         mot_3 = str(primer_row.get(col_mot3, ''))
         objetivo = str(primer_row.get(col_obj, ''))
         
-        col_cat = fc('clasificacion') or fc('categoría') or 'Clasificacion de Competencia'
+        # EL PARCHE ESTÁ AQUÍ: RASTREAR LA COLUMNA LLAMADA "PDI"
+        col_cat = fc('pdi') or fc('clasificacion') or fc('categoría') or 'PDI'
         col_acc = fc('qué') or fc('acción') or 'Qué? / Acciones de Desarrollo'
         col_comp = fc('para qué') or fc('competencia') or '¿Para qué? / Competencia'
         col_rec = fc('quién') or fc('recursos') or '¿Quién? / Recursos'
@@ -624,8 +624,9 @@ def renderizar_mi_pdi(df_completo, df_pdi):
                 av = a6.selectbox("% Avance" if i==0 else "", opciones_avance, index=index_seguro(opciones_avance, lista_acciones[i]['av']), key=f"{prefijo}_av_{i}", label_visibility="visible" if i==0 else "collapsed")
                 est = a7.selectbox("Estatus" if i==0 else "", opciones_estatus, index=index_seguro(opciones_estatus, lista_acciones[i]['est']), key=f"{prefijo}_est_{i}", label_visibility="visible" if i==0 else "collapsed")
                 
+                # LA MAGIA DEL GUARDADO AL EXCEL
                 nuevas.append({
-                    "Clasificacion de Competencia": titulo, 
+                    "PDI": titulo, # <-- Ahora apunta y escribe directo en la columna "PDI"
                     "Qué? / Acciones de Desarrollo": acc, 
                     "¿Para qué? / Competencia": comp,
                     "¿Quién? / Recursos": rec, 
@@ -695,7 +696,7 @@ def renderizar_mi_pdi(df_completo, df_pdi):
                     # Si borró todo, guardar al menos una fila vacía con sus expectativas
                     if not nuevas_filas:
                         fila = base_fila.copy()
-                        fila.update({"Clasificacion de Competencia": "", "Qué? / Acciones de Desarrollo": "", "¿Para qué? / Competencia": "", "¿Quién? / Recursos": "", "¿Cómo sabremos que se logró? / Métricas": "", "¿Cuándo? / Fechas": "", "% de Avance": "", "Estatus": ""})
+                        fila.update({"PDI": "", "Qué? / Acciones de Desarrollo": "", "¿Para qué? / Competencia": "", "¿Quién? / Recursos": "", "¿Cómo sabremos que se logró? / Métricas": "", "¿Cuándo? / Fechas": "", "% de Avance": "", "Estatus": ""})
                         nuevas_filas.append(fila)
                         
                     df_nuevas = pd.DataFrame(nuevas_filas)
