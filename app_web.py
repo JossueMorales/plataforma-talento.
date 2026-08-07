@@ -1045,7 +1045,7 @@ def main():
                         (~df_posiciones_filtradas['Nombre de la Posición'].astype(str).str.upper().str.contains('DIRECTOR GENERAL'))
                     ]
                     
-                    # --- NUEVO KPI: SALUD DE LA BANCADA (Readiness interactivo) ---
+                    # --- NUEVO KPI: SALUD DE LA BANCADA (Readiness interactivo con %) ---
                     r_inm = 0; r_1_3 = 0; r_mas_3 = 0
                     col_r1 = next((c for c in df_posiciones_filtradas.columns if 'readiness 1' in str(c).lower()), None)
                     col_r2 = next((c for c in df_posiciones_filtradas.columns if 'readiness 2' in str(c).lower()), None)
@@ -1062,17 +1062,22 @@ def main():
                                 elif '1 a 3' in v: r_1_3 += 1
                                 elif 'mas de 3' in v or 'más de 3' in v: r_mas_3 += 1
                     
+                    total_sucesores_mapeados = r_inm + r_1_3 + r_mas_3
+                    pct_inm = round((r_inm / total_sucesores_mapeados) * 100, 1) if total_sucesores_mapeados > 0 else 0.0
+                    pct_1_3 = round((r_1_3 / total_sucesores_mapeados) * 100, 1) if total_sucesores_mapeados > 0 else 0.0
+                    pct_mas_3 = round((r_mas_3 / total_sucesores_mapeados) * 100, 1) if total_sucesores_mapeados > 0 else 0.0
+                    
                     st.write("")
                     st.markdown("#### 🩺 Salud de la Bancada (Readiness Global)")
                     rk1, rk2, rk3 = st.columns(3)
                     with rk1:
-                        if st.button(f"🟢 Inmediato\n\n{r_inm}", key="b_read_inm", use_container_width=True):
+                        if st.button(f"🟢 Inmediato\n\n{pct_inm}% ({r_inm} colab.)", key="b_read_inm", use_container_width=True):
                             st.session_state['filtro_kpi_plan'] = 'inmediato'; st.rerun()
                     with rk2:
-                        if st.button(f"🟡 1 a 3 años\n\n{r_1_3}", key="b_read_1_3", use_container_width=True):
+                        if st.button(f"🟡 1 a 3 años\n\n{pct_1_3}% ({r_1_3} colab.)", key="b_read_1_3", use_container_width=True):
                             st.session_state['filtro_kpi_plan'] = '1_3_anos'; st.rerun()
                     with rk3:
-                        if st.button(f"🔵 Más de 3 años\n\n{r_mas_3}", key="b_read_mas_3", use_container_width=True):
+                        if st.button(f"🔵 Más de 3 años\n\n{pct_mas_3}% ({r_mas_3} colab.)", key="b_read_mas_3", use_container_width=True):
                             st.session_state['filtro_kpi_plan'] = 'mas_3_anos'; st.rerun()
                     st.write("---")
                     
@@ -1090,52 +1095,66 @@ def main():
                     
                     col_k1, col_k2, col_k3 = st.columns(3)
                     with col_k1:
-                        if st.button(f"📘 TOTAL CRÍTICAS\n\n{total_criticas}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'todas'
+                        if st.button(f"📘 TOTAL CRÍTICAS\n\n{total_criticas}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'todas'; st.rerun()
                     with col_k2:
-                        if st.button(f"✅ CON SUCESOR\n\n{sucesores_definidos}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'con_sucesor'
+                        if st.button(f"✅ CON SUCESOR\n\n{sucesores_definidos}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'con_sucesor'; st.rerun()
                     with col_k3:
-                        if st.button(f"🚨 PENDIENTES\n\n{sucesores_pendientes}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'pendientes'
+                        if st.button(f"🚨 PENDIENTES\n\n{sucesores_pendientes}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'pendientes'; st.rerun()
                     
                     if 'filtro_kpi_plan' in st.session_state and st.session_state['filtro_kpi_plan']:
                         modo = st.session_state['filtro_kpi_plan']
                         
-                        def has_readiness(row, term1, term2=""):
-                            v1 = clean_text(row.get(col_r1, '')).lower() if col_r1 else ""
-                            v2 = clean_text(row.get(col_r2, '')).lower() if col_r2 else ""
-                            v3 = clean_text(row.get(col_r3, '')).lower() if col_r3 else ""
-                            for v in [v1, v2, v3]:
-                                if term1 in v or (term2 and term2 in v):
-                                    return True
-                            return False
+                        if modo in ['inmediato', '1_3_anos', 'mas_3_anos']:
+                            target_term1 = 'inmediato' if modo == 'inmediato' else ('1 a 3' if modo == '1_3_anos' else 'mas de 3')
+                            target_term2 = 'más de 3' if modo == 'mas_3_anos' else target_term1
+                            titulo_lista = f"Sucesores mapeados a: {target_term1.capitalize()}"
                             
-                        if modo == 'todas': 
-                            df_mostrar = df_posiciones_filtradas; titulo_lista = "Todas las Posiciones Críticas"
-                        elif modo == 'con_sucesor': 
-                            df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 1]; titulo_lista = "Posiciones con Sucesor Asignado"
-                        elif modo == 'pendientes': 
-                            df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 0]; titulo_lista = "Posiciones Pendientes de Sucesor"
-                        elif modo == 'inmediato':
-                            df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas.apply(lambda r: has_readiness(r, 'inmediato'), axis=1)]
-                            titulo_lista = "Posiciones con Sucesor Inmediato"
-                        elif modo == '1_3_anos':
-                            df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas.apply(lambda r: has_readiness(r, '1 a 3'), axis=1)]
-                            titulo_lista = "Posiciones con Sucesor de 1 a 3 años"
-                        elif modo == 'mas_3_anos':
-                            df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas.apply(lambda r: has_readiness(r, 'mas de 3', 'más de 3'), axis=1)]
-                            titulo_lista = "Posiciones con Sucesor a Más de 3 años"
-                        else:
-                            df_mostrar = df_posiciones_filtradas; titulo_lista = "Posiciones Críticas"
+                            lista_sucesores = []
+                            for _, r in df_posiciones_filtradas.iterrows():
+                                pos = clean_text(r.get('Nombre de la Posición', ''))
+                                ocupante = clean_text(r.get('Nombre', ''))
+                                
+                                s1 = clean_text(r.get('Sucesor P.1', r.get('Sucesor 1', '')))
+                                read1 = clean_text(r.get(col_r1, '')) if col_r1 else ''
+                                s2 = clean_text(r.get('Sucesor P.2', r.get('Sucesor 2', '')))
+                                read2 = clean_text(r.get(col_r2, '')) if col_r2 else ''
+                                s3 = clean_text(r.get('Sucesor P.3', r.get('Sucesor 3', '')))
+                                read3 = clean_text(r.get(col_r3, '')) if col_r3 else ''
+                                
+                                for suc, read in [(s1, read1), (s2, read2), (s3, read3)]:
+                                    rl = read.lower()
+                                    if target_term1 in rl or target_term2 in rl:
+                                        lista_sucesores.append({
+                                            "Posición Crítica": pos,
+                                            "Ocupante Actual": ocupante,
+                                            "Nombre del Sucesor": suc if suc else "No definido",
+                                            "Readiness": read
+                                        })
+                            
+                            df_lista_suc = pd.DataFrame(lista_sucesores)
+                            with st.container():
+                                st.markdown(f"#### 📋 {titulo_lista} ({len(df_lista_suc)} registros)")
+                                if not df_lista_suc.empty:
+                                    st.dataframe(df_lista_suc, use_container_width=True, hide_index=True)
+                                else:
+                                    st.info("No hay registros en esta categoría.")
+                                if st.button("❌ Cerrar lista", key="cerrar_lista_kpi_read"): st.session_state['filtro_kpi_plan'] = None; st.rerun()
 
-                        with st.container():
-                            st.markdown(f"#### 📋 {titulo_lista} (Haz clic para cargar)")
-                            if df_mostrar.empty: st.info("No hay posiciones en esta categoría.")
-                            else:
-                                cols_grid = st.columns(3)
-                                for i, row_dict in enumerate(df_mostrar.to_dict('records')):
-                                    p_name = clean_text(row_dict.get('Nombre de la Posición'))
-                                    if p_name and cols_grid[i % 3].button(p_name, key=f"grid_btn_{i}_{modo}", use_container_width=True):
-                                        st.session_state['plan_pos'] = p_name; st.session_state['filtro_kpi_plan'] = None; st.rerun()
-                            if st.button("❌ Cerrar lista", key="cerrar_lista_kpi"): st.session_state['filtro_kpi_plan'] = None; st.rerun()
+                        else:
+                            if modo == 'todas': df_mostrar = df_posiciones_filtradas; titulo_lista = "Todas las Posiciones Críticas"
+                            elif modo == 'con_sucesor': df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 1]; titulo_lista = "Posiciones con Sucesor Asignado"
+                            else: df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 0]; titulo_lista = "Posiciones Pendientes de Sucesor"
+                            
+                            with st.container():
+                                st.markdown(f"#### 📋 {titulo_lista} (Haz clic para cargar)")
+                                if df_mostrar.empty: st.info("No hay posiciones en esta categoría.")
+                                else:
+                                    cols_grid = st.columns(3)
+                                    for i, row_dict in enumerate(df_mostrar.to_dict('records')):
+                                        p_name = clean_text(row_dict.get('Nombre de la Posición'))
+                                        if p_name and cols_grid[i % 3].button(p_name, key=f"grid_btn_{i}_{modo}", use_container_width=True):
+                                            st.session_state['plan_pos'] = p_name; st.session_state['filtro_kpi_plan'] = None; st.rerun()
+                                if st.button("❌ Cerrar lista", key="cerrar_lista_kpi"): st.session_state['filtro_kpi_plan'] = None; st.rerun()
                     
                     st.write("---")
                     st.markdown("#### 📥 Exportar Reporte de Sucesiones")
