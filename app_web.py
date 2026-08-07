@@ -1571,30 +1571,27 @@ def main():
                             st.markdown("#### 📊 Análisis Global del Modelo 70-20-10")
                             pk1, pk2, pk3, pk4, pk5 = st.columns(5)
                             
+                            # Opción A: Botones nativos gigantes e interactivos
                             with pk1:
-                                st.markdown(crear_tarjeta_kpi("Total Acciones", total_acciones, "#4f46e5", "#4338ca", "#eef2ff"), unsafe_allow_html=True)
-                                if st.button("🔍 Ver Todas", key="b_pdi_todas", use_container_width=True): 
+                                if st.button(f"📊 Total Acciones\n\n{total_acciones}", key="b_pdi_todas", use_container_width=True): 
                                     st.session_state['filtro_pdi_cat'] = 'todas'
                                     st.rerun()
                                     
                             with pk2:
-                                st.markdown(crear_tarjeta_kpi("Avance Promedio", f"{promedio_avance}%", "#059669", "#047857", "#ecfdf5"), unsafe_allow_html=True)
-                                
+                                st.button(f"📈 Avance Promedio\n\n{promedio_avance}%", key="b_pdi_prom", use_container_width=True)
+                                    
                             with pk3:
-                                st.markdown(crear_tarjeta_kpi("Experiencia (70%)", f"{prom_70}%", "#2563eb", "#1d4ed8", "#eff6ff"), unsafe_allow_html=True)
-                                if st.button("🔍 Filtrar 70%", key="b_pdi_70", use_container_width=True):
+                                if st.button(f"🔵 Experiencia (70%)\n\n{prom_70}%", key="b_pdi_70", use_container_width=True):
                                     st.session_state['filtro_pdi_cat'] = '70'
                                     st.rerun()
                                     
                             with pk4:
-                                st.markdown(crear_tarjeta_kpi("Mentoring (20%)", f"{prom_20}%", "#d97706", "#b45309", "#fffbeb"), unsafe_allow_html=True)
-                                if st.button("🔍 Filtrar 20%", key="b_pdi_20", use_container_width=True):
+                                if st.button(f"🟡 Mentoring (20%)\n\n{prom_20}%", key="b_pdi_20", use_container_width=True):
                                     st.session_state['filtro_pdi_cat'] = '20'
                                     st.rerun()
                                     
                             with pk5:
-                                st.markdown(crear_tarjeta_kpi("Formación (10%)", f"{prom_10}%", "#dc2626", "#b91c1c", "#fef2f2"), unsafe_allow_html=True)
-                                if st.button("🔍 Filtrar 10%", key="b_pdi_10", use_container_width=True):
+                                if st.button(f"🔴 Formación (10%)\n\n{prom_10}%", key="b_pdi_10", use_container_width=True):
                                     st.session_state['filtro_pdi_cat'] = '10'
                                     st.rerun()
                                     
