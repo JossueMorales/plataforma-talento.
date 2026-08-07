@@ -1508,7 +1508,6 @@ def main():
                         else:
                             df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower().isin(nombres_visibles_limpios)]
                         
-                        # MAPEANDO LAS NUEVAS COLUMNAS CON BÚSQUEDA FUZZY MEJORADA
                         columnas_busqueda = [
                             ("nómina", "Nómina"),
                             ("nombre", "Colaborador"),
@@ -1542,37 +1541,75 @@ def main():
                             df_pdi_mostrar = df_pdi_filtrado[cols_reales].copy()
                             df_pdi_mostrar.columns = nombres_finales
                             
-                            # Filtrar filas vacías (usamos la columna de acciones como ancla)
                             col_acc_tabla = next((c for c in df_pdi_mostrar.columns if 'Acciones' in c), None)
                             if col_acc_tabla:
                                 df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar[col_acc_tabla].astype(str).str.strip() != ""]
                                 
-                            # --- NUEVOS KPIs DE PDI (Auditoría 70-20-10) ---
+                            # --- NUEVA LÓGICA DE KPIs (Matemática Pura y Promedios) ---
                             total_acciones = len(df_pdi_mostrar)
-                            c_70 = c_20 = c_10 = 0
-                            
                             col_pdi_kpi = next((c for c in df_pdi_mostrar.columns if 'PDI (70/20/10)' == c), None)
+                            col_av_tabla = next((c for c in df_pdi_mostrar.columns if 'Avance' in c), None)
+                            
+                            prom_70 = prom_20 = prom_10 = promedio_avance = 0.0
+                            
+                            def get_avg(mask):
+                                if col_av_tabla and mask.sum() > 0:
+                                    avances_limpios = df_pdi_mostrar.loc[mask, col_av_tabla].astype(str).str.replace('%', '', regex=False).str.extract(r'(\d+)').astype(float)
+                                    return round(avances_limpios[0].mean(), 1) if not avances_limpios.isna().all().all() else 0.0
+                                return 0.0
                             
                             if total_acciones > 0 and col_pdi_kpi:
-                                serie_pdi = df_pdi_mostrar[col_pdi_kpi].astype(str).str.lower()
-                                c_70 = serie_pdi.str.contains('70').sum()
-                                c_20 = serie_pdi.str.contains('20').sum()
-                                c_10 = serie_pdi.str.contains('10').sum()
+                                mask_70 = df_pdi_mostrar[col_pdi_kpi].astype(str).str.contains('70')
+                                mask_20 = df_pdi_mostrar[col_pdi_kpi].astype(str).str.contains('20')
+                                mask_10 = df_pdi_mostrar[col_pdi_kpi].astype(str).str.contains('10')
                                 
-                            col_av_tabla = next((c for c in df_pdi_mostrar.columns if 'Avance' in c), None)
-                            promedio_avance = 0
-                            if col_av_tabla and total_acciones > 0:
-                                avances_limpios = df_pdi_mostrar[col_av_tabla].astype(str).str.replace('%', '', regex=False).str.extract(r'(\d+)').astype(float)
-                                promedio_avance = round(avances_limpios[0].mean(), 1) if not avances_limpios.isna().all().all() else 0
+                                prom_70 = get_avg(mask_70)
+                                prom_20 = get_avg(mask_20)
+                                prom_10 = get_avg(mask_10)
+                                promedio_avance = get_avg(pd.Series(True, index=df_pdi_mostrar.index))
                                 
                             st.markdown("#### 📊 Análisis Global del Modelo 70-20-10")
                             pk1, pk2, pk3, pk4, pk5 = st.columns(5)
-                            pk1.markdown(crear_tarjeta_kpi("Total Acciones", total_acciones, "#4f46e5", "#4338ca", "#eef2ff"), unsafe_allow_html=True)
-                            pk2.markdown(crear_tarjeta_kpi("Avance Prom.", f"{promedio_avance}%", "#059669", "#047857", "#ecfdf5"), unsafe_allow_html=True)
-                            pk3.markdown(crear_tarjeta_kpi("Experiencia (70%)", c_70, "#2563eb", "#1d4ed8", "#eff6ff"), unsafe_allow_html=True)
-                            pk4.markdown(crear_tarjeta_kpi("Mentoring (20%)", c_20, "#d97706", "#b45309", "#fffbeb"), unsafe_allow_html=True)
-                            pk5.markdown(crear_tarjeta_kpi("Formación (10%)", c_10, "#dc2626", "#b91c1c", "#fef2f2"), unsafe_allow_html=True)
+                            
+                            with pk1:
+                                st.markdown(crear_tarjeta_kpi("Total Acciones", total_acciones, "#4f46e5", "#4338ca", "#eef2ff"), unsafe_allow_html=True)
+                                if st.button("🔍 Ver Todas", key="b_pdi_todas", use_container_width=True): 
+                                    st.session_state['filtro_pdi_cat'] = 'todas'
+                                    st.rerun()
+                                    
+                            with pk2:
+                                st.markdown(crear_tarjeta_kpi("Avance Promedio", f"{promedio_avance}%", "#059669", "#047857", "#ecfdf5"), unsafe_allow_html=True)
+                                
+                            with pk3:
+                                st.markdown(crear_tarjeta_kpi("Experiencia (70%)", f"{prom_70}%", "#2563eb", "#1d4ed8", "#eff6ff"), unsafe_allow_html=True)
+                                if st.button("🔍 Filtrar 70%", key="b_pdi_70", use_container_width=True):
+                                    st.session_state['filtro_pdi_cat'] = '70'
+                                    st.rerun()
+                                    
+                            with pk4:
+                                st.markdown(crear_tarjeta_kpi("Mentoring (20%)", f"{prom_20}%", "#d97706", "#b45309", "#fffbeb"), unsafe_allow_html=True)
+                                if st.button("🔍 Filtrar 20%", key="b_pdi_20", use_container_width=True):
+                                    st.session_state['filtro_pdi_cat'] = '20'
+                                    st.rerun()
+                                    
+                            with pk5:
+                                st.markdown(crear_tarjeta_kpi("Formación (10%)", f"{prom_10}%", "#dc2626", "#b91c1c", "#fef2f2"), unsafe_allow_html=True)
+                                if st.button("🔍 Filtrar 10%", key="b_pdi_10", use_container_width=True):
+                                    st.session_state['filtro_pdi_cat'] = '10'
+                                    st.rerun()
+                                    
                             st.write("---")
+                            
+                            # INTERACTIVIDAD: Aplicar el filtro a la tabla si el usuario hizo clic en los KPIs
+                            if 'filtro_pdi_cat' in st.session_state and st.session_state['filtro_pdi_cat'] not in ['todas', None]:
+                                f_cat = st.session_state['filtro_pdi_cat']
+                                if col_pdi_kpi:
+                                    df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar[col_pdi_kpi].astype(str).str.contains(f_cat)]
+                                    c_f1, c_f2 = st.columns([8, 2])
+                                    c_f1.info(f"👆 **Filtro Activo:** Mostrando exclusivamente las acciones de la categoría **{f_cat}%**.")
+                                    if c_f2.button("❌ Quitar filtro", use_container_width=True):
+                                        st.session_state['filtro_pdi_cat'] = None
+                                        st.rerun()
                             
                             col_p1, col_p2, col_p3 = st.columns(3)
                             if "Colaborador" in df_pdi_mostrar.columns:
