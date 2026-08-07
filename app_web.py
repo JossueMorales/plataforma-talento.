@@ -36,9 +36,8 @@ COLUMNAS_PDI = [
 ]
 
 # ==========================================
-# SISTEMA DE CACHÉ INTELIGENTE Y DESCARGA (OPTIMIZADO)
+# SISTEMA DE CACHÉ INTELIGENTE Y DESCARGA
 # ==========================================
-# TTL aumentado a 300 segundos (5 minutos) para evitar pings innecesarios a Google
 @st.cache_data(ttl=300, show_spinner=False)
 def obtener_timestamp_actualizacion(url_sheets):
     try:
@@ -1097,7 +1096,7 @@ def main():
                     with col_k1:
                         if st.button(f"📘 TOTAL CRÍTICAS\n\n{total_criticas}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'todas'; st.rerun()
                     with col_k2:
-                        if st.button(f"✅ CON SUCESOR\n\n{sucesores_definidos}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'con_sucesor'; st.rerun()
+                        if st.button(f"✅ MAPEO DEFINIDO\n\n{sucesores_definidos}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'con_sucesor'; st.rerun()
                     with col_k3:
                         if st.button(f"🚨 PENDIENTES\n\n{sucesores_pendientes}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'pendientes'; st.rerun()
                     
@@ -1142,7 +1141,7 @@ def main():
 
                         else:
                             if modo == 'todas': df_mostrar = df_posiciones_filtradas; titulo_lista = "Todas las Posiciones Críticas"
-                            elif modo == 'con_sucesor': df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 1]; titulo_lista = "Posiciones con Sucesor Asignado"
+                            elif modo == 'con_sucesor': df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 1]; titulo_lista = "Posiciones con Mapeo Definido"
                             else: df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 0]; titulo_lista = "Posiciones Pendientes de Sucesor"
                             
                             with st.container():
@@ -1181,7 +1180,7 @@ def main():
                     pos_seleccionada = st.selectbox("🔍 Selecciona la Posición Crítica para editar (Filtrada por tu selección global):", [""] + posiciones_opciones, key="plan_pos")
                     
                     def obtener_ficha_candidato(nombre_cand):
-                        if not nombre_cand or nombre_cand == "Pendiente": return None
+                        if not nombre_cand or nombre_cand in ["Pendiente", "Sin sucesor identificado"]: return None
                         match_colab = df_completo[df_completo['Nombre_Cruce'] == nombre_cand.strip().lower()]
                         if match_colab.empty: return None
                         row_c = match_colab.iloc[0]
@@ -1261,7 +1260,7 @@ def main():
                         return sorted(candidatos_sugeridos, key=lambda x: x['score'], reverse=True)[:3]
 
                     def diagnosticar_pdi_ia(nombre_cand, puesto_destino, info_cand):
-                        if not nombre_cand or nombre_cand == "Pendiente" or isinstance(info_cand, str) or not info_cand: return None
+                        if not nombre_cand or nombre_cand in ["Pendiente", "Sin sucesor identificado"] or isinstance(info_cand, str) or not info_cand: return None
                         if df_pdi.empty: return {"estatus": "SIN_DATOS", "msg": "No hay PDI registrado."}
                         
                         match_pdi = df_pdi[df_pdi['Nombre'].astype(str).str.strip().str.lower() == nombre_cand.strip().lower()]
@@ -1294,7 +1293,7 @@ def main():
                         st.markdown(f"#### 📌 Posición Crítica: `{pos_seleccionada}`")
                         
                         def mostrar_ficha_mini(nombre_cand, df_db):
-                            if not nombre_cand or nombre_cand in ["Pendiente", "Vacante / Sin asignar", "No definido"]: st.info("Sin información de ocupante"); return
+                            if not nombre_cand or nombre_cand in ["Pendiente", "Vacante / Sin asignar", "No definido", "Sin sucesor identificado"]: st.info("Sin información de ocupante"); return
                             match = df_db[df_db['Nombre_Cruce'] == nombre_cand.strip().lower()]
                             if match.empty: st.warning("Colaborador no encontrado en la base."); return
                             row = match.iloc[0]
@@ -1380,7 +1379,7 @@ def main():
                                         st.warning("⚠️ **Dictamen IA:** No se detectaron candidatos en la plantilla actual que cumplan con los criterios estrictos para esta posición crítica. **Se sugiere reclutamiento externo.**")
                         
                         nombres_empleados = sorted(df_completo['Nombre'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
-                        opciones_sucesores = ["Pendiente"] + nombres_empleados
+                        opciones_sucesores = ["Pendiente", "Sin sucesor identificado"] + nombres_empleados
                         opciones_tiempo = ["Pendiente", "Inmediato", "1 a 3 años", "Más de 3 años"]
                         
                         def leer_campo(nombre_col):
