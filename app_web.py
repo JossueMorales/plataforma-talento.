@@ -26,7 +26,7 @@ from config_ui import (
 LINK_ARCHIVO = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit"
 PASSWORD_POR_DEFECTO = "Ayvi2026" 
 
-# ESTRUCTURA MAESTRA DE COLUMNAS PARA EL PDI (Alineado a tu Excel actual)
+# ESTRUCTURA MAESTRA DE COLUMNAS PARA EL PDI
 COLUMNAS_PDI = [
     "Nómina", "Nombre", "Puesto", "Dirección", "Líder", "Fecha Elaboración", "Departamento",
     "Rol Interés 1", "Motivo 1", "Rol Interés 2", "Motivo 2", "Rol Interés 3", "Motivo 3",
@@ -161,6 +161,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             suc1_limpio = buscar_id_real(row_dict.get('Sucesor P.1', row_dict.get('Sucesor 1', '')))
             suc2_limpio = buscar_id_real(row_dict.get('Sucesor P.2', row_dict.get('Sucesor 2', '')))
             suc3_limpio = buscar_id_real(row_dict.get('Sucesor P.3', row_dict.get('Sucesor 3', '')))
+            suc4_limpio = buscar_id_real(row_dict.get('Sucesor P.4', row_dict.get('Sucesor 4', '')))
             
             info_nodos[emp] = {
                 'mla': clean_text(row_dict.get('Nivel MLA'), 'N/A'),
@@ -175,6 +176,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                 'suc1_id': suc1_limpio, 'read1': clean_text(row_dict.get('Tiempo de Readiness 1'), 'Pendiente'),
                 'suc2_id': suc2_limpio, 'read2': clean_text(row_dict.get('Tiempo de Readiness 2'), ''),
                 'suc3_id': suc3_limpio, 'read3': clean_text(row_dict.get('Tiempo de Readiness 3'), ''),
+                'suc4_id': suc4_limpio, 'read4': clean_text(row_dict.get('Tiempo de Readiness 4'), ''),
                 'enganche_ind': eng_val, 'enganche_area': 0.0, 'es_lider': False
             }
             if jefe:
@@ -218,7 +220,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         if box in ['1', '3']:
             j2 = obtener_jefe_nivel_arriba(emp, 2)
             if j2: sucesores_de_9box[j2] += 1
-        for s_id in [info['suc1_id'], info['suc2_id'], info['suc3_id']]:
+        for s_id in [info['suc1_id'], info['suc2_id'], info['suc3_id'], info['suc4_id']]:
             if s_id in sucesores_oficiales_de: sucesores_oficiales_de[s_id] += 1
                 
     nombres_con_pdi = set(df_pdi['Nombre'].dropna().astype(str).str.strip().str.lower()) if not df_pdi.empty and 'Nombre' in df_pdi.columns else set()
@@ -279,7 +281,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         
     nodos_rescatados = set(nodos_visibles)
     for emp in nodos_visibles:
-        for s_id in [info_nodos[emp]['suc1_id'], info_nodos[emp]['suc2_id'], info_nodos[emp]['suc3_id']]:
+        for s_id in [info_nodos[emp]['suc1_id'], info_nodos[emp]['suc2_id'], info_nodos[emp]['suc3_id'], info_nodos[emp]['suc4_id']]:
             if s_id and s_id in info_nodos: nodos_rescatados.add(s_id)
     nodos_visibles = nodos_rescatados
     
@@ -368,6 +370,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         nom_suc1 = nombres_dict.get(info['suc1_id'], info['suc1_id']) if info['suc1_id'] else ""
         nom_suc2 = nombres_dict.get(info['suc2_id'], info['suc2_id']) if info['suc2_id'] else ""
         nom_suc3 = nombres_dict.get(info['suc3_id'], info['suc3_id']) if info['suc3_id'] else ""
+        nom_suc4 = nombres_dict.get(info['suc4_id'], info['suc4_id']) if info['suc4_id'] else ""
         
         if not is_hidden:
             es_andres = info['mla'] == '5' or 'ANDRES EDUARDO VILLARREAL' in info['nombre'].upper()
@@ -377,13 +380,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             if not es_andres:
                 data_edr.append({"Nombre": info['nombre'], "Puesto": info['puesto'], "Dirección": info['direccion'], "Resultado EDR": info['edr']})
                 if info['critica'].lower() == 'si':
-                    target_id1 = info['suc1_id']
-                    puesto_suc1 = info_nodos[target_id1]['puesto'] if target_id1 in info_nodos else (target_id1 if target_id1 else "Pendiente")
-                    target_id2 = info['suc2_id']
-                    puesto_suc2 = info_nodos[target_id2]['puesto'] if target_id2 in info_nodos else (target_id2 if target_id2 else "Pendiente")
-                    target_id3 = info['suc3_id']
-                    puesto_suc3 = info_nodos[target_id3]['puesto'] if target_id3 in info_nodos else (target_id3 if target_id3 else "Pendiente")
-                    
                     data_sucesores.append({
                         "Ocupante Actual": info['nombre'], 
                         "Posición Crítica": info['puesto'], 
@@ -433,7 +429,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             j2 = obtener_jefe_nivel_arriba(emp, 2)
             if j2: G.add_edge(emp, j2, color='#166534', width=3.5, dashes=[5,5], title='Proyección N+2', hidden=(emp not in nodos_visibles or j2 not in nodos_visibles), is_struct=False, is_9box=True, is_succ=False, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.3})
             
-        for s_id, read_time in [(info['suc1_id'], info['read1']), (info['suc2_id'], info['read2']), (info['suc3_id'], info['read3'])]:
+        for s_id, read_time in [(info['suc1_id'], info['read1']), (info['suc2_id'], info['read2']), (info['suc3_id'], info['read3']), (info['suc4_id'], info['read4'])]:
             if s_id and s_id in empleados_validos:
                 is_hidden_edge = (emp not in nodos_visibles or s_id not in nodos_visibles)
                 val = get_readiness_val(read_time)
@@ -658,14 +654,12 @@ def renderizar_mi_pdi(df_completo, df_pdi):
                     archivo = cliente.open_by_key(doc_id)
                     pestana_pdi_gs = archivo.worksheet(PESTANA_PDI_ACTUAL)
                     
-                    # 1. Asegurar que las columnas existan o crearlas virtualmente
                     if df_pdi.empty: df_actual = pd.DataFrame(columns=COLUMNAS_PDI)
                     else:
                         df_actual = df_pdi.copy()
                         for c in COLUMNAS_PDI:
                             if c not in df_actual.columns: df_actual[c] = ""
                             
-                    # 2. Borrar las filas viejas del usuario en el dataframe temporal
                     if not df_actual.empty and 'Nombre' in df_actual.columns:
                         df_actual['Nombre_Cruce'] = df_actual['Nombre'].astype(str).str.strip().str.lower()
                         df_resto = df_actual[df_actual['Nombre_Cruce'] != nombre_colab.strip().lower()].copy()
@@ -673,7 +667,6 @@ def renderizar_mi_pdi(df_completo, df_pdi):
                     else:
                         df_resto = pd.DataFrame(columns=COLUMNAS_PDI)
                         
-                    # 3. Construir las nuevas filas del usuario
                     todas_las_acciones = acciones_70_nuevas + acciones_20_nuevas + acciones_10_nuevas
                     nuevas_filas = []
                     
@@ -691,7 +684,6 @@ def renderizar_mi_pdi(df_completo, df_pdi):
                             fila.update(acc)
                             nuevas_filas.append(fila)
                             
-                    # Si borró todo, guardar al menos una fila vacía con sus expectativas
                     if not nuevas_filas:
                         fila = base_fila.copy()
                         fila.update({"PDI": "", "Qué? / Acciones de Desarrollo": "", "¿Para qué? / Competencia": "", "¿Quién? / Recursos": "", "¿Cómo sabremos que se logró? / Métricas": "", "¿Cuándo? / Fechas": "", "% de Avance": "", "Estatus": ""})
@@ -700,7 +692,6 @@ def renderizar_mi_pdi(df_completo, df_pdi):
                     df_nuevas = pd.DataFrame(nuevas_filas)
                     df_final = pd.concat([df_resto, df_nuevas], ignore_index=True)[COLUMNAS_PDI]
                     
-                    # 4. Sobrescribir toda la pestaña de forma segura y veloz
                     datos_a_escribir = [df_final.columns.values.tolist()] + df_final.fillna("").values.tolist()
                     pestana_pdi_gs.clear()
                     pestana_pdi_gs.update(values=datos_a_escribir, range_name="A1")
@@ -719,7 +710,6 @@ def renderizar_mi_pdi(df_completo, df_pdi):
 def main():
     if not login(): st.stop()
     
-    # --- INTERCEPTOR DE SEGURIDAD (FORZAR CAMBIO DE PASSWORD) ---
     if st.session_state.get("password_actual") == PASSWORD_POR_DEFECTO:
         st.markdown("<br><br>", unsafe_allow_html=True)
         col_espacio1, col_centro, col_espacio3 = st.columns([1, 2, 1])
@@ -795,9 +785,6 @@ def main():
             st.error("Error al conectar con la base de datos principal.")
             st.stop()
             
-        # =========================================================================
-        # ENRUTAMIENTO DINÁMICO (BYPASS DE ESTATUS "BAJA")
-        # =========================================================================
         col_estatus = next((c for c in df_completo_raw.columns if 'estatus' in str(c).lower()), None)
         
         if col_estatus:
@@ -824,7 +811,6 @@ def main():
         if col_estatus:
             df_completo = df_completo[~df_completo[col_estatus].astype(str).str.strip().str.lower().isin(['baja'])]
         
-        # --- EXTRACCIÓN AUTOMÁTICA DEL NOMBRE VÍA NÓMINA (UI/UX) ---
         match_nomina = pd.DataFrame() 
         if st.session_state["id_usuario"] != "admin":
             match_nomina = df_completo[df_completo['id Empleado'].apply(clean_id) == clean_id(st.session_state["id_usuario"])]
@@ -841,7 +827,6 @@ def main():
         direccion_permitida = st.session_state.get("direccion_permitida", "TODAS")
         es_colaborador = (direccion_permitida.strip().upper() == "COLABORADOR")
         
-        # --- AISLAMIENTO ESTRICTO DE SUB-GRAFO ---
         if st.session_state["id_usuario"] != "admin" and not es_colaborador:
             st.session_state["lider_permitido"] = st.session_state["nombre_usuario"]
             
@@ -959,7 +944,6 @@ def main():
                     st.markdown("### 📊 KPIs de Talento")
                     k1, k2, k3, k4, k5, k6 = st.columns(6)
                     
-                    # DASHBOARD TOP-DOWN: Botones Interactivos Nativos
                     with k1:
                         if st.button(f"👥 Total Colab.\n\n{kpis['total']}", key="b_tot", use_container_width=True): 
                             st.session_state["vista_kpi"] = "total"; st.rerun()
@@ -1045,18 +1029,19 @@ def main():
                         (~df_posiciones_filtradas['Nombre de la Posición'].astype(str).str.upper().str.contains('DIRECTOR GENERAL'))
                     ]
                     
-                    # --- NUEVO KPI: SALUD DE LA BANCADA (Vectorizado para máximo rendimiento) ---
                     col_r1 = next((c for c in df_posiciones_filtradas.columns if 'readiness 1' in str(c).lower()), None)
                     col_r2 = next((c for c in df_posiciones_filtradas.columns if 'readiness 2' in str(c).lower()), None)
                     col_r3 = next((c for c in df_posiciones_filtradas.columns if 'readiness 3' in str(c).lower()), None)
+                    col_r4 = next((c for c in df_posiciones_filtradas.columns if 'readiness 4' in str(c).lower()), None)
                     
                     r_inm = r_1_3 = r_mas_3 = 0
                     if not df_posiciones_filtradas.empty:
                         s1 = df_posiciones_filtradas[col_r1].astype(str).str.lower().fillna('') if col_r1 else pd.Series(['']*len(df_posiciones_filtradas))
                         s2 = df_posiciones_filtradas[col_r2].astype(str).str.lower().fillna('') if col_r2 else pd.Series(['']*len(df_posiciones_filtradas))
                         s3 = df_posiciones_filtradas[col_r3].astype(str).str.lower().fillna('') if col_r3 else pd.Series(['']*len(df_posiciones_filtradas))
+                        s4 = df_posiciones_filtradas[col_r4].astype(str).str.lower().fillna('') if col_r4 else pd.Series(['']*len(df_posiciones_filtradas))
                         
-                        todas_readiness = pd.concat([s1, s2, s3])
+                        todas_readiness = pd.concat([s1, s2, s3, s4])
                         r_inm = int(todas_readiness.str.contains('inmediato').sum())
                         r_1_3 = int(todas_readiness.str.contains('1 a 3').sum())
                         r_mas_3 = int(todas_readiness.str.contains('mas de 3|más de 3').sum())
@@ -1083,7 +1068,7 @@ def main():
                     if not df_posiciones_filtradas.empty:
                         col_suc = 'Sucesor P.1' if 'Sucesor P.1' in df_posiciones_filtradas.columns else 'Sucesor 1'
                         sucs = df_posiciones_filtradas[col_suc].fillna('').astype(str).str.strip().str.lower()
-                        invalid_sucs = ['pendiente', 'nan', 'none', '', 'no definido']
+                        invalid_sucs = ['pendiente', 'nan', 'none', '', 'no definido', 'sin sucesor identificado']
                         df_posiciones_filtradas['Tiene_Sucesor'] = (~sucs.isin(invalid_sucs)).astype(int)
                         total_criticas = len(df_posiciones_filtradas)
                         sucesores_definidos = df_posiciones_filtradas['Tiene_Sucesor'].sum()
@@ -1119,8 +1104,10 @@ def main():
                                 read2 = clean_text(r.get(col_r2, '')) if col_r2 else ''
                                 s3 = clean_text(r.get('Sucesor P.3', r.get('Sucesor 3', '')))
                                 read3 = clean_text(r.get(col_r3, '')) if col_r3 else ''
+                                s4 = clean_text(r.get('Sucesor P.4', r.get('Sucesor 4', '')))
+                                read4 = clean_text(r.get(col_r4, '')) if col_r4 else ''
                                 
-                                for suc, read in [(s1, read1), (s2, read2), (s3, read3)]:
+                                for suc, read in [(s1, read1), (s2, read2), (s3, read3), (s4, read4)]:
                                     rl = read.lower()
                                     if target_term1 in rl or target_term2 in rl:
                                         lista_sucesores.append({
@@ -1157,7 +1144,7 @@ def main():
                     
                     st.write("---")
                     st.markdown("#### 📥 Exportar Reporte de Sucesiones")
-                    cols_reporte = ['Nombre', 'Nombre de la Posición', 'Dirección', 'Nivel MLA', 'Resultado 9 box', 'Sucesor P.1', 'Tiempo de Readiness 1', 'Sucesor P.2', 'Tiempo de Readiness 2', 'Sucesor P.3', 'Tiempo de Readiness 3']
+                    cols_reporte = ['Nombre', 'Nombre de la Posición', 'Dirección', 'Nivel MLA', 'Resultado 9 box', 'Sucesor P.1', 'Tiempo de Readiness 1', 'Sucesor P.2', 'Tiempo de Readiness 2', 'Sucesor P.3', 'Tiempo de Readiness 3', 'Sucesor P.4', 'Tiempo de Readiness 4']
                     cols_existentes = [c for c in cols_reporte if c in df_posiciones_filtradas.columns]
                     
                     if not df_posiciones_filtradas.empty:
@@ -1382,6 +1369,9 @@ def main():
                         opciones_sucesores = ["Pendiente", "Sin sucesor identificado"] + nombres_empleados
                         opciones_tiempo = ["Pendiente", "Inmediato", "1 a 3 años", "Más de 3 años"]
                         
+                        ph_pos = "Ej. Menciona los logros recientes más destacados, fortalezas clave o competencias técnicas consolidadas..."
+                        ph_opo = "Ej. ¿Qué brechas de liderazgo, conocimientos técnicos o experiencia necesita cubrir para estar listo?"
+                        
                         def leer_campo(nombre_col):
                             col_match = next((c for c in info_pos.index if str(nombre_col).strip().lower() == str(c).strip().lower()), None)
                             val = info_pos[col_match] if col_match else ""
@@ -1390,29 +1380,33 @@ def main():
                         c_suc_emergencia = leer_campo('Sucesor de emergencia') or "Pendiente"
                         c_suc1 = leer_campo('Sucesor P.1') or "Pendiente"
                         c_read1 = leer_campo('Tiempo de Readiness 1') or "Pendiente"
-                        
                         c_pos1 = leer_campo('Positivo 1')
                         c_opo1 = leer_campo('Oportunidad 1')
                         
                         c_suc2 = leer_campo('Sucesor P.2') or "Pendiente"
                         c_read2 = leer_campo('Tiempo de Readiness 2') or "Pendiente"
-                        
                         c_pos2 = leer_campo('Positivo 2')
                         c_opo2 = leer_campo('Oportunidad 2')
                         
                         c_suc3 = leer_campo('Sucesor P.3') or "Pendiente"
                         c_read3 = leer_campo('Tiempo de Readiness 3') or "Pendiente"
-                        
                         c_pos3 = leer_campo('Positivo 3')
                         c_opo3 = leer_campo('Oportunidad 3')
+                        
+                        c_suc4 = leer_campo('Sucesor P.4') or "Pendiente"
+                        c_read4 = leer_campo('Tiempo de Readiness 4') or "Pendiente"
+                        c_pos4 = leer_campo('Positivo 4')
+                        c_opo4 = leer_campo('Oportunidad 4')
                         
                         if c_suc_emergencia not in opciones_sucesores: opciones_sucesores.append(c_suc_emergencia)
                         if c_suc1 not in opciones_sucesores: opciones_sucesores.append(c_suc1)
                         if c_suc2 not in opciones_sucesores: opciones_sucesores.append(c_suc2)
                         if c_suc3 not in opciones_sucesores: opciones_sucesores.append(c_suc3)
+                        if c_suc4 not in opciones_sucesores: opciones_sucesores.append(c_suc4)
                         if c_read1 not in opciones_tiempo: opciones_tiempo.append(c_read1)
                         if c_read2 not in opciones_tiempo: opciones_tiempo.append(c_read2)
                         if c_read3 not in opciones_tiempo: opciones_tiempo.append(c_read3)
+                        if c_read4 not in opciones_tiempo: opciones_tiempo.append(c_read4)
                         
                         st.write("")
                         st.markdown("#### 🚨 Cobertura de Emergencia")
@@ -1439,9 +1433,9 @@ def main():
                                 pdi_diag1 = diagnosticar_pdi_ia(n_suc1, pos_seleccionada, ficha1)
                                 if pdi_diag1 and pdi_diag1.get("estatus") == "SIN_PDI": st.warning(pdi_diag1['recomendacion'])
                                 elif pdi_diag1 and "color_borde" in pdi_diag1: st.markdown(f"<details style='background:{pdi_diag1['bg_color']}; border-left:4px solid {pdi_diag1['color_borde']}; padding:12px; border-radius:6px; cursor:pointer;'><summary style='font-weight:bold; font-size:15px; color:#1e293b; outline:none;'>🤖 Dictamen IA: {pdi_diag1['icono']} {pdi_diag1['titulo_estatus']}</summary><div style='margin-top:10px; font-size:14px; color:#334155; line-height:1.5;'>🎯 <b>Objetivo PDI:</b> {pdi_diag1['objetivo']} (Avance: <b>{pdi_diag1['avance']}</b>)<br><br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag1['recomendacion']}</div></details>", unsafe_allow_html=True)
-                            n_read1 = st.selectbox("Readiness 1", opciones_tiempo, index=opciones_tiempo.index(c_read1), key=f"select_read1_{pos_seleccionada}")
-                            n_pos1 = st.text_area("👍 Comentarios Positivos 1", value=c_pos1, height=68, key=f"t_pos1_{pos_seleccionada}")
-                            n_opo1 = st.text_area("📈 Áreas de Oportunidad 1", value=c_opo1, height=68, key=f"t_opo1_{pos_seleccionada}")
+                            n_read1 = st.radio("⏳ Readiness 1", opciones_tiempo, index=opciones_tiempo.index(c_read1), key=f"r_read1_{pos_seleccionada}", horizontal=True)
+                            n_pos1 = st.text_area("👍 Comentarios Positivos 1", value=c_pos1, height=80, key=f"t_pos1_{pos_seleccionada}", placeholder=ph_pos)
+                            n_opo1 = st.text_area("📈 Áreas de Oportunidad 1", value=c_opo1, height=80, key=f"t_opo1_{pos_seleccionada}", placeholder=ph_opo)
                             
                         with col2:
                             st.markdown("#### 🥈 Sucesor 2")
@@ -1455,9 +1449,9 @@ def main():
                                 pdi_diag2 = diagnosticar_pdi_ia(n_suc2, pos_seleccionada, ficha2)
                                 if pdi_diag2 and pdi_diag2.get("estatus") == "SIN_PDI": st.warning(pdi_diag2['recomendacion'])
                                 elif pdi_diag2 and "color_borde" in pdi_diag2: st.markdown(f"<details style='background:{pdi_diag2['bg_color']}; border-left:4px solid {pdi_diag2['color_borde']}; padding:12px; border-radius:6px; cursor:pointer;'><summary style='font-weight:bold; font-size:15px; color:#1e293b; outline:none;'>🤖 Dictamen IA: {pdi_diag2['icono']} {pdi_diag2['titulo_estatus']}</summary><div style='margin-top:10px; font-size:14px; color:#334155; line-height:1.5;'>🎯 <b>Objetivo PDI:</b> {pdi_diag2['objetivo']} (Avance: <b>{pdi_diag2['avance']}</b>)<br><br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag2['recomendacion']}</div></details>", unsafe_allow_html=True)
-                            n_read2 = st.selectbox("Readiness 2", opciones_tiempo, index=opciones_tiempo.index(c_read2), key=f"select_read2_{pos_seleccionada}")
-                            n_pos2 = st.text_area("👍 Comentarios Positivos 2", value=c_pos2, height=68, key=f"t_pos2_{pos_seleccionada}")
-                            n_opo2 = st.text_area("📈 Áreas de Oportunidad 2", value=c_opo2, height=68, key=f"t_opo2_{pos_seleccionada}")
+                            n_read2 = st.radio("⏳ Readiness 2", opciones_tiempo, index=opciones_tiempo.index(c_read2), key=f"r_read2_{pos_seleccionada}", horizontal=True)
+                            n_pos2 = st.text_area("👍 Comentarios Positivos 2", value=c_pos2, height=80, key=f"t_pos2_{pos_seleccionada}", placeholder=ph_pos)
+                            n_opo2 = st.text_area("📈 Áreas de Oportunidad 2", value=c_opo2, height=80, key=f"t_opo2_{pos_seleccionada}", placeholder=ph_opo)
                             
                         with col3:
                             st.markdown("#### 🥉 Sucesor 3")
@@ -1471,11 +1465,49 @@ def main():
                                 pdi_diag3 = diagnosticar_pdi_ia(n_suc3, pos_seleccionada, ficha3)
                                 if pdi_diag3 and pdi_diag3.get("estatus") == "SIN_PDI": st.warning(pdi_diag3['recomendacion'])
                                 elif pdi_diag3 and "color_borde" in pdi_diag3: st.markdown(f"<details style='background:{pdi_diag3['bg_color']}; border-left:4px solid {pdi_diag3['color_borde']}; padding:12px; border-radius:6px; cursor:pointer;'><summary style='font-weight:bold; font-size:15px; color:#1e293b; outline:none;'>🤖 Dictamen IA: {pdi_diag3['icono']} {pdi_diag3['titulo_estatus']}</summary><div style='margin-top:10px; font-size:14px; color:#334155; line-height:1.5;'>🎯 <b>Objetivo PDI:</b> {pdi_diag3['objetivo']} (Avance: <b>{pdi_diag3['avance']}</b>)<br><br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag3['recomendacion']}</div></details>", unsafe_allow_html=True)
-                            n_read3 = st.selectbox("Readiness 3", opciones_tiempo, index=opciones_tiempo.index(c_read3), key=f"select_read3_{pos_seleccionada}")
-                            n_pos3 = st.text_area("👍 Comentarios Positivos 3", value=c_pos3, height=68, key=f"t_pos3_{pos_seleccionada}")
-                            n_opo3 = st.text_area("📈 Áreas de Oportunidad 3", value=c_opo3, height=68, key=f"t_opo3_{pos_seleccionada}")
+                            n_read3 = st.radio("⏳ Readiness 3", opciones_tiempo, index=opciones_tiempo.index(c_read3), key=f"r_read3_{pos_seleccionada}", horizontal=True)
+                            n_pos3 = st.text_area("👍 Comentarios Positivos 3", value=c_pos3, height=80, key=f"t_pos3_{pos_seleccionada}", placeholder=ph_pos)
+                            n_opo3 = st.text_area("📈 Áreas de Oportunidad 3", value=c_opo3, height=80, key=f"t_opo3_{pos_seleccionada}", placeholder=ph_opo)
                         
                         st.write("---")
+                        
+                        mostrar_s4 = False
+                        if c_suc4 not in ["Pendiente", "", "Sin sucesor identificado", "Vacante / Sin asignar"]:
+                            mostrar_s4 = True
+                            
+                        if 'mostrar_s4_ui' not in st.session_state:
+                            st.session_state['mostrar_s4_ui'] = mostrar_s4
+
+                        if not st.session_state['mostrar_s4_ui']:
+                            if st.button("➕ Agregar 4to Candidato (Opcional)", use_container_width=True):
+                                st.session_state['mostrar_s4_ui'] = True
+                                st.rerun()
+                                
+                            n_suc4 = c_suc4
+                            n_read4 = c_read4
+                            n_pos4 = c_pos4
+                            n_opo4 = c_opo4
+                        else:
+                            st.markdown("#### 🏅 Sucesor 4 (Opcional)")
+                            col4_1, col4_2, col4_3 = st.columns([1, 2, 0.1]) 
+                            with col4_1:
+                                n_suc4 = st.selectbox("Candidato 4", opciones_sucesores, index=opciones_sucesores.index(c_suc4), key=f"select_suc4_{pos_seleccionada}")
+                                ficha4 = obtener_ficha_candidato(n_suc4)
+                                if ficha4 == "RESTRINGIDO_GLOBAL": st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
+                                elif ficha4 == "RESTRINGIDO_LIDER_CUENTA": st.error("🔒 Acceso Restringido")
+                                elif ficha4 == "RESTRINGIDO_LIDER": st.error("🔒 Modo Presentación")
+                                elif ficha4:
+                                    st.success(f"📊 **9-Box:** {ficha4['box']} | 🔥 **Enganche:** {ficha4['enganche']} | 📈 **EDR:** {ficha4['edr']}")
+                                    pdi_diag4 = diagnosticar_pdi_ia(n_suc4, pos_seleccionada, ficha4)
+                                    if pdi_diag4 and pdi_diag4.get("estatus") == "SIN_PDI": st.warning(pdi_diag4['recomendacion'])
+                                    elif pdi_diag4 and "color_borde" in pdi_diag4: st.markdown(f"<details style='background:{pdi_diag4['bg_color']}; border-left:4px solid {pdi_diag4['color_borde']}; padding:12px; border-radius:6px; cursor:pointer;'><summary style='font-weight:bold; font-size:15px; color:#1e293b; outline:none;'>🤖 Dictamen IA: {pdi_diag4['icono']} {pdi_diag4['titulo_estatus']}</summary><div style='margin-top:10px; font-size:14px; color:#334155; line-height:1.5;'>🎯 <b>Objetivo PDI:</b> {pdi_diag4['objetivo']} (Avance: <b>{pdi_diag4['avance']}</b>)<br><br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag4['recomendacion']}</div></details>", unsafe_allow_html=True)
+                                n_read4 = st.radio("⏳ Readiness 4", opciones_tiempo, index=opciones_tiempo.index(c_read4), key=f"r_read4_{pos_seleccionada}", horizontal=True)
+                            with col4_2:
+                                n_pos4 = st.text_area("👍 Comentarios Positivos 4", value=c_pos4, height=80, key=f"t_pos4_{pos_seleccionada}", placeholder=ph_pos)
+                                n_opo4 = st.text_area("📈 Áreas de Oportunidad 4", value=c_opo4, height=80, key=f"t_opo4_{pos_seleccionada}", placeholder=ph_opo)
+                            
+                            st.write("---")
+                        
                         st.markdown("#### 📋 Plan de Acción / Comentarios Adicionales")
                         st.info("Utiliza este espacio para justificar si no hay sucesores o detallar el plan a seguir.")
                         
@@ -1505,6 +1537,7 @@ def main():
                                         return None
                                     
                                     idx_emergencia = idx_col('Sucesor de emergencia')
+                                    
                                     idx_suc1 = idx_col('Sucesor P.1')
                                     idx_read1 = idx_col('Tiempo de Readiness 1')
                                     idx_pos1 = idx_col('Positivo 1')
@@ -1520,24 +1553,38 @@ def main():
                                     idx_pos3 = idx_col('Positivo 3')
                                     idx_opo3 = idx_col('Oportunidad 3')
                                     
+                                    idx_suc4 = idx_col('Sucesor P.4')
+                                    idx_read4 = idx_col('Tiempo de Readiness 4')
+                                    idx_pos4 = idx_col('Positivo 4')
+                                    idx_opo4 = idx_col('Oportunidad 4')
+                                    
                                     idx_plan_accion = idx_col('Plan de Acción')
                                     
                                     for idx_p in df_ocupantes.index:
                                         idx_excel = idx_p + 2 
                                         
                                         if idx_emergencia: pestana.update_cell(idx_excel, idx_emergencia, "Pendiente" if n_suc_emergencia == "Pendiente" else n_suc_emergencia)
+                                        
                                         if idx_suc1: pestana.update_cell(idx_excel, idx_suc1, "Pendiente" if n_suc1 == "Pendiente" else n_suc1)
                                         if idx_read1: pestana.update_cell(idx_excel, idx_read1, "Pendiente" if n_read1 == "Pendiente" else n_read1)
                                         if idx_pos1: pestana.update_cell(idx_excel, idx_pos1, n_pos1)
                                         if idx_opo1: pestana.update_cell(idx_excel, idx_opo1, n_opo1)
+                                        
                                         if idx_suc2: pestana.update_cell(idx_excel, idx_suc2, "Pendiente" if n_suc2 == "Pendiente" else n_suc2)
                                         if idx_read2: pestana.update_cell(idx_excel, idx_read2, "Pendiente" if n_read2 == "Pendiente" else n_read2)
                                         if idx_pos2: pestana.update_cell(idx_excel, idx_pos2, n_pos2)
                                         if idx_opo2: pestana.update_cell(idx_excel, idx_opo2, n_opo2)
+                                        
                                         if idx_suc3: pestana.update_cell(idx_excel, idx_suc3, "Pendiente" if n_suc3 == "Pendiente" else n_suc3)
                                         if idx_read3: pestana.update_cell(idx_excel, idx_read3, "Pendiente" if n_read3 == "Pendiente" else n_read3)
                                         if idx_pos3: pestana.update_cell(idx_excel, idx_pos3, n_pos3)
                                         if idx_opo3: pestana.update_cell(idx_excel, idx_opo3, n_opo3)
+                                        
+                                        if idx_suc4: pestana.update_cell(idx_excel, idx_suc4, "Pendiente" if n_suc4 == "Pendiente" else n_suc4)
+                                        if idx_read4: pestana.update_cell(idx_excel, idx_read4, "Pendiente" if n_read4 == "Pendiente" else n_read4)
+                                        if idx_pos4: pestana.update_cell(idx_excel, idx_pos4, n_pos4)
+                                        if idx_opo4: pestana.update_cell(idx_excel, idx_opo4, n_opo4)
+                                        
                                         if idx_plan_accion: pestana.update_cell(idx_excel, idx_plan_accion, n_plan_accion)
                                         
                                         time.sleep(0.5) 
@@ -1599,7 +1646,6 @@ def main():
                             if col_acc_tabla:
                                 df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar[col_acc_tabla].astype(str).str.strip() != ""]
                                 
-                            # --- LÓGICA DE KPIs (Matemática Pura y Promedios) ---
                             total_acciones = len(df_pdi_mostrar)
                             col_pdi_kpi = next((c for c in df_pdi_mostrar.columns if 'PDI (70/20/10)' == c), None)
                             col_av_tabla = next((c for c in df_pdi_mostrar.columns if 'Avance' in c), None)
@@ -1625,7 +1671,6 @@ def main():
                             st.markdown("#### 📊 Análisis Global del Modelo 70-20-10")
                             pk1, pk2, pk3, pk4, pk5 = st.columns(5)
                             
-                            # Opción A: Botones nativos gigantes e interactivos
                             with pk1:
                                 if st.button(f"📊 Total Acciones\n\n{total_acciones}", key="b_pdi_todas", use_container_width=True): 
                                     st.session_state['filtro_pdi_cat'] = 'todas'
@@ -1651,7 +1696,6 @@ def main():
                                     
                             st.write("---")
                             
-                            # INTERACTIVIDAD: Aplicar el filtro a la tabla si el usuario hizo clic en los KPIs
                             if 'filtro_pdi_cat' in st.session_state and st.session_state['filtro_pdi_cat'] not in ['todas', None]:
                                 f_cat = st.session_state['filtro_pdi_cat']
                                 if col_pdi_kpi:
