@@ -829,8 +829,9 @@ def main():
             df_pdi['Nombre'] = df_pdi['Nombre'].astype(str).str.strip()
             df_pdi['Nombre_Cruce'] = df_pdi['Nombre'].str.lower()
             
-        direccion_permitida = st.session_state.get("direccion_permitida", "TODAS")
-        es_colaborador = (direccion_permitida.strip().upper() == "COLABORADOR")
+        # --- LÓGICA DE PERMISOS MULTISELECCIONABLES ---
+        direccion_permitida = str(st.session_state.get("direccion_permitida", "TODAS")).strip().upper()
+        es_colaborador = ("COLABORADOR" in direccion_permitida)
         
         if st.session_state["id_usuario"] != "admin" and not es_colaborador:
             st.session_state["lider_permitido"] = st.session_state["nombre_usuario"]
@@ -841,8 +842,10 @@ def main():
             renderizar_mi_pdi(df_completo, df_pdi)
                                 
         else:
-            if direccion_permitida != "TODAS":
-                df_seguro = df_completo[(df_completo['Dirección'].astype(str).str.upper().str.contains(direccion_permitida)) | (df_completo['Nivel MLA'].astype(str).str.strip() == '5')]
+            if "TODAS" not in direccion_permitida:
+                lista_dirs = [d.strip() for d in direccion_permitida.split(",")]
+                mask_dir = df_completo['Dirección'].astype(str).str.upper().apply(lambda d_val: any(d in d_val for d in lista_dirs))
+                df_seguro = df_completo[mask_dir | (df_completo['Nivel MLA'].astype(str).str.strip() == '5')]
             else:
                 df_seguro = df_completo.copy()
                 
@@ -981,7 +984,7 @@ def main():
                             df_lista = pd.DataFrame(kpis[f"data_{vista}"])
                             if not df_lista.empty:
                                 if vista == "alertas": df_lista = df_lista.drop_duplicates(subset=["Nombre", "Alerta"]).reset_index(drop=True)
-                                if direccion_permitida != "TODAS" and "Dirección" in df_lista.columns: df_lista = df_lista.drop(columns=["Dirección"])
+                                if "TODAS" not in direccion_permitida and "Dirección" in df_lista.columns: df_lista = df_lista.drop(columns=["Dirección"])
                                 st.dataframe(df_lista, use_container_width=True, hide_index=True)
                             else: st.info("No hay registros en esta categoría.")
                             if st.button("❌ Cerrar Lista", use_container_width=True): st.session_state["vista_kpi"] = None; st.rerun()
@@ -1182,7 +1185,10 @@ def main():
                         row_c = match_colab.iloc[0]
                         dir_candidato = clean_text(row_c.get('Dirección', row_c.get('Direccion')), 'No asignada')
                         
-                        if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in dir_candidato.upper()): return "RESTRINGIDO_GLOBAL"
+                        if "TODAS" not in direccion_permitida:
+                            lista_dirs_perm = [d.strip() for d in direccion_permitida.split(",")]
+                            if not any(d in dir_candidato.upper() for d in lista_dirs_perm):
+                                return "RESTRINGIDO_GLOBAL"
                         
                         if st.session_state.get('lider_permitido', "TODOS") != "TODOS":
                             if nombre_cand.strip().lower() not in st.session_state['nombres_permitidos_limpios']:
@@ -1365,7 +1371,7 @@ def main():
                                     if sugerencias:
                                         items_html = ""
                                         for s in sugerencias:
-                                            if direccion_permitida != "TODAS" and not (direccion_permitida.upper() in s['direccion'].upper()): info_vis = "🔒 <i>Detalles confidenciales (Otra Dirección)</i>"
+                                            if "TODAS" not in direccion_permitida and not any(d in s['direccion'].upper() for d in [d.strip() for d in direccion_permitida.split(",")]): info_vis = "🔒 <i>Detalles confidenciales (Otra Dirección)</i>"
                                             elif st.session_state.get('lider_permitido', "TODOS") != "TODOS" and s['nombre'].strip().lower() not in st.session_state['nombres_permitidos_limpios']: info_vis = "🔒 <i>Detalles confidenciales (Usuario Limitado por Cuenta)</i>"
                                             elif f_lid_plan != "Todos" and s['nombre'].strip().lower() not in [str(x).strip().lower() for x in subordinados_permitidos]: info_vis = "🔒 <i>Detalles confidenciales (Modo Presentación Activo)</i>"
                                             else: info_vis = f"📌 Puesto Actual: <b>{s['puesto']}</b> | 📊 9-Box: <b>{s['box']}</b>"
@@ -1388,7 +1394,6 @@ def main():
 
                         c_suc_emergencia = leer_campo('Sucesor de emergencia') or "Pendiente"
                         
-                        # Extraer dinámicamente hasta 5 sucesores
                         c_sucs = []
                         c_reads = []
                         c_pos = []
@@ -1416,7 +1421,6 @@ def main():
                         
                         st.write("---")
                         
-                        # --- LÓGICA DE CONTADOR DINÁMICO (HASTA 5) ---
                         k_state = f'num_sucs_{pos_seleccionada}'
                         if k_state not in st.session_state:
                             if c_sucs[4] not in ["Pendiente", "", "Sin sucesor identificado", "Vacante / Sin asignar"]: st.session_state[k_state] = 5
@@ -1439,13 +1443,11 @@ def main():
                                 
                         st.write("")
                         
-                        # Arrays para guardar las variables de entrada de los 5 posibles sucesores
                         n_sucs = c_sucs.copy()
                         n_reads = c_reads.copy()
                         n_pos_inputs = c_pos.copy()
                         n_opo_inputs = c_opos.copy()
 
-                        # CARRUSEL HORIZONTAL
                         cols_sucs = st.columns(num_sucs)
                         
                         for i in range(num_sucs):
@@ -1670,18 +1672,31 @@ def main():
                         
                         with st.form("nuevo_usuario_form", clear_on_submit=True):
                             st.markdown("#### Agregar Nuevo Perfil")
-                            n_user = st.text_input("ID de Usuario / Número de Nómina (ej. 10145)")
-                            n_nombre = st.text_input("Nombre / Título del Perfil (ej. Director de Marketing)")
-                            n_pass = st.text_input(f"Contraseña temporal (Sugerencia: {PASSWORD_POR_DEFECTO})")
-                            n_dir = st.selectbox("Dirección Permitida (Elige 'TODAS' para RH o Dirección General, o 'COLABORADOR' para autogestión de PDI)", ["TODAS", "COLABORADOR"] + dirs)
+                            
+                            lista_empleados_busqueda = []
+                            for _, r in df_completo.iterrows():
+                                nom = clean_id(r.get('id Empleado'))
+                                nombre = clean_text(r.get('Nombre'))
+                                if nom and nombre:
+                                    lista_empleados_busqueda.append(f"{nom} - {nombre}")
+                            lista_empleados_busqueda = sorted(list(set(lista_empleados_busqueda)))
+                            
+                            seleccion_empleado = st.selectbox("🔍 Buscar colaborador (Por Número de Nómina o Nombre)", [""] + lista_empleados_busqueda)
+                            
+                            n_pass = st.text_input(f"Contraseña temporal (Sugerencia: {PASSWORD_POR_DEFECTO})", value=PASSWORD_POR_DEFECTO)
+                            n_dir_list = st.multiselect("🏢 Direcciones Permitidas (Elige 'TODAS', 'COLABORADOR' o múltiples áreas)", ["TODAS", "COLABORADOR"] + dirs)
                             
                             lideres_para_admin = sorted(df_completo['Nombre'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
-                            n_lider = st.selectbox("Líder Restringido (Elige 'TODOS' para ver toda el área, o un nombre para limitar la cuenta a un Gerente)", ["TODOS"] + lideres_para_admin)
+                            n_lider = st.selectbox("👤 Líder Restringido (Filtro por jerarquía de equipo)", ["TODOS"] + lideres_para_admin)
                             
                             submit_btn = st.form_submit_button("Crear Nuevo Usuario")
                             
                             if submit_btn:
-                                if n_user and n_pass and n_nombre:
+                                if seleccion_empleado and n_pass and n_dir_list:
+                                    n_user = seleccion_empleado.split(" - ")[0].strip()
+                                    n_nombre = seleccion_empleado.split(" - ")[1].strip()
+                                    n_dir = ", ".join(n_dir_list)
+                                    
                                     with st.spinner("🤖 Escribiendo usuario en Google Sheets..."):
                                         try:
                                             secretos = st.secrets["connections"]["gsheets"]
@@ -1696,14 +1711,14 @@ def main():
                                             
                                             archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
                                             
-                                            st.success(f"✅ ¡Usuario '{n_user}' creado exitosamente! Ya puede iniciar sesión.")
+                                            st.success(f"✅ ¡Usuario '{n_nombre}' ({n_user}) creado exitosamente! Ya puede iniciar sesión.")
                                             st.cache_data.clear()
-                                            time.sleep(1)
+                                            time.sleep(1.5)
                                             st.rerun()
                                         except Exception as e:
                                             st.error(f"❌ Error al crear el usuario. Asegúrate de que la pestaña 'Usuarios' tenga 5 columnas en la fila 1 (Usuario, Nombre, Password, Direccion, Lider Restringido). Detalles: {e}")
                                 else:
-                                    st.warning("⚠️ Debes llenar todos los campos (ID, Nombre y Contraseña) para crear el usuario.")
+                                    st.warning("⚠️ Debes seleccionar un colaborador y al menos una Dirección Permitida para crear el usuario.")
                                     
                         st.write("---")
                         st.markdown("#### 👥 Usuarios Actuales en Base de Datos")
