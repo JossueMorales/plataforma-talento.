@@ -805,7 +805,7 @@ def main():
             while j and j in estatus_global:
                 if j in vis: break
                 vis.add(j)
-                if estatus_global[j] not in ['baja']: 
+                if estatus_global[j] not in ['baja', 'vacante']: 
                     return j
                 j = jefe_orig_global.get(j)
             return j
@@ -829,7 +829,6 @@ def main():
             df_pdi['Nombre'] = df_pdi['Nombre'].astype(str).str.strip()
             df_pdi['Nombre_Cruce'] = df_pdi['Nombre'].str.lower()
             
-        # --- LÓGICA DE PERMISOS MULTISELECCIONABLES ---
         direccion_permitida = str(st.session_state.get("direccion_permitida", "TODAS")).strip().upper()
         es_colaborador = ("COLABORADOR" in direccion_permitida)
         
