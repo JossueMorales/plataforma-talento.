@@ -829,12 +829,10 @@ def main():
             df_pdi['Nombre'] = df_pdi['Nombre'].astype(str).str.strip()
             df_pdi['Nombre_Cruce'] = df_pdi['Nombre'].str.lower()
             
+        # --- LÓGICA DE PERMISOS MULTISELECCIONABLES ---
         direccion_permitida = str(st.session_state.get("direccion_permitida", "TODAS")).strip().upper()
         es_colaborador = ("COLABORADOR" in direccion_permitida)
         
-        if st.session_state["id_usuario"] != "admin" and not es_colaborador:
-            st.session_state["lider_permitido"] = st.session_state["nombre_usuario"]
-            
         lider_permitido = st.session_state.get("lider_permitido", "TODOS")
         
         if es_colaborador:
