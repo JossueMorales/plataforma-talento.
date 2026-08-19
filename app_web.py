@@ -829,10 +829,11 @@ def main():
             df_pdi['Nombre'] = df_pdi['Nombre'].astype(str).str.strip()
             df_pdi['Nombre_Cruce'] = df_pdi['Nombre'].str.lower()
             
+        # --- LÓGICA DE PERMISOS MULTISELECCIONABLES ---
         direccion_permitida = str(st.session_state.get("direccion_permitida", "TODAS")).strip().upper()
         es_colaborador = ("COLABORADOR" in direccion_permitida)
         
-        lider_permitido = st.session_state.get("lider_permitido", "TODOS")
+        lider_permitido_str = str(st.session_state.get("lider_permitido", "TODOS")).strip()
         
         if es_colaborador:
             renderizar_mi_pdi(df_completo, df_pdi)
@@ -845,7 +846,8 @@ def main():
             else:
                 df_seguro = df_completo.copy()
                 
-            if lider_permitido != "TODOS" and lider_permitido != "":
+            if lider_permitido_str.upper() != "TODOS" and lider_permitido_str != "":
+                lista_lideres_perm = [l.strip().lower() for l in lider_permitido_str.split(",")]
                 dict_nom_global = {clean_id(r.get('id Empleado')): clean_text(r.get('Nombre')) for r in df_completo.to_dict('records')}
                 jerarquia_global = {}
                 for j, e in zip(df_completo['ID Del Jefe'].astype(str).str.strip(), df_completo['id Empleado'].astype(str).str.strip()):
@@ -854,18 +856,17 @@ def main():
                     if j not in jerarquia_global: jerarquia_global[j] = []
                     jerarquia_global[j].append(e)
 
-                lider_id_global = None
+                lideres_ids_global = []
                 for idx, nom in dict_nom_global.items():
-                    if lider_permitido.strip().lower() in str(nom).strip().lower():
-                        lider_id_global = idx
-                        break
+                    if str(nom).strip().lower() in lista_lideres_perm:
+                        lideres_ids_global.append(idx)
                 
-                if not lider_id_global and lider_permitido.strip().lower() == st.session_state["nombre_usuario"].strip().lower():
-                    lider_id_global = clean_id(st.session_state["id_usuario"])
+                if not lideres_ids_global and lider_permitido_str.lower() == st.session_state["nombre_usuario"].strip().lower():
+                    lideres_ids_global.append(clean_id(st.session_state["id_usuario"]))
                 
                 subs_globales = set()
-                if lider_id_global:
-                    cola = [lider_id_global]
+                for l_id in lideres_ids_global:
+                    cola = [l_id]
                     while cola:
                         actual = cola.pop(0)
                         directos = jerarquia_global.get(actual, [])
@@ -873,9 +874,7 @@ def main():
                             if d and d not in subs_globales:
                                 subs_globales.add(d)
                                 cola.append(d)
-                
-                if lider_id_global:
-                    subs_globales.add(lider_id_global)
+                    subs_globales.add(l_id)
                 
                 nombres_permitidos_limpios = [str(dict_nom_global.get(s)).strip().lower() for s in subs_globales if s in dict_nom_global]
                 
@@ -1697,7 +1696,7 @@ def main():
                                 n_dir_list = st.multiselect("🏢 Direcciones Permitidas (Elige 'TODAS', 'COLABORADOR' o múltiples áreas)", ["TODAS", "COLABORADOR"] + dirs)
                                 
                                 lideres_para_admin = sorted(df_completo['Nombre'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
-                                n_lider = st.selectbox("👤 Líder Restringido (Filtro por jerarquía de equipo)", ["TODOS"] + lideres_para_admin)
+                                n_lider_list = st.multiselect("👤 Líder Restringido (Filtro por jerarquía de equipo)", ["TODOS"] + lideres_para_admin, default=["TODOS"])
                                 
                                 submit_btn = st.form_submit_button("Crear Nuevo Usuario")
                                 
@@ -1706,6 +1705,7 @@ def main():
                                         n_user = seleccion_empleado.split(" - ")[0].strip()
                                         n_nombre = seleccion_empleado.split(" - ")[1].strip()
                                         n_dir = ", ".join(n_dir_list)
+                                        n_lider = ", ".join(n_lider_list) if n_lider_list else "TODOS"
                                         
                                         with st.spinner("🤖 Escribiendo usuario en Google Sheets..."):
                                             try:
@@ -1753,14 +1753,17 @@ def main():
                                     opciones_dir = ["TODAS", "COLABORADOR"] + dirs
                                     c_dir_list_valid = [d for d in c_dir_list if d in opciones_dir]
                                     
+                                    c_lid_list = [l.strip() for l in c_lid.split(",")] if c_lid else ["TODOS"]
+                                    lideres_para_admin = sorted(df_completo['Nombre'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
+                                    opciones_lid = ["TODOS"] + lideres_para_admin
+                                    c_lid_list_valid = [l for l in c_lid_list if l in opciones_lid]
+                                    if not c_lid_list_valid: c_lid_list_valid = ["TODOS"]
+                                    
                                     with st.form("editar_usuario_form"):
                                         st.markdown(f"#### Editando a: {usuario_a_editar.split(' - ')[1]}")
                                         e_pass = st.text_input("Contraseña", value=c_pass)
                                         e_dir_list = st.multiselect("🏢 Direcciones Permitidas", opciones_dir, default=c_dir_list_valid)
-                                        
-                                        lideres_para_admin = sorted(df_completo['Nombre'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
-                                        idx_lid = (["TODOS"] + lideres_para_admin).index(c_lid) if c_lid in (["TODOS"] + lideres_para_admin) else 0
-                                        e_lider = st.selectbox("👤 Líder Restringido (Filtro por jerarquía de equipo)", ["TODOS"] + lideres_para_admin, index=idx_lid)
+                                        e_lider_list = st.multiselect("👤 Líder Restringido (Filtro por jerarquía de equipo)", opciones_lid, default=c_lid_list_valid)
                                         
                                         col_b1, col_b2 = st.columns(2)
                                         btn_actualizar = col_b1.form_submit_button("💾 Actualizar Permisos", type="primary", use_container_width=True)
@@ -1769,6 +1772,7 @@ def main():
                                         if btn_actualizar:
                                             if e_dir_list:
                                                 e_dir_str = ", ".join(e_dir_list)
+                                                e_lider_str = ", ".join(e_lider_list) if e_lider_list else "TODOS"
                                                 with st.spinner("🤖 Actualizando usuario en Google Sheets..."):
                                                     try:
                                                         secretos = st.secrets["connections"]["gsheets"]
@@ -1785,7 +1789,7 @@ def main():
                                                             fila_usuario = usuarios_col.index(u_id_sel) + 1
                                                             pestana_users.update_cell(fila_usuario, 3, e_pass)
                                                             pestana_users.update_cell(fila_usuario, 4, e_dir_str)
-                                                            pestana_users.update_cell(fila_usuario, 5, e_lider)
+                                                            pestana_users.update_cell(fila_usuario, 5, e_lider_str)
                                                             
                                                             archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
                                                             st.cache_data.clear()
