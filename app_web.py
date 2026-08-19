@@ -850,12 +850,20 @@ def main():
                 dict_nom_global = {clean_id(r.get('id Empleado')): clean_text(r.get('Nombre')) for r in df_completo.to_dict('records')}
                 jerarquia_global = {}
                 for j, e in zip(df_completo['ID Del Jefe'].astype(str).str.strip(), df_completo['id Empleado'].astype(str).str.strip()):
-                    j = j[:-2] if j.endswith('.0') else j
-                    e = e[:-2] if e.endswith('.0') else e
+                    j = clean_id(j)
+                    e = clean_id(e)
                     if j not in jerarquia_global: jerarquia_global[j] = []
                     jerarquia_global[j].append(e)
 
-                lider_id_global = next((i for i, n in dict_nom_global.items() if str(n).strip().lower() == lider_permitido.strip().lower()), None)
+                # Búsqueda robusta por coincidencia de nombre o asignación directa de ID
+                lider_id_global = None
+                for idx, nom in dict_nom_global.items():
+                    if lider_permitido.strip().lower() in str(nom).strip().lower():
+                        lider_id_global = idx
+                        break
+                
+                if not lider_id_global and lider_permitido.strip().lower() == st.session_state["nombre_usuario"].strip().lower():
+                    lider_id_global = clean_id(st.session_state["id_usuario"])
                 
                 subs_globales = set()
                 if lider_id_global:
@@ -868,9 +876,10 @@ def main():
                                 subs_globales.add(d)
                                 cola.append(d)
                 
-                nombres_permitidos = [dict_nom_global.get(s) for s in subs_globales if s in dict_nom_global]
-                nombres_permitidos.append(lider_permitido)
-                nombres_permitidos_limpios = [str(n).strip().lower() for n in nombres_permitidos if n]
+                if lider_id_global:
+                    subs_globales.add(lider_id_global)
+                
+                nombres_permitidos_limpios = [str(dict_nom_global.get(s)).strip().lower() for s in subs_globales if s in dict_nom_global]
                 
                 df_seguro = df_seguro[df_seguro['Nombre_Cruce'].isin(nombres_permitidos_limpios)]
                 st.session_state['nombres_permitidos_limpios'] = nombres_permitidos_limpios
