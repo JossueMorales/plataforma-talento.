@@ -446,7 +446,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         'alertas': len(alertas_tabla), 'enganche_promedio': avg_enganche, 'edr_count': len(data_edr), 'operativos': len(data_operativos),
         'data_total': data_total, 'data_sucesores': data_sucesores, 'data_nueve_box': data_nueve_box, 'data_operativos': data_operativos,
         'data_alertas': [{"Nombre": a['Colaborador'], "Dirección": a['Dirección'], "Puesto": a['Puesto'], "Alerta": a['Alerta Detectada por IA']} for a in alertas_tabla],
-        'data_enganche': data_enganche, 'data_edr': data_edr
+        'data_enganche': data_enganche, 'data_edr': data_edr,
+        'nodos_visibles_ids': list(nodos_visibles)
     }
     
     if not renderizar_mapa:
@@ -846,16 +847,17 @@ def main():
             else:
                 df_seguro = df_completo.copy()
                 
+            dict_nom_global = {clean_id(r.get('id Empleado')): clean_text(r.get('Nombre')) for r in df_completo.to_dict('records')}
+            jerarquia_global = {}
+            for j, e in zip(df_completo['ID Del Jefe'].astype(str).str.strip(), df_completo['id Empleado'].astype(str).str.strip()):
+                j = clean_id(j)
+                e = clean_id(e)
+                if j not in jerarquia_global: jerarquia_global[j] = []
+                jerarquia_global[j].append(e)
+
             if lider_permitido_str.upper() != "TODOS" and lider_permitido_str != "":
                 lista_lideres_perm = [l.strip().lower() for l in lider_permitido_str.split(",")]
-                dict_nom_global = {clean_id(r.get('id Empleado')): clean_text(r.get('Nombre')) for r in df_completo.to_dict('records')}
-                jerarquia_global = {}
-                for j, e in zip(df_completo['ID Del Jefe'].astype(str).str.strip(), df_completo['id Empleado'].astype(str).str.strip()):
-                    j = clean_id(j)
-                    e = clean_id(e)
-                    if j not in jerarquia_global: jerarquia_global[j] = []
-                    jerarquia_global[j].append(e)
-
+                
                 lideres_ids_global = []
                 for idx, nom in dict_nom_global.items():
                     if str(nom).strip().lower() in lista_lideres_perm:
@@ -876,9 +878,10 @@ def main():
                                 cola.append(d)
                     subs_globales.add(l_id)
                 
-                nombres_permitidos_limpios = [str(dict_nom_global.get(s)).strip().lower() for s in subs_globales if s in dict_nom_global]
+                df_seguro['id_clean'] = df_seguro['id Empleado'].apply(clean_id)
+                df_seguro = df_seguro[df_seguro['id_clean'].isin(subs_globales)]
                 
-                df_seguro = df_seguro[df_seguro['Nombre_Cruce'].isin(nombres_permitidos_limpios)]
+                nombres_permitidos_limpios = [str(dict_nom_global.get(s)).strip().lower() for s in subs_globales if s in dict_nom_global and str(dict_nom_global.get(s)).strip() != '']
                 st.session_state['nombres_permitidos_limpios'] = nombres_permitidos_limpios
             else:
                 st.session_state['nombres_permitidos_limpios'] = []
@@ -912,11 +915,10 @@ def main():
             col_f1, col_f2, col_f3, col_f4, col_f5, col_f6 = st.columns(6)
             f_dir = col_f1.selectbox("Dirección", ["Todas"] + dirs)
             
-            dict_nom = {clean_id(r.get('id Empleado')): r.get('Nombre') for r in df_seguro.to_dict('records')}
             if f_dir != "Todas": lideres_ids = df_filtros[df_filtros['Dirección'].astype(str).str.strip() == f_dir]['ID Del Jefe'].dropna().unique()
             else: lideres_ids = df_filtros['ID Del Jefe'].dropna().unique()
                 
-            lideres = sorted(list(set([dict_nom.get(clean_id(x), "Sin Líder") for x in lideres_ids if clean_id(x)])))
+            lideres = sorted(list(set([dict_nom_global.get(clean_id(x), "Sin Líder") for x in lideres_ids if clean_id(x)])))
             
             f_lid = col_f2.selectbox("Líder", ["Todos"] + lideres)
             f_crit = col_f3.selectbox("Pos. Crítica", ["Todas"] + criticas)
@@ -998,41 +1000,34 @@ def main():
                     st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
                     st.info("🔒 **Modo Presentación:** Selecciona a un líder aquí para limitar las posiciones críticas disponibles exclusivamente a su equipo. Útil para evitar fugas de información confidencial.")
                     
-                    lideres_totales = sorted(list(set([dict_nom.get(clean_id(x), "Sin Líder") for x in df_seguro['ID Del Jefe'].dropna().unique() if clean_id(x)])))
+                    lideres_totales = sorted(list(set([dict_nom_global.get(clean_id(x), "Sin Líder") for x in df_seguro['ID Del Jefe'].dropna().unique() if clean_id(x)])))
                     f_lid_plan = st.selectbox("👤 Líder a revisar (Modo Privado):", ["Todos"] + lideres_totales, key="modo_pres_lider")
                     
-                    jerarquia_rapida = {}
-                    for j, e in zip(df_seguro['ID Del Jefe'].astype(str).str.strip(), df_seguro['id Empleado'].astype(str).str.strip()):
-                        j = j[:-2] if j.endswith('.0') else j
-                        e = e[:-2] if e.endswith('.0') else e
-                        if j not in jerarquia_rapida: jerarquia_rapida[j] = []
-                        jerarquia_rapida[j].append(e)
-
-                    def obtener_subordinados(lider_nombre):
-                        lider_id = next((i for i, n in dict_nom.items() if n == lider_nombre), None)
+                    def obtener_subordinados_ids(lider_nombre):
+                        lider_id = next((i for i, n in dict_nom_global.items() if n == lider_nombre), None)
                         if not lider_id: return set()
                         subs = set(); cola = [lider_id]
                         while cola:
                             actual = cola.pop(0)
-                            directos = jerarquia_rapida.get(actual, [])
+                            directos = jerarquia_global.get(actual, [])
                             for d in directos:
                                 if d and d not in subs: subs.add(d); cola.append(d)
-                        return set([dict_nom.get(s) for s in subs if s in dict_nom])
-                    
-                    subordinados_permitidos = None
-                    if f_lid_plan != "Todos":
-                        subordinados_permitidos = obtener_subordinados(f_lid_plan)
-                        subordinados_permitidos.add(f_lid_plan) 
-                    
-                    nombres_visibles_limpios = [str(d['Nombre']).strip().lower() for d in kpis['data_total']]
+                        return subs
                     
                     df_posiciones_filtradas = df_seguro.copy()
+                    df_posiciones_filtradas['id_clean'] = df_posiciones_filtradas['id Empleado'].apply(clean_id)
                     
+                    subordinados_nombres_limpios = []
                     if f_lid_plan != "Todos":
-                        sub_limpios = [str(x).strip().lower() for x in subordinados_permitidos]
-                        df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Nombre_Cruce'].isin(sub_limpios)]
+                        sub_ids = obtener_subordinados_ids(f_lid_plan)
+                        lider_id = next((i for i, n in dict_nom_global.items() if n == f_lid_plan), None)
+                        if lider_id: sub_ids.add(lider_id)
+                        df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['id_clean'].isin(sub_ids)]
+                        
+                        subordinados_nombres_limpios = [str(dict_nom_global.get(s)).strip().lower() for s in sub_ids if s in dict_nom_global and str(dict_nom_global.get(s)).strip() != '']
                     else:
-                        df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Nombre_Cruce'].isin(nombres_visibles_limpios)]
+                        nodos_visibles_ids = kpis.get('nodos_visibles_ids', [])
+                        df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['id_clean'].isin(nodos_visibles_ids)]
                         
                     df_posiciones_filtradas = df_posiciones_filtradas[
                         (df_posiciones_filtradas['Posición Crítica'].astype(str).str.strip().str.lower() == 'si') &
@@ -1198,8 +1193,7 @@ def main():
                                 return "RESTRINGIDO_LIDER_CUENTA"
                                 
                         if f_lid_plan != "Todos":
-                            sub_limpios_lider = [str(x).strip().lower() for x in subordinados_permitidos]
-                            if nombre_cand.strip().lower() not in sub_limpios_lider: return "RESTRINGIDO_LIDER"
+                            if nombre_cand.strip().lower() not in subordinados_nombres_limpios: return "RESTRINGIDO_LIDER"
                                 
                         puesto_actual = clean_text(row_c.get('Nombre de la Posición'), 'Puesto no asignado')
                         box_c = clean_text(row_c.get('Resultado 9 box'), 'Pendiente')
@@ -1302,7 +1296,7 @@ def main():
                             match = df_db[df_db['Nombre_Cruce'] == nombre_cand.strip().lower()]
                             if match.empty: st.warning("Colaborador no encontrado en la base."); return
                             row = match.iloc[0]
-                            def get_nom(val): return dict_nom.get(clean_id(val), val)
+                            def get_nom(val): return dict_nom_global.get(clean_id(val), val)
                             
                             puesto = clean_text(row.get('Nombre de la Posición', 'N/A'))
                             lider = get_nom(row.get('ID Del Jefe', ''))
@@ -1376,7 +1370,7 @@ def main():
                                         for s in sugerencias:
                                             if "TODAS" not in direccion_permitida and not any(d in s['direccion'].upper() for d in [d.strip() for d in direccion_permitida.split(",")]): info_vis = "🔒 <i>Detalles confidenciales (Otra Dirección)</i>"
                                             elif st.session_state.get('lider_permitido', "TODOS") != "TODOS" and s['nombre'].strip().lower() not in st.session_state['nombres_permitidos_limpios']: info_vis = "🔒 <i>Detalles confidenciales (Usuario Limitado por Cuenta)</i>"
-                                            elif f_lid_plan != "Todos" and s['nombre'].strip().lower() not in [str(x).strip().lower() for x in subordinados_permitidos]: info_vis = "🔒 <i>Detalles confidenciales (Modo Presentación Activo)</i>"
+                                            elif f_lid_plan != "Todos" and s['nombre'].strip().lower() not in subordinados_nombres_limpios: info_vis = "🔒 <i>Detalles confidenciales (Modo Presentación Activo)</i>"
                                             else: info_vis = f"📌 Puesto Actual: <b>{s['puesto']}</b> | 📊 9-Box: <b>{s['box']}</b>"
                                             items_html += f"<li>👤 <b>{s['nombre']}</b> — {info_vis}<br><span style='color:#0369a1;'>💡 {s['razon']}</span></li>"
                                         st.markdown(f"""<div style="background:#e0f2fe; border-left:5px solid #0284c7; padding:12px; border-radius:8px; margin-bottom:5px; font-size:13px; color:#0f172a;"><ul style="margin:8px 0 0 0; padding-left:20px; line-height:1.5;">{items_html}</ul></div>""", unsafe_allow_html=True)
