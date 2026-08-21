@@ -1535,8 +1535,7 @@ def main():
                         df_pdi_filtrado = df_pdi.copy()
                         
                         if f_lid_plan != "Todos":
-                            sub_limpios_pdi = [str(x).strip().lower() for x in subordinados_permitidos]
-                            df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower().isin(sub_limpios_pdi)]
+                            df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower().isin(subordinados_nombres_limpios)]
                         else:
                             df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower().isin(nombres_visibles_limpios)]
                         
