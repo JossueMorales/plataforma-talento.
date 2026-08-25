@@ -1076,7 +1076,8 @@ def main():
                     if not df_posiciones_filtradas.empty:
                         col_suc = 'Sucesor P.1' if 'Sucesor P.1' in df_posiciones_filtradas.columns else 'Sucesor 1'
                         sucs = df_posiciones_filtradas[col_suc].fillna('').astype(str).str.strip().str.lower()
-                        invalid_sucs = ['pendiente', 'nan', 'none', '', 'no definido', 'sin sucesor identificado']
+                        # MODIFICACIÓN: Se retiró "sin sucesor identificado" de la lista de invalid_sucs
+                        invalid_sucs = ['pendiente', 'nan', 'none', '', 'no definido']
                         df_posiciones_filtradas['Tiene_Sucesor'] = (~sucs.isin(invalid_sucs)).astype(int)
                         total_criticas = len(df_posiciones_filtradas)
                         sucesores_definidos = df_posiciones_filtradas['Tiene_Sucesor'].sum()
