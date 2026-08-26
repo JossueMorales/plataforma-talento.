@@ -1076,7 +1076,7 @@ def main():
                     if not df_posiciones_filtradas.empty:
                         col_suc = 'Sucesor P.1' if 'Sucesor P.1' in df_posiciones_filtradas.columns else 'Sucesor 1'
                         sucs = df_posiciones_filtradas[col_suc].fillna('').astype(str).str.strip().str.lower()
-                        # MODIFICACIÓN: Se retiró "sin sucesor identificado" de la lista de invalid_sucs
+                        # Se retiró "sin sucesor identificado" de la lista de invalid_sucs
                         invalid_sucs = ['pendiente', 'nan', 'none', '', 'no definido']
                         df_posiciones_filtradas['Tiene_Sucesor'] = (~sucs.isin(invalid_sucs)).astype(int)
                         total_criticas = len(df_posiciones_filtradas)
@@ -1474,7 +1474,7 @@ def main():
                         st.markdown("#### 📋 Plan de Acción / Comentarios Adicionales")
                         st.info("Utiliza este espacio para justificar si no hay sucesores o detallar el plan a seguir.")
                         
-                        c_plan_accion = leer_campo('Plan de Acción') 
+                        c_plan_accion = leer_campo('Comentarios de Sucesión') 
                         n_plan_accion = st.text_area("Comentarios del Plan de Acción:", value=c_plan_accion, height=100, key=f"t_plan_accion_{pos_seleccionada}")
                         
                         st.write("")
@@ -1500,7 +1500,7 @@ def main():
                                         return None
                                     
                                     idx_emergencia = idx_col('Sucesor de emergencia')
-                                    idx_plan_accion = idx_col('Plan de Acción')
+                                    idx_plan_accion = idx_col('Comentarios de Sucesión')
                                     
                                     idxs_sucs = [idx_col(f'Sucesor P.{i}') for i in range(1, 6)]
                                     idxs_reads = [idx_col(f'Tiempo de Readiness {i}') for i in range(1, 6)]
