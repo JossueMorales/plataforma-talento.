@@ -1415,7 +1415,9 @@ def main():
                         if ficha_emergencia == "RESTRINGIDO_GLOBAL": st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
                         elif ficha_emergencia == "RESTRINGIDO_LIDER_CUENTA": st.error("🔒 Acceso Restringido")
                         elif ficha_emergencia == "RESTRINGIDO_LIDER": st.error("🔒 Modo Presentación Activo")
-                        elif ficha_emergencia: st.success(f"📊 **9-Box:** {ficha_emergencia['box']} | 🔥 **Enganche:** {ficha_emergencia['enganche']} | 📈 **EDR:** {ficha_emergencia['edr']}")
+                        elif ficha_emergencia:
+                            with st.expander("📊 Mostrar Métricas del Candidato"):
+                                st.success(f"📊 **9-Box:** {ficha_emergencia['box']} | 🔥 **Enganche:** {ficha_emergencia['enganche']} | 📈 **EDR:** {ficha_emergencia['edr']}")
                         
                         st.write("---")
                         
@@ -1460,7 +1462,8 @@ def main():
                                 elif ficha_c == "RESTRINGIDO_LIDER_CUENTA": st.error("🔒 Acceso Restringido")
                                 elif ficha_c == "RESTRINGIDO_LIDER": st.error("🔒 Modo Presentación")
                                 elif ficha_c:
-                                    st.success(f"📊 **9-Box:** {ficha_c['box']} | 🔥 **Enganche:** {ficha_c['enganche']} | 📈 **EDR:** {ficha_c['edr']}")
+                                    with st.expander("📊 Mostrar Métricas del Candidato"):
+                                        st.success(f"📊 **9-Box:** {ficha_c['box']} | 🔥 **Enganche:** {ficha_c['enganche']} | 📈 **EDR:** {ficha_c['edr']}")
                                     pdi_diag = diagnosticar_pdi_ia(n_sucs[i], pos_seleccionada, ficha_c)
                                     if pdi_diag and pdi_diag.get("estatus") == "SIN_PDI": st.warning(pdi_diag['recomendacion'])
                                     elif pdi_diag and "color_borde" in pdi_diag: st.markdown(f"<details style='background:{pdi_diag['bg_color']}; border-left:4px solid {pdi_diag['color_borde']}; padding:12px; border-radius:6px; cursor:pointer;'><summary style='font-weight:bold; font-size:15px; color:#1e293b; outline:none;'>🤖 Dictamen IA: {pdi_diag['icono']} {pdi_diag['titulo_estatus']}</summary><div style='margin-top:10px; font-size:14px; color:#334155; line-height:1.5;'>🎯 <b>Objetivo PDI:</b> {pdi_diag['objetivo']} (Avance: <b>{pdi_diag['avance']}</b>)<br><br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag['recomendacion']}</div></details>", unsafe_allow_html=True)
