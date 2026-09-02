@@ -1155,7 +1155,16 @@ def main():
                     
                     st.write("---")
                     st.markdown("#### 📥 Exportar Reporte de Sucesiones")
-                    cols_reporte = ['Nombre', 'Nombre de la Posición', 'Dirección', 'Nivel MLA', 'Resultado 9 box', 'Sucesor P.1', 'Tiempo de Readiness 1', 'Sucesor P.2', 'Tiempo de Readiness 2', 'Sucesor P.3', 'Tiempo de Readiness 3', 'Sucesor P.4', 'Tiempo de Readiness 4', 'Sucesor P.5', 'Tiempo de Readiness 5']
+                    cols_reporte = [
+                        'Nombre', 'Nombre de la Posición', 'Dirección', 'Nivel MLA', 'Resultado 9 box', 
+                        'Sucesor de emergencia',
+                        'Sucesor P.1', 'Tiempo de Readiness 1', 'Positivo 1', 'Oportunidad 1',
+                        'Sucesor P.2', 'Tiempo de Readiness 2', 'Positivo 2', 'Oportunidad 2',
+                        'Sucesor P.3', 'Tiempo de Readiness 3', 'Positivo 3', 'Oportunidad 3',
+                        'Sucesor P.4', 'Tiempo de Readiness 4', 'Positivo 4', 'Oportunidad 4',
+                        'Sucesor P.5', 'Tiempo de Readiness 5', 'Positivo 5', 'Oportunidad 5',
+                        'Comentarios de Sucesión'
+                    ]
                     cols_existentes = [c for c in cols_reporte if c in df_posiciones_filtradas.columns]
                     
                     if not df_posiciones_filtradas.empty:
