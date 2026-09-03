@@ -1156,7 +1156,7 @@ def main():
                     st.write("---")
                     st.markdown("#### 📥 Exportar Reporte de Sucesiones")
                     cols_reporte = [
-                        'Nombre', 'Nombre de la Posición', 'Dirección', 'Nivel MLA', 'Resultado 9 box', 
+                        'Nombre', 'Nombre de la Posición',
                         'Sucesor de emergencia',
                         'Sucesor P.1', 'Tiempo de Readiness 1', 'Positivo 1', 'Oportunidad 1',
                         'Sucesor P.2', 'Tiempo de Readiness 2', 'Positivo 2', 'Oportunidad 2',
@@ -1168,7 +1168,8 @@ def main():
                     cols_existentes = [c for c in cols_reporte if c in df_posiciones_filtradas.columns]
                     
                     if not df_posiciones_filtradas.empty:
-                        csv_data = df_posiciones_filtradas[cols_existentes].to_csv(index=False).encode('utf-8-sig')
+                        df_export = df_posiciones_filtradas[cols_existentes].T
+                        csv_data = df_export.to_csv(header=False).encode('utf-8-sig')
                         st.download_button(
                             label="📊 Descargar Reporte Completo (CSV para Excel)",
                             data=csv_data,
