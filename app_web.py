@@ -36,6 +36,29 @@ COLUMNAS_PDI = [
 ]
 
 # ==========================================
+# MOTOR DE ORDENAMIENTO JERÁRQUICO
+# ==========================================
+def ordenar_jerarquia_talento(df, col_puesto='Nombre de la Posición', col_nombre='Nombre'):
+    if col_puesto not in df.columns:
+        return df
+    
+    def asignar_peso(puesto):
+        p = str(puesto).lower()
+        if 'gerente' in p or 'director' in p: return 1
+        if 'jefe' in p: return 2
+        return 3
+        
+    df['_peso_jerarquia'] = df[col_puesto].apply(asignar_peso)
+    
+    cols_sort = ['_peso_jerarquia', col_puesto]
+    if col_nombre in df.columns:
+        cols_sort.append(col_nombre)
+        
+    df = df.sort_values(by=cols_sort)
+    return df.drop(columns=['_peso_jerarquia'])
+
+
+# ==========================================
 # SISTEMA DE CACHÉ INTELIGENTE Y DESCARGA
 # ==========================================
 @st.cache_data(ttl=300, show_spinner=False)
@@ -572,7 +595,8 @@ def renderizar_mi_pdi(df_completo, df_pdi):
         st.markdown("<div style='background-color:#fef08a; padding:6px; color:#854d0e; font-weight:bold; text-align:center; border-radius:4px;'>Expectativas de Desarrollo (Colaborador)</div>", unsafe_allow_html=True)
         st.write("")
         
-        roles_disponibles = [""] + sorted(df_completo['Nombre de la Posición'].dropna().astype(str).unique().tolist())
+        # --- APLICACIÓN EN LA LISTA DESPLEGABLE DE ROLES ---
+        roles_disponibles = [""] + df_completo['Nombre de la Posición'].dropna().astype(str).drop_duplicates().tolist()
         
         def index_seguro(lista, valor): return lista.index(valor) if valor in lista else 0
             
@@ -829,6 +853,11 @@ def main():
         if not df_pdi.empty and 'Nombre' in df_pdi.columns:
             df_pdi['Nombre'] = df_pdi['Nombre'].astype(str).str.strip()
             df_pdi['Nombre_Cruce'] = df_pdi['Nombre'].str.lower()
+
+        # --- APLICACIÓN DE ORDENAMIENTO JERÁRQUICO SOLICITADO ---
+        # Todo df_completo se reordena aquí, asegurando que df_seguro, df_filtros y exportaciones
+        # hereden la prioridad de Gerentes -> Jefes -> Resto.
+        df_completo = ordenar_jerarquia_talento(df_completo, 'Nombre de la Posición', 'Nombre')
             
         # --- LÓGICA DE PERMISOS MULTISELECCIONABLES ---
         direccion_permitida = str(st.session_state.get("direccion_permitida", "TODAS")).strip().upper()
@@ -898,7 +927,8 @@ def main():
                 
             with col_head2:
                 nombres_s = df_filtros['Nombre'].dropna()
-                lista_nombres_buscador = sorted(nombres_s[nombres_s != ''].unique().tolist())
+                # --- APLICACIÓN EN LA LISTA DESPLEGABLE DE BÚSQUEDA ---
+                lista_nombres_buscador = nombres_s[nombres_s != ''].drop_duplicates().tolist()
                 colab_buscado = st.selectbox("🔍 Búsqueda rápida de colaborador:", [""] + lista_nombres_buscador)
                 
             if colab_buscado:
@@ -1168,6 +1198,8 @@ def main():
                     cols_existentes = [c for c in cols_reporte if c in df_posiciones_filtradas.columns]
                     
                     if not df_posiciones_filtradas.empty:
+                        # Al estar df_posiciones_filtradas ya ordenado jerárquicamente,
+                        # las columnas exportadas saldrán en orden Gerente -> Jefe -> Resto.
                         df_export = df_posiciones_filtradas[cols_existentes].T
                         csv_data = df_export.to_csv(header=False).encode('utf-8-sig')
                         st.download_button(
@@ -1181,7 +1213,8 @@ def main():
                     st.write("---")
                     
                     pos_series = df_posiciones_filtradas['Nombre de la Posición'].dropna().astype(str).str.strip()
-                    posiciones_opciones = sorted(pos_series[pos_series != ''].unique().tolist())
+                    # --- APLICACIÓN EN LA LISTA DESPLEGABLE DE POSICIONES ---
+                    posiciones_opciones = pos_series[pos_series != ''].drop_duplicates().tolist()
                     
                     if 'plan_pos' in st.session_state and st.session_state['plan_pos'] not in [""] + posiciones_opciones: st.session_state['plan_pos'] = ""
 
