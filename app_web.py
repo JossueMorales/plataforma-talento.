@@ -719,8 +719,20 @@ def renderizar_mi_pdi(df_completo, df_pdi):
                     
                     archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
                     st.cache_data.clear()
-                    st.success(f"✅ ¡{PESTANA_PDI_ACTUAL} Guardado Exitosamente! Tu base de datos multifila se actualizó.")
-                    time.sleep(1.5)
+                    
+                    # --- NUEVO BLOQUE DE CONFIRMACIÓN VISUAL DE ALTO IMPACTO ---
+                    st.balloons()
+                    st.toast("¡Plan 70-20-10 guardado exitosamente!", icon="✅")
+                    st.markdown("""
+                        <div style='background-color: #22c55e; padding: 20px; border-radius: 8px; text-align: center; border: 2px solid #166534; margin-top: 15px; margin-bottom: 15px;'>
+                            <h2 style='color: white; margin: 0;'>🎉 ¡Éxito! Tu PDI se guardó correctamente.</h2>
+                            <p style='font-size: 16px; color: white; margin-top: 8px; margin-bottom: 0;'>
+                                Tu base de datos multifila se ha sincronizado en la nube y ya es visible para tu líder.
+                            </p>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+                    time.sleep(3.0)
                     st.rerun()
                 except Exception as e:
                     st.error(f"❌ Error al guardar en Google Sheets: {e}")
