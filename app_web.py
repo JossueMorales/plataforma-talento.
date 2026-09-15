@@ -720,6 +720,7 @@ def renderizar_mi_pdi(df_completo, df_pdi):
                     archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
                     st.cache_data.clear()
                     
+                    # --- NUEVO BLOQUE DE CONFIRMACIÓN VISUAL DE ALTO IMPACTO ---
                     st.balloons()
                     st.toast("¡Plan 70-20-10 guardado exitosamente!", icon="✅")
                     st.markdown("""
@@ -866,8 +867,6 @@ def main():
             df_pdi['Nombre_Cruce'] = df_pdi['Nombre'].str.lower()
 
         # --- APLICACIÓN DE ORDENAMIENTO JERÁRQUICO SOLICITADO ---
-        # Todo df_completo se reordena aquí, asegurando que df_seguro, df_filtros y exportaciones
-        # hereden la prioridad de Gerentes -> Jefes -> Resto.
         df_completo = ordenar_jerarquia_talento(df_completo, 'Nombre de la Posición', 'Nombre')
             
         # --- LÓGICA DE PERMISOS MULTISELECCIONABLES ---
@@ -943,46 +942,976 @@ def main():
                 colab_buscado = st.selectbox("🔍 Búsqueda rápida de colaborador:", [""] + lista_nombres_buscador)
                 
             if colab_buscado:
-                datos_c = df_seguro[df_seguro['¡Hola, Jefe! Analizando la imagen "image_318f52.png", noto exactamente el detalle que menciona. En la sección del **Sucesor 1**, el dropdown del "Candidato 1" está preseleccionando o mostrando a "RUBÉN RAMÍREZ TAMEZ", quien es precisamente el ocupante actual de la posición crítica (Director de Administración y Finanzas). 
+                datos_c = df_seguro[df_seguro['Nombre'] == colab_buscado].iloc[0]
+                st.success(f"👤 **{colab_buscado}** | 🏢 **Puesto:** {clean_text(datos_c.get('Nombre de la Posición', 'N/A'))} | 📍 **Dirección:** {clean_text(datos_c.get('Dirección', datos_c.get('Direccion', 'N/A')))} | 📊 **9-Box:** {clean_text(datos_c.get('Resultado 9 box', 'N/A'))} | 📈 **EDR:** {clean_text(datos_c.get('EDR', datos_c.get('EDR ', 'N/A')))} | 🥇 **Nivel MLA:** {clean_text(datos_c.get('Nivel MLA', 'N/A'))}")
+            
+            dirs = sorted(df_filtros['Dirección'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
+            mlas = sorted(df_filtros['Nivel MLA'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
+            boxes = sorted(df_filtros['Resultado 9 box'].dropna().astype(str).str.strip().str.upper()[lambda x: x != ''].unique().tolist())
+            criticas = sorted(df_filtros['Posición Crítica'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
+            edrs_col = 'EDR' if 'EDR' in df_filtros.columns else ('EDR ' if 'EDR ' in df_filtros.columns else None)
+            edrs = sorted(df_filtros[edrs_col].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist()) if edrs_col else []
+            
+            col_f1, col_f2, col_f3, col_f4, col_f5, col_f6 = st.columns(6)
+            f_dir = col_f1.selectbox("Dirección", ["Todas"] + dirs)
+            
+            if f_dir != "Todas": lideres_ids = df_filtros[df_filtros['Dirección'].astype(str).str.strip() == f_dir]['ID Del Jefe'].dropna().unique()
+            else: lideres_ids = df_filtros['ID Del Jefe'].dropna().unique()
+                
+            lideres = sorted(list(set([dict_nom_global.get(clean_id(x), "Sin Líder") for x in lideres_ids if clean_id(x)])))
+            
+            f_lid = col_f2.selectbox("Líder", ["Todos"] + lideres)
+            f_crit = col_f3.selectbox("Pos. Crítica", ["Todas"] + criticas)
+            f_mla = col_f4.selectbox("Nivel MLA", ["Todos"] + mlas)
+            f_box = col_f5.selectbox("9-Box", ["Todos"] + boxes)
+            f_edr = col_f6.selectbox("EDR (Resultados)", ["Todos"] + edrs)
+            
+            col_chk1, col_chk2 = st.columns(2)
+            with col_chk1:
+                f_riesgos = st.checkbox("🚨 Mostrar Solo Colaboradores con Riesgos Detectados")
+                
+            renderizar_mapa = True
+            if f_dir == "Todas" and f_lid == "Todos":
+                renderizar_mapa = False
+                
+            with col_chk2:
+                if not renderizar_mapa:
+                    forzar_mapa = st.checkbox("⚠️ Dibujar el mapa visual de todos modos (Puede ser lento)", value=False)
+                    if forzar_mapa:
+                        renderizar_mapa = True
+            st.write("") 
+            
+            html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_edr, f_riesgos, renderizar_mapa, st.session_state["id_usuario"])
+            
+            if kpis is not None:
+                if st.session_state["id_usuario"] == "admin":
+                    tab_mapa, tab_sucesiones, tab_pdi_equipo, tab_mi_pdi, tab_admin = st.tabs([
+                        "🗺️ Mapa Organizacional", "🔀 Sucesión", "📈 Seguimiento de PDI", "📝 Mi PDI", "⚙️ Panel de Administración"
+                    ])
+                else:
+                    tab_mapa, tab_sucesiones, tab_pdi_equipo, tab_mi_pdi = st.tabs([
+                        "🗺️ Mapa Organizacional", "🔀 Sucesión", "📈 Seguimiento de PDI", "📝 Mi PDI"
+                    ])
+                
+                with tab_mapa:
+                    st.markdown("### 📊 KPIs de Talento")
+                    k1, k2, k3, k4, k5, k6 = st.columns(6)
+                    
+                    with k1:
+                        if st.button(f"👥 Total Colab.\n\n{kpis['total']}", key="b_tot", use_container_width=True): 
+                            st.session_state["vista_kpi"] = "total"; st.rerun()
+                    with k2:
+                        if st.button(f"🔀 Sucesión (Críticas)\n\n{kpis['sucesores']}", key="b_suc", use_container_width=True): 
+                            st.session_state["vista_kpi"] = "sucesores"; st.rerun()
+                    with k3:
+                        if st.button(f"📈 Desempeño (EDR)\n\n{kpis['edr_count']}", key="b_edr", use_container_width=True): 
+                            st.session_state["vista_kpi"] = "edr"; st.rerun()
+                    with k4:
+                        if st.button(f"📊 Resultados (9-Box)\n\n{kpis['nueve_box_count']}", key="b_9box", use_container_width=True): 
+                            st.session_state["vista_kpi"] = "nueve_box"; st.rerun()
+                    with k5:
+                        if st.button(f"🚨 Alertas Detect.\n\n{kpis['alertas']}", key="b_ale", use_container_width=True): 
+                            st.session_state["vista_kpi"] = "alertas"; st.rerun()
+                    with k6:
+                        if st.button(f"🔥 Prom. Enganche\n\n{kpis['enganche_promedio']}", key="b_eng", use_container_width=True): 
+                            st.session_state["vista_kpi"] = "enganche"; st.rerun()
+                    
+                    st.write("---")
+                    
+                    col_mapa, col_datos = st.columns([5, 5])
+                    with col_mapa: 
+                        components.html(html_mapa, height=550, scrolling=False)
+                    with col_datos:
+                        if st.session_state.get("vista_kpi"):
+                            vista = st.session_state["vista_kpi"]
+                            titulos_kpi = {"total": "Total de Colaboradores", "sucesores": "Sucesión de Posiciones Críticas", "edr": "Evaluación de Desempeño y Resultados (EDR)", "nueve_box": "Evaluaciones 9-Box", "alertas": "Colaboradores con Riesgos / Alertas", "enganche": "Nivel de Enganche de Líderes"}
+                            st.markdown(f"#### 📋 {titulos_kpi[vista]}")
+                            df_lista = pd.DataFrame(kpis[f"data_{vista}"])
+                            if not df_lista.empty:
+                                if vista == "alertas": df_lista = df_lista.drop_duplicates(subset=["Nombre", "Alerta"]).reset_index(drop=True)
+                                if "TODAS" not in direccion_permitida and "Dirección" in df_lista.columns: df_lista = df_lista.drop(columns=["Dirección"])
+                                st.dataframe(df_lista, use_container_width=True, hide_index=True)
+                            else: st.info("No hay registros en esta categoría.")
+                            if st.button("❌ Cerrar Lista", use_container_width=True): st.session_state["vista_kpi"] = None; st.rerun()
+                        else:
+                            st.info("👆 Selecciona cualquier KPI superior para desplegar la información a detalle en esta área.")
+                
+                with tab_sucesiones:
+                    st.markdown("### 🔀 Planificador de Sucesiones (Edición en Vivo)")
+                    st.info("🔒 **Modo Presentación:** Selecciona a un líder aquí para limitar las posiciones críticas disponibles exclusivamente a su equipo. Útil para evitar fugas de información confidencial.")
+                    
+                    lideres_totales = sorted(list(set([dict_nom_global.get(clean_id(x), "Sin Líder") for x in df_seguro['ID Del Jefe'].dropna().unique() if clean_id(x)])))
+                    f_lid_plan = st.selectbox("👤 Líder a revisar (Modo Privado):", ["Todos"] + lideres_totales, key="modo_pres_lider")
+                    
+                    def obtener_subordinados_ids(lider_nombre):
+                        lider_id = next((i for i, n in dict_nom_global.items() if n == lider_nombre), None)
+                        if not lider_id: return set()
+                        subs = set(); cola = [lider_id]
+                        while cola:
+                            actual = cola.pop(0)
+                            directos = jerarquia_global.get(actual, [])
+                            for d in directos:
+                                if d and d not in subs: subs.add(d); cola.append(d)
+                        return subs
+                    
+                    df_posiciones_filtradas = df_seguro.copy()
+                    df_posiciones_filtradas['id_clean'] = df_posiciones_filtradas['id Empleado'].apply(clean_id)
+                    
+                    subordinados_nombres_limpios = []
+                    if f_lid_plan != "Todos":
+                        sub_ids = obtener_subordinados_ids(f_lid_plan)
+                        lider_id = next((i for i, n in dict_nom_global.items() if n == f_lid_plan), None)
+                        if lider_id: sub_ids.add(lider_id)
+                        df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['id_clean'].isin(sub_ids)]
+                        
+                        subordinados_nombres_limpios = [str(dict_nom_global.get(s)).strip().lower() for s in sub_ids if s in dict_nom_global and str(dict_nom_global.get(s)).strip() != '']
+                    else:
+                        nodos_visibles_ids = kpis.get('nodos_visibles_ids', [])
+                        df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['id_clean'].isin(nodos_visibles_ids)]
+                        
+                    df_posiciones_filtradas = df_posiciones_filtradas[
+                        (df_posiciones_filtradas['Posición Crítica'].astype(str).str.strip().str.lower() == 'si') &
+                        (df_posiciones_filtradas['Nivel MLA'].astype(str).str.strip() != '5') &
+                        (~df_posiciones_filtradas['Nombre de la Posición'].astype(str).str.upper().str.contains('DIRECTOR GENERAL'))
+                    ]
+                    
+                    col_r1 = next((c for c in df_posiciones_filtradas.columns if 'readiness 1' in str(c).lower()), None)
+                    col_r2 = next((c for c in df_posiciones_filtradas.columns if 'readiness 2' in str(c).lower()), None)
+                    col_r3 = next((c for c in df_posiciones_filtradas.columns if 'readiness 3' in str(c).lower()), None)
+                    col_r4 = next((c for c in df_posiciones_filtradas.columns if 'readiness 4' in str(c).lower()), None)
+                    col_r5 = next((c for c in df_posiciones_filtradas.columns if 'readiness 5' in str(c).lower()), None)
+                    
+                    r_inm = r_1_3 = r_mas_3 = 0
+                    if not df_posiciones_filtradas.empty:
+                        s1 = df_posiciones_filtradas[col_r1].astype(str).str.lower().fillna('') if col_r1 else pd.Series(['']*len(df_posiciones_filtradas))
+                        s2 = df_posiciones_filtradas[col_r2].astype(str).str.lower().fillna('') if col_r2 else pd.Series(['']*len(df_posiciones_filtradas))
+                        s3 = df_posiciones_filtradas[col_r3].astype(str).str.lower().fillna('') if col_r3 else pd.Series(['']*len(df_posiciones_filtradas))
+                        s4 = df_posiciones_filtradas[col_r4].astype(str).str.lower().fillna('') if col_r4 else pd.Series(['']*len(df_posiciones_filtradas))
+                        s5 = df_posiciones_filtradas[col_r5].astype(str).str.lower().fillna('') if col_r5 else pd.Series(['']*len(df_posiciones_filtradas))
+                        
+                        todas_readiness = pd.concat([s1, s2, s3, s4, s5])
+                        r_inm = int(todas_readiness.str.contains('inmediato').sum())
+                        r_1_3 = int(todas_readiness.str.contains('1 a 3').sum())
+                        r_mas_3 = int(todas_readiness.str.contains('mas de 3|más de 3').sum())
+                    
+                    total_sucesores_mapeados = r_inm + r_1_3 + r_mas_3
+                    pct_inm = round((r_inm / total_sucesores_mapeados) * 100, 1) if total_sucesores_mapeados > 0 else 0.0
+                    pct_1_3 = round((r_1_3 / total_sucesores_mapeados) * 100, 1) if total_sucesores_mapeados > 0 else 0.0
+                    pct_mas_3 = round((r_mas_3 / total_sucesores_mapeados) * 100, 1) if total_sucesores_mapeados > 0 else 0.0
+                    
+                    st.write("")
+                    st.markdown("#### 🩺 Salud de la Bancada (Readiness Global)")
+                    rk1, rk2, rk3 = st.columns(3)
+                    with rk1:
+                        if st.button(f"🟢 Inmediato\n\n{pct_inm}% ({r_inm} colab.)", key="b_read_inm", use_container_width=True):
+                            st.session_state['filtro_kpi_plan'] = 'inmediato'; st.rerun()
+                    with rk2:
+                        if st.button(f"🟡 1 a 3 años\n\n{pct_1_3}% ({r_1_3} colab.)", key="b_read_1_3", use_container_width=True):
+                            st.session_state['filtro_kpi_plan'] = '1_3_anos'; st.rerun()
+                    with rk3:
+                        if st.button(f"🔵 Más de 3 años\n\n{pct_mas_3}% ({r_mas_3} colab.)", key="b_read_mas_3", use_container_width=True):
+                            st.session_state['filtro_kpi_plan'] = 'mas_3_anos'; st.rerun()
+                    st.write("---")
+                    
+                    if not df_posiciones_filtradas.empty:
+                        col_suc = 'Sucesor P.1' if 'Sucesor P.1' in df_posiciones_filtradas.columns else 'Sucesor 1'
+                        sucs = df_posiciones_filtradas[col_suc].fillna('').astype(str).str.strip().str.lower()
+                        invalid_sucs = ['pendiente', 'nan', 'none', '', 'no definido']
+                        df_posiciones_filtradas['Tiene_Sucesor'] = (~sucs.isin(invalid_sucs)).astype(int)
+                        total_criticas = len(df_posiciones_filtradas)
+                        sucesores_definidos = df_posiciones_filtradas['Tiene_Sucesor'].sum()
+                        sucesores_pendientes = total_criticas - sucesores_definidos
+                    else:
+                        df_posiciones_filtradas['Tiene_Sucesor'] = 0
+                        total_criticas = 0; sucesores_definidos = 0; sucesores_pendientes = 0
+                    
+                    col_k1, col_k2, col_k3 = st.columns(3)
+                    with col_k1:
+                        if st.button(f"📘 TOTAL CRÍTICAS\n\n{total_criticas}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'todas'; st.rerun()
+                    with col_k2:
+                        if st.button(f"✅ MAPEO DEFINIDO\n\n{sucesores_definidos}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'con_sucesor'; st.rerun()
+                    with col_k3:
+                        if st.button(f"🚨 PENDIENTES\n\n{sucesores_pendientes}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'pendientes'; st.rerun()
+                    
+                    if 'filtro_kpi_plan' in st.session_state and st.session_state['filtro_kpi_plan']:
+                        modo = st.session_state['filtro_kpi_plan']
+                        
+                        if modo in ['inmediato', '1_3_anos', 'mas_3_anos']:
+                            target_term1 = 'inmediato' if modo == 'inmediato' else ('1 a 3' if modo == '1_3_anos' else 'mas de 3')
+                            target_term2 = 'más de 3' if modo == 'mas_3_anos' else target_term1
+                            titulo_lista = f"Sucesores mapeados a: {target_term1.capitalize()}"
+                            
+                            lista_sucesores = []
+                            for _, r in df_posiciones_filtradas.iterrows():
+                                pos = clean_text(r.get('Nombre de la Posición', ''))
+                                ocupante = clean_text(r.get('Nombre', ''))
+                                
+                                s1 = clean_text(r.get('Sucesor P.1', r.get('Sucesor 1', '')))
+                                read1 = clean_text(r.get(col_r1, '')) if col_r1 else ''
+                                s2 = clean_text(r.get('Sucesor P.2', r.get('Sucesor 2', '')))
+                                read2 = clean_text(r.get(col_r2, '')) if col_r2 else ''
+                                s3 = clean_text(r.get('Sucesor P.3', r.get('Sucesor 3', '')))
+                                read3 = clean_text(r.get(col_r3, '')) if col_r3 else ''
+                                s4 = clean_text(r.get('Sucesor P.4', r.get('Sucesor 4', '')))
+                                read4 = clean_text(r.get(col_r4, '')) if col_r4 else ''
+                                s5 = clean_text(r.get('Sucesor P.5', r.get('Sucesor 5', '')))
+                                read5 = clean_text(r.get(col_r5, '')) if col_r5 else ''
+                                
+                                for suc, read in [(s1, read1), (s2, read2), (s3, read3), (s4, read4), (s5, read5)]:
+                                    rl = read.lower()
+                                    if target_term1 in rl or target_term2 in rl:
+                                        lista_sucesores.append({
+                                            "Posición Crítica": pos,
+                                            "Ocupante Actual": ocupante,
+                                            "Nombre del Sucesor": suc if suc else "No definido",
+                                            "Readiness": read
+                                        })
+                            
+                            df_lista_suc = pd.DataFrame(lista_sucesores)
+                            with st.container():
+                                st.markdown(f"#### 📋 {titulo_lista} ({len(df_lista_suc)} registros)")
+                                if not df_lista_suc.empty:
+                                    st.dataframe(df_lista_suc, use_container_width=True, hide_index=True)
+                                else:
+                                    st.info("No hay registros en esta categoría.")
+                                if st.button("❌ Cerrar lista", key="cerrar_lista_kpi_read"): st.session_state['filtro_kpi_plan'] = None; st.rerun()
 
-Esto está provocando que al desplegar las métricas en el `st.expander` (9-Box, Enganche, etc.), el sistema renderice los datos del líder sobre sí mismo, en lugar de un sucesor real.
+                        else:
+                            if modo == 'todas': df_mostrar = df_posiciones_filtradas; titulo_lista = "Todas las Posiciones Críticas"
+                            elif modo == 'con_sucesor': df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 1]; titulo_lista = "Posiciones con Mapeo Definido"
+                            else: df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 0]; titulo_lista = "Posiciones Pendientes de Sucesor"
+                            
+                            with st.container():
+                                st.markdown(f"#### 📋 {titulo_lista} (Haz clic para cargar)")
+                                if df_mostrar.empty: st.info("No hay posiciones en esta categoría.")
+                                else:
+                                    cols_grid = st.columns(3)
+                                    for i, row_dict in enumerate(df_mostrar.to_dict('records')):
+                                        p_name = clean_text(row_dict.get('Nombre de la Posición'))
+                                        if p_name and cols_grid[i % 3].button(p_name, key=f"grid_btn_{i}_{modo}", use_container_width=True):
+                                            st.session_state['plan_pos'] = p_name; st.session_state['filtro_kpi_plan'] = None; st.rerun()
+                                if st.button("❌ Cerrar lista", key="cerrar_lista_kpi"): st.session_state['filtro_kpi_plan'] = None; st.rerun()
+                    
+                    st.write("---")
+                    st.markdown("#### 📥 Exportar Reporte de Sucesiones")
+                    cols_reporte = [
+                        'Nombre', 'Nombre de la Posición',
+                        'Sucesor de emergencia',
+                        'Sucesor P.1', 'Tiempo de Readiness 1', 'Positivo 1', 'Oportunidad 1',
+                        'Sucesor P.2', 'Tiempo de Readiness 2', 'Positivo 2', 'Oportunidad 2',
+                        'Sucesor P.3', 'Tiempo de Readiness 3', 'Positivo 3', 'Oportunidad 3',
+                        'Sucesor P.4', 'Tiempo de Readiness 4', 'Positivo 4', 'Oportunidad 4',
+                        'Sucesor P.5', 'Tiempo de Readiness 5', 'Positivo 5', 'Oportunidad 5',
+                        'Comentarios de Sucesión'
+                    ]
+                    cols_existentes = [c for c in cols_reporte if c in df_posiciones_filtradas.columns]
+                    
+                    if not df_posiciones_filtradas.empty:
+                        df_export = df_posiciones_filtradas[cols_existentes].T
+                        csv_data = df_export.to_csv(header=False).encode('utf-8-sig')
+                        st.download_button(
+                            label="📊 Descargar Reporte Completo (CSV para Excel)",
+                            data=csv_data,
+                            file_name=f'Reporte_Sucesiones_{f_lid_plan.replace(" ", "_")}.csv',
+                            mime='text/csv'
+                        )
+                    else:
+                        st.info("No hay datos para exportar con los filtros actuales.")
+                    st.write("---")
+                    
+                    pos_series = df_posiciones_filtradas['Nombre de la Posición'].dropna().astype(str).str.strip()
+                    posiciones_opciones = pos_series[pos_series != ''].drop_duplicates().tolist()
+                    
+                    if 'plan_pos' in st.session_state and st.session_state['plan_pos'] not in [""] + posiciones_opciones: st.session_state['plan_pos'] = ""
 
-### 🔍 Análisis del Problema y su Impacto
-*   **Causa Raíz:** En la lógica de Streamlit (Pandas), la lista que alimenta el `st.selectbox` de los candidatos no está filtrando/excluyendo al ocupante actual de la posición que se está evaluando.
-*   **Impacto Arquitectónico:** Es un problema puramente de interfaz y manipulación de datos en memoria (Frontend/Pandas). **No afecta nuestra regla de oro** porque no estamos tocando ni sobreescribiendo las columnas de la A a la G en Google Sheets. 
-*   **Alineación con Reglas de Negocio:** Aprovecharemos la corrección para asegurar que el filtro de exclusión se haga mediante el **Número de Nómina (ID)** y no por nombre, evitando así errores por espacios o coincidencias, tal como dicta nuestra arquitectura.
+                    pos_seleccionada = st.selectbox("🔍 Selecciona la Posición Crítica para editar (Filtrada por tu selección global):", [""] + posiciones_opciones, key="plan_pos")
+                    
+                    def obtener_ficha_candidato(nombre_cand):
+                        if not nombre_cand or nombre_cand in ["Pendiente", "Sin sucesor identificado"]: return None
+                        match_colab = df_completo[df_completo['Nombre_Cruce'] == nombre_cand.strip().lower()]
+                        if match_colab.empty: return None
+                        row_c = match_colab.iloc[0]
+                        dir_candidato = clean_text(row_c.get('Dirección', row_c.get('Direccion')), 'No asignada')
+                        
+                        if "TODAS" not in direccion_permitida:
+                            lista_dirs_perm = [d.strip() for d in direccion_permitida.split(",")]
+                            if not any(d in dir_candidato.upper() for d in lista_dirs_perm):
+                                return "RESTRINGIDO_GLOBAL"
+                        
+                        if st.session_state.get('lider_permitido', "TODOS") != "TODOS":
+                            if nombre_cand.strip().lower() not in st.session_state['nombres_permitidos_limpios']:
+                                return "RESTRINGIDO_LIDER_CUENTA"
+                                
+                        if f_lid_plan != "Todos":
+                            if nombre_cand.strip().lower() not in subordinados_nombres_limpios: return "RESTRINGIDO_LIDER"
+                                
+                        puesto_actual = clean_text(row_c.get('Nombre de la Posición'), 'Puesto no asignado')
+                        
+                        # --- NUEVO CANDADO DE SEGURIDAD PARA LÍDERES ---
+                        es_propia = (nombre_cand.strip().lower() == st.session_state.get("nombre_usuario", "").strip().lower())
+                        es_lider_pres = (f_lid_plan != "Todos" and nombre_cand.strip().lower() == f_lid_plan.strip().lower())
+                        ocultar_metricas = (es_propia or es_lider_pres) and st.session_state.get("id_usuario") != "admin"
+                        
+                        if ocultar_metricas:
+                            box_c = "🔒 Confidencial"
+                            edr_c = "🔒 Confidencial"
+                            eng_c = "🔒 Confidencial"
+                        else:
+                            box_c = clean_text(row_c.get('Resultado 9 box'), 'Pendiente')
+                            edr_c = clean_text(row_c.get('EDR', row_c.get('EDR ')), 'Pendiente')
+                            eng_key = next((k for k in row_c.keys() if k and 'enganche' in str(k).lower()), None)
+                            eng_c = clean_text(row_c.get(eng_key), 'N/A') if eng_key else 'N/A'
+                            
+                        return {"puesto_actual": puesto_actual, "direccion": dir_candidato, "box": box_c, "enganche": eng_c, "edr": edr_c}
+                    
+                    def generar_sugerencias_ia(pos_destino, info_pos_destino):
+                        if not pos_destino or df_completo.empty: return []
+                        mla_destino = clean_text(info_pos_destino.get('Nivel MLA'), '')
+                        ocupante_destino = clean_text(info_pos_destino.get('Nombre'), '').lower()
+                        
+                        contexto_destino = extraer_contexto(pos_destino)
+                        
+                        basura_ia = {"coordinador", "jefe", "gerente", "director", "supervisor", "analista", "especialista", "encargado", "auxiliar", "sr", "jr", "tecnicos", "conocimientos", "desarrollo", "gestión"}
+                        ctx_dest_puro = {w for w in contexto_destino if w not in basura_ia}
+                        if not ctx_dest_puro: ctx_dest_puro = contexto_destino
+                        
+                        candidatos_sugeridos = []
+                        
+                        for row in df_completo.to_dict('records'):
+                            nombre = clean_text(row.get('Nombre'))
+                            if not nombre or nombre.lower() == ocupante_destino: continue
+                            puesto_act = clean_text(row.get('Nombre de la Posición'))
+                            if puesto_act.lower() == pos_destino.lower(): continue
+                            
+                            contexto_cand_puesto = extraer_contexto(puesto_act)
+                            pdi_texto = ""
+                            if not df_pdi.empty and 'Nombre' in df_pdi.columns:
+                                df_c = df_pdi[df_pdi['Nombre'].astype(str).str.strip().str.lower() == nombre.strip().lower()]
+                                col_obj = next((c for c in df_c.columns if 'objetivo' in clean_text(str(c)).lower()), None)
+                                col_acc = next((c for c in df_c.columns if 'qué' in clean_text(str(c)).lower() or 'acci' in clean_text(str(c)).lower()), None)
+                                for _, c_row in df_c.iterrows(): 
+                                    obj_str = clean_text(c_row[col_obj]) if col_obj else ""
+                                    acc_str = clean_text(c_row[col_acc]) if col_acc else ""
+                                    pdi_texto += f" {obj_str} {acc_str}"
+                            
+                            contexto_cand_pdi = extraer_contexto(pdi_texto)
+                            perfil_tecnico_candidato = contexto_cand_puesto.union(contexto_cand_pdi)
+                            
+                            if not ctx_dest_puro.intersection(perfil_tecnico_candidato): continue 
+                            
+                            box = clean_text(row.get('Resultado 9 box')).upper()
+                            if box not in ['1', '2', '3', '4', '5', '6']: continue 
+                            
+                            mla_cand = clean_text(row.get('Nivel MLA'))
+                            score = 0; razones = []
+                            
+                            if ctx_dest_puro.intersection(contexto_cand_puesto): score += 5; razones.append("Afinidad técnica actual")
+                            elif ctx_dest_puro.intersection(contexto_cand_pdi): score += 4; razones.append("Desarrollando skills afines (PDI)")
+                                
+                            if box in ['1', '2', '3', '5']: score += 4; razones.append("Alto Potencial (9-Box)")
+                            elif box in ['4', '6']: score += 2; razones.append("Desempeño Sólido")
+                                
+                            if mla_destino.isdigit() and mla_cand.isdigit():
+                                diff = int(mla_destino) - int(mla_cand)
+                                if diff == 1: score += 3; razones.append("Listo para ascenso")
+                                elif diff == 0: score += 2; razones.append("Movimiento lateral orgánico")
+                                    
+                            if score >= 7: candidatos_sugeridos.append({'nombre': nombre, 'puesto': puesto_act, 'direccion': clean_text(row.get('Dirección')), 'box': box, 'score': score, 'razon': " | ".join(razones)})
+                                
+                        return sorted(candidatos_sugeridos, key=lambda x: x['score'], reverse=True)[:3]
 
----
+                    def diagnosticar_pdi_ia(nombre_cand, puesto_destino, info_cand):
+                        if not nombre_cand or nombre_cand in ["Pendiente", "Sin sucesor identificado"] or isinstance(info_cand, str) or not info_cand: return None
+                        if df_pdi.empty: return {"estatus": "SIN_DATOS", "msg": "No hay PDI registrado."}
+                        
+                        match_pdi = df_pdi[df_pdi['Nombre'].astype(str).str.strip().str.lower() == nombre_cand.strip().lower()]
+                        if match_pdi.empty: return {"estatus": "SIN_PDI", "puesto_origen": info_cand['puesto_actual'], "recomendacion": f"🚨 **Acción Requerida:** El colaborador no tiene acciones en su PDI hacia *{puesto_destino}*."}
+                        
+                        col_obj = next((c for c in match_pdi.columns if 'objetivo' in clean_text(str(c)).lower()), None)
+                        col_acc = next((c for c in match_pdi.columns if 'qué' in clean_text(str(c)).lower() or 'acci' in clean_text(str(c)).lower()), None)
+                        
+                        obj_pdi = clean_text(match_pdi.iloc[0][col_obj]) if col_obj else 'Sin objetivo definido'
+                        acciones_pdi = " ".join([clean_text(r[col_acc]) for _, r in match_pdi.iterrows()]) if col_acc else ""
+                        
+                        contexto_destino = extraer_contexto(puesto_destino)
+                        
+                        basura_ia = {"coordinador", "jefe", "gerente", "director", "supervisor", "analista", "especialista", "encargado", "auxiliar", "sr", "jr", "tecnicos", "conocimientos", "desarrollo", "gestión"}
+                        ctx_dest_puro = {w for w in contexto_destino if w not in basura_ia}
+                        if not ctx_dest_puro: ctx_dest_puro = contexto_destino
+                        
+                        contexto_pdi = extraer_contexto(obj_pdi + " " + acciones_pdi)
+                        coincidencias = ctx_dest_puro.intersection(contexto_pdi)
+                        puesto_origen = info_cand['puesto_actual']
+                        
+                        if len(coincidencias) > 0: return {"estatus": "ALINEADO", "icono": "✅", "titulo_estatus": "PDI Alineado", "color_borde": "#16a34a", "bg_color": "#f0fdf4", "puesto_origen": puesto_origen, "objetivo": obj_pdi, "avance": "Variado", "acciones": "Múltiples acciones registradas", "recomendacion": f"El PDI actual cubre competencias afines a *{puesto_destino}*."}
+                        else: return {"estatus": "REQUIERE_AJUSTE", "icono": "🟡", "titulo_estatus": "Ajuste Recomendado", "color_borde": "#ca8a04", "bg_color": "#fefce8", "puesto_origen": puesto_origen, "objetivo": obj_pdi, "avance": "Variado", "acciones": "Falta especificidad técnica", "recomendacion": f"💡 **Recomendación IA:** Se requiere actualizar las Acciones (70/20/10) agregando competencias técnicas específicas hacia el nuevo puesto."}
 
-### 🛠️ Solución Propuesta (Código)
+                    if pos_seleccionada:
+                        df_ocupantes = df_posiciones_filtradas[df_posiciones_filtradas['Nombre de la Posición'].apply(clean_text) == pos_seleccionada]
+                        info_pos = df_ocupantes.iloc[0] 
+                        nombres_ocupantes = [clean_text(n, 'Vacante / Sin asignar') for n in df_ocupantes['Nombre'].tolist()]
+                        
+                        st.markdown(f"#### 📌 Posición Crítica: `{pos_seleccionada}`")
+                        
+                        def mostrar_ficha_mini(nombre_cand, df_db):
+                            if not nombre_cand or nombre_cand in ["Pendiente", "Vacante / Sin asignar", "No definido", "Sin sucesor identificado"]: st.info("Sin información de ocupante"); return
+                            match = df_db[df_db['Nombre_Cruce'] == nombre_cand.strip().lower()]
+                            if match.empty: st.warning("Colaborador no encontrado en la base."); return
+                            row = match.iloc[0]
+                            def get_nom(val): return dict_nom_global.get(clean_id(val), val)
+                            
+                            puesto = clean_text(row.get('Nombre de la Posición', 'N/A'))
+                            lider = get_nom(row.get('ID Del Jefe', ''))
+                            dir_c = clean_text(row.get('Dirección', row.get('Direccion', 'N/A')))
+                            
+                            # --- NUEVO CANDADO DE SEGURIDAD PARA LÍDERES ---
+                            es_propia = (nombre_cand.strip().lower() == st.session_state.get("nombre_usuario", "").strip().lower())
+                            es_lider_pres = (f_lid_plan != "Todos" and nombre_cand.strip().lower() == f_lid_plan.strip().lower())
+                            ocultar_metricas = (es_propia or es_lider_pres) and st.session_state.get("id_usuario") != "admin"
+                            
+                            mla = "🔒" if ocultar_metricas else clean_text(row.get('Nivel MLA', 'N/A'))
+                            box = "🔒" if ocultar_metricas else clean_text(row.get('Resultado 9 box', 'Pendiente'))
+                            edr_key = next((k for k in row.keys() if k and 'edr' in str(k).lower()), None)
+                            edr = "🔒" if ocultar_metricas else (clean_text(row.get(edr_key, 'Pendiente')) if edr_key else 'Pendiente')
+                            eng_key = next((k for k in row.keys() if k and 'enganche' in str(k).lower()), None)
+                            eng = "🔒" if ocultar_metricas else (clean_text(row.get(eng_key, 'N/A')) if eng_key else 'N/A')
+                            suc1 = get_nom(row.get('Sucesor P.1', row.get('Sucesor 1', '')))
+                            read1 = clean_text(row.get('Tiempo de Readiness 1', ''))
+                            
+                            st.markdown(f"""
+                            <div style='padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; font-family: sans-serif; background: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-bottom: 10px;'>
+                                <h4 style='margin-top: 0; color: #1e3a8a; font-size: 18px;'>{nombre_cand}</h4>
+                                <p style='margin: 2px 0; font-size: 13px; color: #475569;'><b>Puesto:</b> {puesto}</p>
+                                <p style='margin: 2px 0; font-size: 13px; color: #475569;'><b>Líder:</b> {lider}</p>
+                                <p style='margin: 2px 0; font-size: 13px; color: #475569;'><b>Dirección:</b> {dir_c}</p>
+                                <hr style='margin: 10px 0; border: 0; border-top: 1px dashed #cbd5e1;'>
+                                <div style='display: flex; gap: 8px; margin-bottom: 10px;'>
+                                    <span style='background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>MLA: {mla}</span>
+                                    <span style='background: #f1f5f9; color: #334155; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>9-BOX: {box}</span>
+                                    <span style='background: #f1f5f9; color: #334155; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>EDR: {edr}</span>
+                                </div>
+                                <p style='margin: 0; font-size: 13px; color: #b91c1c;'><b>🔥 Enganche Individual:</b> {eng}</p>
+                                <p style='margin: 6px 0 0 0; font-size: 13px; color: #4338ca;'><b>🥇 Sucesor 1:</b> {suc1 if suc1 else 'Pendiente'} <span style='font-size:11px; color:#64748b;'>{read1}</span></p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                        col_info1, col_info2 = st.columns(2)
+                        with col_info1:
+                            titulo_ocupantes = f"👥 Ocupantes Actuales ({len(nombres_ocupantes)})"
+                            if hasattr(st, 'popover'):
+                                with st.popover(titulo_ocupantes, use_container_width=True):
+                                    for ocupante in nombres_ocupantes: mostrar_ficha_mini(ocupante, df_completo)
+                            else:
+                                with st.expander(titulo_ocupantes):
+                                    for ocupante in nombres_ocupantes: mostrar_ficha_mini(ocupante, df_completo)
+                                    
+                        with col_info2:
+                            sucesores_pasados = []
+                            try:
+                                columnas_historial = ["1. Sucesor 2025", "2. Sucesor 2025", "3. Sucesor 2025", "4. Sucesor 2025"]
+                                for col_name in info_pos.index:
+                                    if isinstance(col_name, str) and (col_name in columnas_historial or bool(re.search(r'Sucesor 20\d\d', col_name, re.IGNORECASE))):
+                                        val = clean_text(info_pos.get(col_name, ''))
+                                        if val and val.lower() not in ['nan', 'none', 'pendiente', '', 'n/a', 'no definido']:
+                                            if val not in sucesores_pasados: sucesores_pasados.append(val)
+                            except Exception: pass
+                            
+                            if hasattr(st, 'popover'):
+                                with st.popover("⏳ Sucesores del Año Pasado", use_container_width=True):
+                                    if sucesores_pasados:
+                                        for s_pasado in sucesores_pasados: st.markdown(f"- {s_pasado}")
+                                    else: st.info("No hay historial registrado en el Excel")
+                            else:
+                                with st.expander("⏳ Sucesores del Año Pasado"):
+                                    if sucesores_pasados:
+                                        for s_pasado in sucesores_pasados: st.markdown(f"- {s_pasado}")
+                                    else: st.info("No hay historial registrado en el Excel")
+                        
+                        st.write("")
+                        with st.expander("🤖 Mostrar Sugerencias de Sucesión (IA de Diccionario)"):
+                            st.info("Haz clic en el botón para que la IA escanee la base en busca de afinidad con el puesto.")
+                            if st.button("✨ Generar Sugerencias con IA", use_container_width=True):
+                                with st.spinner("🧠 Buscando cruces de perfiles..."):
+                                    sugerencias = generar_sugerencias_ia(pos_seleccionada, info_pos)
+                                    if sugerencias:
+                                        items_html = ""
+                                        for s in sugerencias:
+                                            if "TODAS" not in direccion_permitida and not any(d in s['direccion'].upper() for d in [d.strip() for d in direccion_permitida.split(",")]): info_vis = "🔒 <i>Detalles confidenciales (Otra Dirección)</i>"
+                                            elif st.session_state.get('lider_permitido', "TODOS") != "TODOS" and s['nombre'].strip().lower() not in st.session_state['nombres_permitidos_limpios']: info_vis = "🔒 <i>Detalles confidenciales (Usuario Limitado por Cuenta)</i>"
+                                            elif f_lid_plan != "Todos" and s['nombre'].strip().lower() not in subordinados_nombres_limpios: info_vis = "🔒 <i>Detalles confidenciales (Modo Presentación Activo)</i>"
+                                            else: info_vis = f"📌 Puesto Actual: <b>{s['puesto']}</b> | 📊 9-Box: <b>{s['box']}</b>"
+                                            items_html += f"<li>👤 <b>{s['nombre']}</b> — {info_vis}<br><span style='color:#0369a1;'>💡 {s['razon']}</span></li>"
+                                        st.markdown(f"""<div style="background:#e0f2fe; border-left:5px solid #0284c7; padding:12px; border-radius:8px; margin-bottom:5px; font-size:13px; color:#0f172a;"><ul style="margin:8px 0 0 0; padding-left:20px; line-height:1.5;">{items_html}</ul></div>""", unsafe_allow_html=True)
+                                    else:
+                                        st.warning("⚠️ **Dictamen IA:** No se detectaron candidatos en la plantilla actual que cumplan con los criterios estrictos para esta posición crítica. **Se sugiere reclutamiento externo.**")
+                        
+                        
+                        # --- NUEVO FILTRO PARA EXCLUIR AL OCUPANTE ACTUAL Y VACANTES DE LA LISTA DE SUCESORES ---
+                        id_ocupante_actual = clean_id(info_pos.get('id Empleado', ''))
+                        nombres_empleados_validos = []
+                        for _, row_emp in df_completo.iterrows():
+                            e_id = clean_id(row_emp.get('id Empleado', ''))
+                            e_nom = clean_text(row_emp.get('Nombre', ''))
+                            if e_id and e_nom and e_id != id_ocupante_actual and not str(e_id).upper().startswith('VAC-'):
+                                nombres_empleados_validos.append(e_nom)
+                                
+                        nombres_empleados_validos = sorted(list(set(nombres_empleados_validos)))
+                        opciones_sucesores = ["Pendiente", "Sin sucesor identificado"] + nombres_empleados_validos
+                        opciones_tiempo = ["Pendiente", "Inmediato", "1 a 3 años", "Más de 3 años"]
+                        
+                        ph_pos = "Ej. Menciona los logros recientes más destacados, fortalezas clave o competencias técnicas consolidadas..."
+                        ph_opo = "Ej. ¿Qué brechas de liderazgo, conocimientos técnicos o experiencia necesita cubrir para estar listo?"
+                        
+                        def leer_campo(nombre_col):
+                            col_match = next((c for c in info_pos.index if str(nombre_col).strip().lower() == str(c).strip().lower()), None)
+                            val = info_pos[col_match] if col_match else ""
+                            return clean_text(val) if pd.notna(val) else ""
 
-Para corregir esto, debemos crear un *dataframe* filtrado justo antes de pintar las tarjetas de sucesores, excluyendo el ID del líder actual. Ubique el bloque de código donde construimos el `st.selectbox` de los sucesores y ajústelo de la siguiente manera:
+                        c_suc_emergencia = leer_campo('Sucesor de emergencia') or "Pendiente"
+                        
+                        c_sucs = []
+                        c_reads = []
+                        c_pos = []
+                        c_opos = []
+                        for i in range(1, 6):
+                            c_sucs.append(leer_campo(f'Sucesor P.{i}') or "Pendiente")
+                            c_reads.append(leer_campo(f'Tiempo de Readiness {i}') or "Pendiente")
+                            c_pos.append(leer_campo(f'Positivo {i}'))
+                            c_opos.append(leer_campo(f'Oportunidad {i}'))
+                            
+                            if c_sucs[-1] not in opciones_sucesores: opciones_sucesores.append(c_sucs[-1])
+                            if c_reads[-1] not in opciones_tiempo: opciones_tiempo.append(c_reads[-1])
+                        
+                        if c_suc_emergencia not in opciones_sucesores: opciones_sucesores.append(c_suc_emergencia)
+                        
+                        st.write("")
+                        st.markdown("#### 🚨 Cobertura de Emergencia")
+                        n_suc_emergencia = st.selectbox("Candidato de Emergencia", opciones_sucesores, index=opciones_sucesores.index(c_suc_emergencia), key=f"select_emergencia_{pos_seleccionada}")
+                        
+                        ficha_emergencia = obtener_ficha_candidato(n_suc_emergencia)
+                        if ficha_emergencia == "RESTRINGIDO_GLOBAL": st.error("🔒 Datos confidenciales (Colaborador de otra Dirección)")
+                        elif ficha_emergencia == "RESTRINGIDO_LIDER_CUENTA": st.error("🔒 Acceso Restringido")
+                        elif ficha_emergencia == "RESTRINGIDO_LIDER": st.error("🔒 Modo Presentación Activo")
+                        elif ficha_emergencia:
+                            with st.expander("📊 Mostrar Métricas del Candidato"):
+                                st.success(f"📊 **9-Box:** {ficha_emergencia['box']} | 🔥 **Enganche:** {ficha_emergencia['enganche']} | 📈 **EDR:** {ficha_emergencia['edr']}")
+                        
+                        st.write("---")
+                        
+                        k_state = f'num_sucs_{pos_seleccionada}'
+                        if k_state not in st.session_state:
+                            if c_sucs[4] not in ["Pendiente", "", "Sin sucesor identificado", "Vacante / Sin asignar"]: st.session_state[k_state] = 5
+                            elif c_sucs[3] not in ["Pendiente", "", "Sin sucesor identificado", "Vacante / Sin asignar"]: st.session_state[k_state] = 4
+                            else: st.session_state[k_state] = 3
+                            
+                        num_sucs = st.session_state[k_state]
+                        
+                        col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
+                        with col_btn1:
+                            if st.button("➕ Agregar Sucesor", disabled=(num_sucs >= 5), use_container_width=True):
+                                st.session_state[k_state] += 1
+                                st.rerun()
+                        with col_btn2:
+                            if st.button("❌ Quitar Último", disabled=(num_sucs <= 3), use_container_width=True):
+                                st.session_state[k_state] -= 1
+                                st.rerun()
+                        with col_btn3:
+                            if num_sucs >= 5: st.info("Límite máximo de banca alcanzado (5 sucesores).")
+                                
+                        st.write("")
+                        
+                        n_sucs = c_sucs.copy()
+                        n_reads = c_reads.copy()
+                        n_pos_inputs = c_pos.copy()
+                        n_opo_inputs = c_opos.copy()
 
-```python
-# Asumiendo que 'df_base' es tu DataFrame maestro cargado de Sheets
-# y 'id_lider_actual' es la variable que guarda el ID de Nómina del Director que estamos evaluando.
+                        cols_sucs = st.columns(num_sucs)
+                        
+                        for i in range(num_sucs):
+                            with cols_sucs[i]:
+                                st.markdown(f"#### {'🥇' if i==0 else '🥈' if i==1 else '🥉' if i==2 else '🏅'} Sucesor {i+1}")
+                                
+                                idx_sel = opciones_sucesores.index(c_sucs[i]) if c_sucs[i] in opciones_sucesores else 0
+                                n_sucs[i] = st.selectbox(f"Candidato {i+1}", opciones_sucesores, index=idx_sel, key=f"select_suc{i+1}_{pos_seleccionada}")
+                                
+                                ficha_c = obtener_ficha_candidato(n_sucs[i])
+                                if ficha_c == "RESTRINGIDO_GLOBAL": st.error("🔒 Datos confidenciales")
+                                elif ficha_c == "RESTRINGIDO_LIDER_CUENTA": st.error("🔒 Acceso Restringido")
+                                elif ficha_c == "RESTRINGIDO_LIDER": st.error("🔒 Modo Presentación")
+                                elif ficha_c:
+                                    with st.expander("📊 Mostrar Métricas del Candidato"):
+                                        st.success(f"📊 **9-Box:** {ficha_c['box']} | 🔥 **Enganche:** {ficha_c['enganche']} | 📈 **EDR:** {ficha_c['edr']}")
+                                    pdi_diag = diagnosticar_pdi_ia(n_sucs[i], pos_seleccionada, ficha_c)
+                                    if pdi_diag and pdi_diag.get("estatus") == "SIN_PDI": st.warning(pdi_diag['recomendacion'])
+                                    elif pdi_diag and "color_borde" in pdi_diag: st.markdown(f"<details style='background:{pdi_diag['bg_color']}; border-left:4px solid {pdi_diag['color_borde']}; padding:12px; border-radius:6px; cursor:pointer;'><summary style='font-weight:bold; font-size:15px; color:#1e293b; outline:none;'>🤖 Dictamen IA: {pdi_diag['icono']} {pdi_diag['titulo_estatus']}</summary><div style='margin-top:10px; font-size:14px; color:#334155; line-height:1.5;'>🎯 <b>Objetivo PDI:</b> {pdi_diag['objetivo']} (Avance: <b>{pdi_diag['avance']}</b>)<br><br>📌 <b>RECOMENDACIÓN:</b><br>{pdi_diag['recomendacion']}</div></details>", unsafe_allow_html=True)
+                                
+                                idx_read = opciones_tiempo.index(c_reads[i]) if c_reads[i] in opciones_tiempo else 0
+                                n_reads[i] = st.radio(f"⏳ Readiness {i+1}", opciones_tiempo, index=idx_read, key=f"r_read{i+1}_{pos_seleccionada}", horizontal=True)
+                                n_pos_inputs[i] = st.text_area(f"👍 Comentarios Positivos {i+1}", value=c_pos[i], height=80, key=f"t_pos{i+1}_{pos_seleccionada}", placeholder=ph_pos)
+                                n_opo_inputs[i] = st.text_area(f"📈 Áreas de Oportunidad {i+1}", value=c_opos[i], height=80, key=f"t_opo{i+1}_{pos_seleccionada}", placeholder=ph_opo)
+                        
+                        st.write("---")
+                        st.markdown("#### 📋 Plan de Acción / Comentarios Adicionales")
+                        st.info("Utiliza este espacio para justificar si no hay sucesores o detallar el plan a seguir.")
+                        
+                        c_plan_accion = leer_campo('Comentarios de Sucesión') 
+                        n_plan_accion = st.text_area("Comentarios del Plan de Acción:", value=c_plan_accion, height=100, key=f"t_plan_accion_{pos_seleccionada}")
+                        
+                        st.write("")
+                        submitted = st.button("💾 Guardar Cambios en Base de Datos", type="primary", use_container_width=True)
+                        
+                        if submitted:
+                            with st.spinner("🤖 El robot está escribiendo en tu Excel..."):
+                                try:
+                                    secretos = st.secrets["connections"]["gsheets"]
+                                    credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
+                                    cliente = gspread.authorize(credenciales)
+                                    match = re.search(r'/d/([a-zA-Z0-9-_]+)', LINK_ARCHIVO)
+                                    doc_id = match.group(1) if match else LINK_ARCHIVO
+                                    archivo = cliente.open_by_key(doc_id)
+                                    pestana = archivo.worksheet("Base de datos")
+                                    
+                                    headers_bd = pestana.row_values(1)
+                                    
+                                    def idx_col(nombre):
+                                        for i, header in enumerate(headers_bd):
+                                            if str(header).strip().lower() == str(nombre).strip().lower():
+                                                return i + 1
+                                        return None
+                                    
+                                    idx_emergencia = idx_col('Sucesor de emergencia')
+                                    idx_plan_accion = idx_col('Comentarios de Sucesión')
+                                    
+                                    idxs_sucs = [idx_col(f'Sucesor P.{i}') for i in range(1, 6)]
+                                    idxs_reads = [idx_col(f'Tiempo de Readiness {i}') for i in range(1, 6)]
+                                    idxs_pos = [idx_col(f'Positivo {i}') for i in range(1, 6)]
+                                    idxs_opos = [idx_col(f'Oportunidad {i}') for i in range(1, 6)]
+                                    
+                                    for idx_p in df_ocupantes.index:
+                                        idx_excel = idx_p + 2 
+                                        
+                                        if idx_emergencia: pestana.update_cell(idx_excel, idx_emergencia, "Pendiente" if n_suc_emergencia == "Pendiente" else n_suc_emergencia)
+                                        if idx_plan_accion: pestana.update_cell(idx_excel, idx_plan_accion, n_plan_accion)
+                                        
+                                        for i in range(5):
+                                            if idxs_sucs[i]: pestana.update_cell(idx_excel, idxs_sucs[i], "Pendiente" if n_sucs[i] == "Pendiente" else n_sucs[i])
+                                            if idxs_reads[i]: pestana.update_cell(idx_excel, idxs_reads[i], "Pendiente" if n_reads[i] == "Pendiente" else n_reads[i])
+                                            if idxs_pos[i]: pestana.update_cell(idx_excel, idxs_pos[i], n_pos_inputs[i])
+                                            if idxs_opos[i]: pestana.update_cell(idx_excel, idxs_opos[i], n_opo_inputs[i])
+                                        
+                                        time.sleep(0.5) 
+                                    
+                                    try: archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
+                                    except Exception: pass 
+                                    
+                                    st.success("✅ ¡Guardado exitosamente! El mapa se está actualizando...")
+                                    st.cache_data.clear(); st.rerun()
+                                except Exception as e: st.error(f"❌ Error técnico al intentar escribir en el Excel: {e}")
+                
+                with tab_pdi_equipo:
+                    st.markdown("### 📈 Seguimiento de PDI de mi Equipo")
+                    st.info("Gracias a la nueva arquitectura multifila, ahora puedes ver el estatus granular de cada acción del plan 70-20-10 de tus colaboradores.")
+                    if not df_pdi.empty and 'Nombre' in df_pdi.columns:
+                        nombres_visibles_limpios = [str(d['Nombre']).strip().lower() for d in kpis['data_total']]
+                        df_pdi_filtrado = df_pdi.copy()
+                        
+                        if f_lid_plan != "Todos":
+                            df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower().isin(subordinados_nombres_limpios)]
+                        else:
+                            df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower().isin(nombres_visibles_limpios)]
+                        
+                        columnas_busqueda = [
+                            ("nómina", "Nómina"),
+                            ("nombre", "Colaborador"),
+                            ("roles", "Roles / Áreas de Interés"),
+                            ("objetivo", "Objetivo PDI"),
+                            ("pdi", "PDI (70/20/10)"), 
+                            ("clasificacion", "Clasificación de Competencia"),
+                            ("qué", "Qué? / Acciones"),
+                            ("para qué", "¿Para qué? / Competencia"),
+                            ("quién", "¿Quién? / Recursos"),
+                            ("cuándo", "¿Cuándo? / Fechas"),
+                            ("cómo", "Métricas"),
+                            ("avance", "% de Avance"),
+                            ("estatus", "Estatus")
+                        ]
+                        cols_reales = []; nombres_finales = []
+                        for clave, nombre_nuevo in columnas_busqueda:
+                            col_match = None
+                            if clave == "pdi":
+                                col_match = next((c for c in df_pdi_filtrado.columns if clean_text(str(c)).lower() == "pdi"), None)
+                                if not col_match:
+                                    col_match = next((c for c in df_pdi_filtrado.columns if 'pdi' in clean_text(str(c)).lower() and 'objetivo' not in clean_text(str(c)).lower()), None)
+                            else:
+                                col_match = next((c for c in df_pdi_filtrado.columns if clean_text(clave).lower() in clean_text(str(c)).lower() and c not in cols_reales), None)
+                            
+                            if col_match and col_match not in cols_reales: 
+                                cols_reales.append(col_match)
+                                nombres_finales.append(nombre_nuevo)
+                        
+                        if cols_reales:
+                            df_pdi_mostrar = df_pdi_filtrado[cols_reales].copy()
+                            df_pdi_mostrar.columns = nombres_finales
+                            
+                            col_acc_tabla = next((c for c in df_pdi_mostrar.columns if 'Acciones' in c), None)
+                            if col_acc_tabla:
+                                df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar[col_acc_tabla].astype(str).str.strip() != ""]
+                                
+                            total_acciones = len(df_pdi_mostrar)
+                            col_pdi_kpi = next((c for c in df_pdi_mostrar.columns if 'PDI (70/20/10)' == c), None)
+                            col_av_tabla = next((c for c in df_pdi_mostrar.columns if 'Avance' in c), None)
+                            
+                            prom_70 = prom_20 = prom_10 = promedio_avance = 0.0
+                            
+                            def get_avg(mask):
+                                if col_av_tabla and mask.sum() > 0:
+                                    avances_limpios = df_pdi_mostrar.loc[mask, col_av_tabla].astype(str).str.replace('%', '', regex=False).str.extract(r'(\d+)').astype(float)
+                                    return round(avances_limpios[0].mean(), 1) if not avances_limpios.isna().all().all() else 0.0
+                                return 0.0
+                            
+                            if total_acciones > 0 and col_pdi_kpi:
+                                mask_70 = df_pdi_mostrar[col_pdi_kpi].astype(str).str.contains('70')
+                                mask_20 = df_pdi_mostrar[col_pdi_kpi].astype(str).str.contains('20')
+                                mask_10 = df_pdi_mostrar[col_pdi_kpi].astype(str).str.contains('10')
+                                
+                                prom_70 = get_avg(mask_70)
+                                prom_20 = get_avg(mask_20)
+                                prom_10 = get_avg(mask_10)
+                                promedio_avance = get_avg(pd.Series(True, index=df_pdi_mostrar.index))
+                                
+                            st.markdown("#### 📊 Análisis Global del Modelo 70-20-10")
+                            pk1, pk2, pk3, pk4, pk5 = st.columns(5)
+                            
+                            with pk1:
+                                if st.button(f"📊 Total Acciones\n\n{total_acciones}", key="b_pdi_todas", use_container_width=True): 
+                                    st.session_state['filtro_pdi_cat'] = 'todas'
+                                    st.rerun()
+                                    
+                            with pk2:
+                                st.button(f"📈 Avance Promedio\n\n{promedio_avance}%", key="b_pdi_prom", use_container_width=True)
+                                    
+                            with pk3:
+                                if st.button(f"🔵 Experiencia (70%)\n\n{prom_70}%", key="b_pdi_70", use_container_width=True):
+                                    st.session_state['filtro_pdi_cat'] = '70'
+                                    st.rerun()
+                                    
+                            with pk4:
+                                if st.button(f"🟡 Mentoring (20%)\n\n{prom_20}%", key="b_pdi_20", use_container_width=True):
+                                    st.session_state['filtro_pdi_cat'] = '20'
+                                    st.rerun()
+                                    
+                            with pk5:
+                                if st.button(f"🔴 Formación (10%)\n\n{prom_10}%", key="b_pdi_10", use_container_width=True):
+                                    st.session_state['filtro_pdi_cat'] = '10'
+                                    st.rerun()
+                                    
+                            st.write("---")
+                            
+                            if 'filtro_pdi_cat' in st.session_state and st.session_state['filtro_pdi_cat'] not in ['todas', None]:
+                                f_cat = st.session_state['filtro_pdi_cat']
+                                if col_pdi_kpi:
+                                    df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar[col_pdi_kpi].astype(str).str.contains(f_cat)]
+                                    c_f1, c_f2 = st.columns([8, 2])
+                                    c_f1.info(f"👆 **Filtro Activo:** Mostrando exclusivamente las acciones de la categoría **{f_cat}%**.")
+                                    if c_f2.button("❌ Quitar filtro", use_container_width=True):
+                                        st.session_state['filtro_pdi_cat'] = None
+                                        st.rerun()
+                            
+                            col_p1, col_p2, col_p3 = st.columns(3)
+                            if "Colaborador" in df_pdi_mostrar.columns:
+                                lista_nombres_pdi = sorted(df_pdi_mostrar['Colaborador'].dropna().astype(str).unique().tolist())
+                                filtro_nombre = col_p1.multiselect("👤 Filtrar por Colaborador:", options=lista_nombres_pdi)
+                                if filtro_nombre: df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Colaborador'].isin(filtro_nombre)]
+                            
+                            col_filtro_cat = col_pdi_kpi if col_pdi_kpi else next((c for c in df_pdi_mostrar.columns if 'Clasificación' in c), None)
+                            if col_filtro_cat:
+                                lista_clasif_pdi = sorted(df_pdi_mostrar[col_filtro_cat].dropna().astype(str).unique().tolist())
+                                filtro_clasif = col_p2.multiselect("🏷️ Filtrar por Categoría / PDI:", options=lista_clasif_pdi)
+                                if filtro_clasif: df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar[col_filtro_cat].isin(filtro_clasif)]
+                            
+                            if "Estatus" in df_pdi_mostrar.columns:
+                                lista_estatus_pdi = sorted(df_pdi_mostrar['Estatus'].dropna().astype(str).unique().tolist())
+                                filtro_estatus = col_p3.multiselect("🚦 Filtrar por Estatus:", options=lista_estatus_pdi)
+                                if filtro_estatus: df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Estatus'].isin(filtro_estatus)]
+                            
+                            st.dataframe(df_pdi_mostrar, use_container_width=True, hide_index=True)
+                        else: st.warning("⚠️ Esperando el primer guardado para construir la tabla de seguimiento.")
+                    else: st.warning("⚠️ No hay planes de desarrollo registrados en el equipo todavía.")
+                
+                # LA NUEVA MAGIA: PESTAÑA PERSONAL DEL LÍDER
+                with tab_mi_pdi:
+                    renderizar_mi_pdi(df_completo, df_pdi)
+                
+                if st.session_state["id_usuario"] == "admin":
+                    with tab_admin:
+                        st.markdown("### ⚙️ Gestión de Usuarios Directivos")
+                        st.info("Administra los accesos a la plataforma. Estos se sincronizan en vivo con tu pestaña 'Usuarios' de Google Sheets.")
 
-# 1. Filtramos el DataFrame excluyendo el ID del líder actual para evitar que sea su propio sucesor
-df_candidatos_validos = df_base[df_base['ID'] != id_lider_actual]
+                        current_timestamp_u = obtener_timestamp_actualizacion(LINK_ARCHIVO)
+                        df_u_admin = cargar_datos_csv(LINK_ARCHIVO, "Usuarios", current_timestamp_u)
 
-# 2. Excluimos también los IDs inventados de Vacantes para que no aparezcan como personas elegibles
-df_candidatos_validos = df_candidatos_validos[~df_candidatos_validos['ID'].str.startswith('VAC-', na=False)]
+                        sub_tab_nuevo, sub_tab_editar = st.tabs(["➕ Agregar Nuevo Perfil", "✏️ Editar / Eliminar Perfil"])
 
-# 3. Creamos el diccionario o lista para el selectbox
-# Recordatorio: Operamos internamente con el ID, pero mostramos el Nombre al usuario
-opciones_candidatos = df_candidatos_validos['Nombre'].tolist()
-
-# 4. Renderizamos la UI del Sucesor (Ejemplo para Sucesor 1)
-# Si Streamlit intenta recuperar un index anterior desde session_state, el filtro evitará que encuentre al líder.
-sucesor_1 = st.selectbox(
-    "Candidato 1", 
-    options=["Seleccione un candidato..."] + opciones_candidatos,
-    index=0
-)
-
-# Renderizado de métricas en el expander (oculto por defecto según la regla UI)
-with st.expander("Mostrar Métricas del Candidato"):
-    if sucesor_1 != "Seleccione un candidato...":
-        # Extraer ID del candidato seleccionado para buscar sus métricas
-        # Lógica para mostrar 9-Box, Enganche y EDR...
-        pass
+                        with sub_tab_nuevo:
+                            with st.form("nuevo_usuario_form", clear_on_submit=True):
+                                st.markdown("#### Crear Alta de Usuario")
+                                
+                                lista_empleados_busqueda = []
+                                for _, r in df_completo.iterrows():
+                                    nom = clean_id(r.get('id Empleado'))
+                                    nombre = clean_text(r.get('Nombre'))
+                                    if nom and nombre:
+                                        lista_empleados_busqueda.append(f"{nom} - {nombre}")
+                                lista_empleados_busqueda = sorted(list(set(lista_empleados_busqueda)))
+                                
+                                seleccion_empleado = st.selectbox("🔍 Buscar colaborador (Por Número de Nómina o Nombre)", [""] + lista_empleados_busqueda)
+                                
+                                n_pass = st.text_input(f"Contraseña temporal (Sugerencia: {PASSWORD_POR_DEFECTO})", value=PASSWORD_POR_DEFECTO)
+                                n_dir_list = st.multiselect("🏢 Direcciones Permitidas (Elige 'TODAS', 'COLABORADOR' o múltiples áreas)", ["TODAS", "COLABORADOR"] + dirs)
+                                
+                                lideres_para_admin = sorted(df_completo['Nombre'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
+                                n_lider_list = st.multiselect("👤 Líder Restringido (Filtro por jerarquía de equipo)", ["TODOS"] + lideres_para_admin, default=["TODOS"])
+                                
+                                submit_btn = st.form_submit_button("Crear Nuevo Usuario")
+                                
+                                if submit_btn:
+                                    if seleccion_empleado and n_pass and n_dir_list:
+                                        n_user = seleccion_empleado.split(" - ")[0].strip()
+                                        n_nombre = seleccion_empleado.split(" - ")[1].strip()
+                                        n_dir = ", ".join(n_dir_list)
+                                        n_lider = ", ".join(n_lider_list) if n_lider_list else "TODOS"
+                                        
+                                        with st.spinner("🤖 Escribiendo usuario en Google Sheets..."):
+                                            try:
+                                                secretos = st.secrets["connections"]["gsheets"]
+                                                credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
+                                                cliente = gspread.authorize(credenciales)
+                                                match = re.search(r'/d/([a-zA-Z0-9-_]+)', LINK_ARCHIVO)
+                                                doc_id = match.group(1) if match else LINK_ARCHIVO
+                                                archivo = cliente.open_by_key(doc_id)
+                                                
+                                                pestana_users = archivo.worksheet("Usuarios")
+                                                pestana_users.append_row([n_user, n_nombre, n_pass, n_dir, n_lider])
+                                                
+                                                archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
+                                                
+                                                st.success(f"✅ ¡Usuario '{n_nombre}' ({n_user}) creado exitosamente! Ya puede iniciar sesión.")
+                                                st.cache_data.clear()
+                                                time.sleep(1.5)
+                                                st.rerun()
+                                            except Exception as e:
+                                                st.error(f"❌ Error al crear el usuario. Asegúrate de que la pestaña 'Usuarios' tenga 5 columnas en la fila 1 (Usuario, Nombre, Password, Direccion, Lider Restringido). Detalles: {e}")
+                                    else:
+                                        st.warning("⚠️ Debes seleccionar un colaborador y al menos una Dirección Permitida para crear el usuario.")
+                        
+                        with sub_tab_editar:
+                            if not df_u_admin.empty:
+                                lista_usuarios_edit = []
+                                for _, r in df_u_admin.iterrows():
+                                    u_id_val = str(r.get("Usuario", "")).strip()
+                                    u_nom_val = str(r.get("Nombre", "")).strip()
+                                    if u_id_val: 
+                                        lista_usuarios_edit.append(f"{u_id_val} - {u_nom_val}")
+                                
+                                usuario_a_editar = st.selectbox("🔍 Selecciona el usuario a modificar", [""] + sorted(lista_usuarios_edit))
+                                
+                                if usuario_a_editar:
+                                    u_id_sel = usuario_a_editar.split(" - ")[0].strip()
+                                    datos_u = df_u_admin[df_u_admin['Usuario'].astype(str).str.strip() == u_id_sel].iloc[0]
+                                    
+                                    c_pass = str(datos_u.get("Password", ""))
+                                    c_dir = str(datos_u.get("Direccion", ""))
+                                    c_lid = str(datos_u.get("Lider Restringido", "TODOS"))
+                                    
+                                    c_dir_list = [d.strip() for d in c_dir.split(",")] if c_dir else []
+                                    opciones_dir = ["TODAS", "COLABORADOR"] + dirs
+                                    c_dir_list_valid = [d for d in c_dir_list if d in opciones_dir]
+                                    
+                                    c_lid_list = [l.strip() for l in c_lid.split(",")] if c_lid else ["TODOS"]
+                                    lideres_para_admin = sorted(df_completo['Nombre'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
+                                    opciones_lid = ["TODOS"] + lideres_para_admin
+                                    c_lid_list_valid = [l for l in c_lid_list if l in opciones_lid]
+                                    if not c_lid_list_valid: c_lid_list_valid = ["TODOS"]
+                                    
+                                    with st.form("editar_usuario_form"):
+                                        st.markdown(f"#### Editando a: {usuario_a_editar.split(' - ')[1]}")
+                                        e_pass = st.text_input("Contraseña", value=c_pass)
+                                        e_dir_list = st.multiselect("🏢 Direcciones Permitidas", opciones_dir, default=c_dir_list_valid)
+                                        e_lider_list = st.multiselect("👤 Líder Restringido (Filtro por jerarquía de equipo)", opciones_lid, default=c_lid_list_valid)
+                                        
+                                        col_b1, col_b2 = st.columns(2)
+                                        btn_actualizar = col_b1.form_submit_button("💾 Actualizar Permisos", type="primary", use_container_width=True)
+                                        btn_eliminar = col_b2.form_submit_button("🗑️ Eliminar Usuario", use_container_width=True)
+                                        
+                                        if btn_actualizar:
+                                            if e_dir_list:
+                                                e_dir_str = ", ".join(e_dir_list)
+                                                e_lider_str = ", ".join(e_lider_list) if e_lider_list else "TODOS"
+                                                with st.spinner("🤖 Actualizando usuario en Google Sheets..."):
+                                                    try:
+                                                        secretos = st.secrets["connections"]["gsheets"]
+                                                        credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
+                                                        cliente = gspread.authorize(credenciales)
+                                                        match = re.search(r'/d/([a-zA-Z0-9-_]+)', LINK_ARCHIVO)
+                                                        doc_id = match.group(1) if match else LINK_ARCHIVO
+                                                        archivo = cliente.open_by_key(doc_id)
+                                                        
+                                                        pestana_users = archivo.worksheet("Usuarios")
+                                                        usuarios_col = pestana_users.col_values(1)
+                                                        
+                                                        try:
+                                                            fila_usuario = usuarios_col.index(u_id_sel) + 1
+                                                            pestana_users.update_cell(fila_usuario, 3, e_pass)
+                                                            pestana_users.update_cell(fila_usuario, 4, e_dir_str)
+                                                            pestana_users.update_cell(fila_usuario, 5, e_lider_str)
+                                                            
+                                                            archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
+                                                            st.cache_data.clear()
+                                                            st.success(f"✅ ¡Usuario actualizado exitosamente!")
+                                                            time.sleep(1.5)
+                                                            st.rerun()
+                                                        except ValueError:
+                                                            st.error("❌ El usuario no fue encontrado en la hoja de Excel.")
+                                                    except Exception as e:
+                                                        st.error(f"❌ Error de conexión: {e}")
+                                            else:
+                                                st.warning("⚠️ Debes seleccionar al menos una Dirección Permitida.")
+                                                
+                                        if btn_eliminar:
+                                            with st.spinner("🗑️ Eliminando usuario de Google Sheets..."):
+                                                try:
+                                                    secretos = st.secrets["connections"]["gsheets"]
+                                                    credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
+                                                    cliente = gspread.authorize(credenciales)
+                                                    match = re.search(r'/d/([a-zA-Z0-9-_]+)', LINK_ARCHIVO)
+                                                    doc_id = match.group(1) if match else LINK_ARCHIVO
+                                                    archivo = cliente.open_by_key(doc_id)
+                                                    
+                                                    pestana_users = archivo.worksheet("Usuarios")
+                                                    usuarios_col = pestana_users.col_values(1)
+                                                    
+                                                    try:
+                                                        fila_usuario = usuarios_col.index(u_id_sel) + 1
+                                                        pestana_users.delete_rows(fila_usuario)
+                                                        
+                                                        archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
+                                                        st.cache_data.clear()
+                                                        st.success(f"✅ ¡Usuario eliminado exitosamente!")
+                                                        time.sleep(1.5)
+                                                        st.rerun()
+                                                    except ValueError:
+                                                        st.error("❌ El usuario no fue encontrado en la hoja de Excel.")
+                                                except Exception as e:
+                                                    st.error(f"❌ Error de conexión: {e}")
+                            else:
+                                st.info("No hay usuarios registrados en la base de datos.")
+                                    
+                        st.write("---")
+                        st.markdown("#### 👥 Usuarios Actuales en Base de Datos")
+                        if not df_u_admin.empty:
+                            st.dataframe(df_u_admin, use_container_width=True, hide_index=True)
+                        else:
+                            st.info("La pestaña 'Usuarios' en Google Sheets está vacía.")
+                            
+if __name__ == "__main__":
+    main()
