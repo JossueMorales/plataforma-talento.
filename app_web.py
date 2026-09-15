@@ -1247,10 +1247,17 @@ def main():
                                 
                         puesto_actual = clean_text(row_c.get('Nombre de la Posición'), 'Puesto no asignado')
                         
-                        # --- NUEVO CANDADO DE SEGURIDAD PARA LÍDERES ---
-                        es_propia = (nombre_cand.strip().lower() == st.session_state.get("nombre_usuario", "").strip().lower())
-                        es_lider_pres = (f_lid_plan != "Todos" and nombre_cand.strip().lower() == f_lid_plan.strip().lower())
-                        ocultar_metricas = (es_propia or es_lider_pres) and st.session_state.get("id_usuario") != "admin"
+                        # --- CANDADO BLINDADO DE PRIVACIDAD ---
+                        nom_cand_limpio = ' '.join(str(nombre_cand).strip().lower().split())
+                        nom_usr_limpio = ' '.join(str(st.session_state.get("nombre_usuario", "")).strip().lower().split())
+                        nom_lid_plan_limpio = ' '.join(str(f_lid_plan).strip().lower().split())
+                        es_admin = (st.session_state.get("id_usuario") == "admin")
+                        
+                        # Ocultar si el admin/HR está en Modo Privado para este líder, o si un colab normal se ve a sí mismo
+                        es_lider_presentado = (nom_lid_plan_limpio != "todos") and (nom_cand_limpio == nom_lid_plan_limpio)
+                        es_propia_colab = (not es_admin) and (nom_cand_limpio == nom_usr_limpio)
+                        
+                        ocultar_metricas = es_lider_presentado or es_propia_colab
                         
                         if ocultar_metricas:
                             box_c = "🔒 Confidencial"
@@ -1364,10 +1371,17 @@ def main():
                             lider = get_nom(row.get('ID Del Jefe', ''))
                             dir_c = clean_text(row.get('Dirección', row.get('Direccion', 'N/A')))
                             
-                            # --- NUEVO CANDADO DE SEGURIDAD PARA LÍDERES ---
-                            es_propia = (nombre_cand.strip().lower() == st.session_state.get("nombre_usuario", "").strip().lower())
-                            es_lider_pres = (f_lid_plan != "Todos" and nombre_cand.strip().lower() == f_lid_plan.strip().lower())
-                            ocultar_metricas = (es_propia or es_lider_pres) and st.session_state.get("id_usuario") != "admin"
+                            # --- CANDADO BLINDADO DE PRIVACIDAD ---
+                            nom_cand_limpio = ' '.join(str(nombre_cand).strip().lower().split())
+                            nom_usr_limpio = ' '.join(str(st.session_state.get("nombre_usuario", "")).strip().lower().split())
+                            nom_lid_plan_limpio = ' '.join(str(f_lid_plan).strip().lower().split())
+                            es_admin = (st.session_state.get("id_usuario") == "admin")
+                            
+                            # Ocultar si el admin/HR está en Modo Privado para este líder, o si un colab normal se ve a sí mismo
+                            es_lider_presentado = (nom_lid_plan_limpio != "todos") and (nom_cand_limpio == nom_lid_plan_limpio)
+                            es_propia_colab = (not es_admin) and (nom_cand_limpio == nom_usr_limpio)
+                            
+                            ocultar_metricas = es_lider_presentado or es_propia_colab
                             
                             mla = "🔒" if ocultar_metricas else clean_text(row.get('Nivel MLA', 'N/A'))
                             box = "🔒" if ocultar_metricas else clean_text(row.get('Resultado 9 box', 'Pendiente'))
