@@ -1265,7 +1265,7 @@ def main():
                             eng_key = next((k for k in row_c.keys() if k and 'enganche' in str(k).lower()), None)
                             eng_c = clean_text(row_c.get(eng_key), 'N/A') if eng_key else 'N/A'
                             
-                        return {"puesto_actual": puesto_actual, "direccion": dir_candidato, "box": box_c, "enganche": eng_c, "edr": edr_c}
+                        return {"puesto": puesto_actual, "direccion": dir_candidato, "box": box_c, "enganche": eng_c, "edr": edr_c}
                     
                     def generar_sugerencias_ia(pos_destino, info_pos_destino):
                         if not pos_destino or df_completo.empty: return []
