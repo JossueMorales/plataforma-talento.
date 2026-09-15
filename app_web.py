@@ -1252,10 +1252,22 @@ def main():
                             if nombre_cand.strip().lower() not in subordinados_nombres_limpios: return "RESTRINGIDO_LIDER"
                                 
                         puesto_actual = clean_text(row_c.get('Nombre de la Posición'), 'Puesto no asignado')
-                        box_c = clean_text(row_c.get('Resultado 9 box'), 'Pendiente')
-                        edr_c = clean_text(row_c.get('EDR', row_c.get('EDR ')), 'Pendiente')
-                        eng_key = next((k for k in row_c.keys() if k and 'enganche' in str(k).lower()), None)
-                        eng_c = clean_text(row_c.get(eng_key), 'N/A') if eng_key else 'N/A'
+                        
+                        # --- NUEVO CANDADO DE SEGURIDAD PARA LÍDERES ---
+                        es_propia = (nombre_cand.strip().lower() == st.session_state.get("nombre_usuario", "").strip().lower())
+                        es_lider_pres = (f_lid_plan != "Todos" and nombre_cand.strip().lower() == f_lid_plan.strip().lower())
+                        ocultar_metricas = (es_propia or es_lider_pres) and st.session_state.get("id_usuario") != "admin"
+                        
+                        if ocultar_metricas:
+                            box_c = "🔒 Confidencial"
+                            edr_c = "🔒 Confidencial"
+                            eng_c = "🔒 Confidencial"
+                        else:
+                            box_c = clean_text(row_c.get('Resultado 9 box'), 'Pendiente')
+                            edr_c = clean_text(row_c.get('EDR', row_c.get('EDR ')), 'Pendiente')
+                            eng_key = next((k for k in row_c.keys() if k and 'enganche' in str(k).lower()), None)
+                            eng_c = clean_text(row_c.get(eng_key), 'N/A') if eng_key else 'N/A'
+                            
                         return {"puesto_actual": puesto_actual, "direccion": dir_candidato, "box": box_c, "enganche": eng_c, "edr": edr_c}
                     
                     def generar_sugerencias_ia(pos_destino, info_pos_destino):
@@ -1357,12 +1369,18 @@ def main():
                             puesto = clean_text(row.get('Nombre de la Posición', 'N/A'))
                             lider = get_nom(row.get('ID Del Jefe', ''))
                             dir_c = clean_text(row.get('Dirección', row.get('Direccion', 'N/A')))
-                            mla = clean_text(row.get('Nivel MLA', 'N/A'))
-                            box = clean_text(row.get('Resultado 9 box', 'Pendiente'))
+                            
+                            # --- NUEVO CANDADO DE SEGURIDAD PARA LÍDERES ---
+                            es_propia = (nombre_cand.strip().lower() == st.session_state.get("nombre_usuario", "").strip().lower())
+                            es_lider_pres = (f_lid_plan != "Todos" and nombre_cand.strip().lower() == f_lid_plan.strip().lower())
+                            ocultar_metricas = (es_propia or es_lider_pres) and st.session_state.get("id_usuario") != "admin"
+                            
+                            mla = "🔒" if ocultar_metricas else clean_text(row.get('Nivel MLA', 'N/A'))
+                            box = "🔒" if ocultar_metricas else clean_text(row.get('Resultado 9 box', 'Pendiente'))
                             edr_key = next((k for k in row.keys() if k and 'edr' in str(k).lower()), None)
-                            edr = clean_text(row.get(edr_key, 'Pendiente')) if edr_key else 'Pendiente'
+                            edr = "🔒" if ocultar_metricas else (clean_text(row.get(edr_key, 'Pendiente')) if edr_key else 'Pendiente')
                             eng_key = next((k for k in row.keys() if k and 'enganche' in str(k).lower()), None)
-                            eng = clean_text(row.get(eng_key, 'N/A')) if eng_key else 'N/A'
+                            eng = "🔒" if ocultar_metricas else (clean_text(row.get(eng_key, 'N/A')) if eng_key else 'N/A')
                             suc1 = get_nom(row.get('Sucesor P.1', row.get('Sucesor 1', '')))
                             read1 = clean_text(row.get('Tiempo de Readiness 1', ''))
                             
