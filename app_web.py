@@ -720,7 +720,6 @@ def renderizar_mi_pdi(df_completo, df_pdi):
                     archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
                     st.cache_data.clear()
                     
-                    # --- NUEVO BLOQUE DE CONFIRMACIÓN VISUAL DE ALTO IMPACTO ---
                     st.balloons()
                     st.toast("¡Plan 70-20-10 guardado exitosamente!", icon="✅")
                     st.markdown("""
@@ -937,7 +936,6 @@ def main():
                 
             with col_head2:
                 nombres_s = df_filtros['Nombre'].dropna()
-                # --- APLICACIÓN EN LA LISTA DESPLEGABLE DE BÚSQUEDA ---
                 lista_nombres_buscador = nombres_s[nombres_s != ''].drop_duplicates().tolist()
                 colab_buscado = st.selectbox("🔍 Búsqueda rápida de colaborador:", [""] + lista_nombres_buscador)
                 
@@ -1247,13 +1245,11 @@ def main():
                                 
                         puesto_actual = clean_text(row_c.get('Nombre de la Posición'), 'Puesto no asignado')
                         
-                        # --- CANDADO BLINDADO DE PRIVACIDAD ---
                         nom_cand_limpio = ' '.join(str(nombre_cand).strip().lower().split())
                         nom_usr_limpio = ' '.join(str(st.session_state.get("nombre_usuario", "")).strip().lower().split())
                         nom_lid_plan_limpio = ' '.join(str(f_lid_plan).strip().lower().split())
                         es_admin = (st.session_state.get("id_usuario") == "admin")
                         
-                        # Ocultar si el admin/HR está en Modo Privado para este líder, o si un colab normal se ve a sí mismo
                         es_lider_presentado = (nom_lid_plan_limpio != "todos") and (nom_cand_limpio == nom_lid_plan_limpio)
                         es_propia_colab = (not es_admin) and (nom_cand_limpio == nom_usr_limpio)
                         
@@ -1371,13 +1367,11 @@ def main():
                             lider = get_nom(row.get('ID Del Jefe', ''))
                             dir_c = clean_text(row.get('Dirección', row.get('Direccion', 'N/A')))
                             
-                            # --- CANDADO BLINDADO DE PRIVACIDAD ---
                             nom_cand_limpio = ' '.join(str(nombre_cand).strip().lower().split())
                             nom_usr_limpio = ' '.join(str(st.session_state.get("nombre_usuario", "")).strip().lower().split())
                             nom_lid_plan_limpio = ' '.join(str(f_lid_plan).strip().lower().split())
                             es_admin = (st.session_state.get("id_usuario") == "admin")
                             
-                            # Ocultar si el admin/HR está en Modo Privado para este líder, o si un colab normal se ve a sí mismo
                             es_lider_presentado = (nom_lid_plan_limpio != "todos") and (nom_cand_limpio == nom_lid_plan_limpio)
                             es_propia_colab = (not es_admin) and (nom_cand_limpio == nom_usr_limpio)
                             
@@ -1459,8 +1453,6 @@ def main():
                                     else:
                                         st.warning("⚠️ **Dictamen IA:** No se detectaron candidatos en la plantilla actual que cumplan con los criterios estrictos para esta posición crítica. **Se sugiere reclutamiento externo.**")
                         
-                        
-                        # --- NUEVO FILTRO PARA EXCLUIR AL OCUPANTE ACTUAL Y VACANTES DE LA LISTA DE SUCESORES ---
                         id_ocupante_actual = clean_id(info_pos.get('id Empleado', ''))
                         nombres_empleados_validos = []
                         for _, row_emp in df_completo.iterrows():
@@ -1507,6 +1499,7 @@ def main():
                         elif ficha_emergencia == "RESTRINGIDO_LIDER_CUENTA": st.error("🔒 Acceso Restringido")
                         elif ficha_emergencia == "RESTRINGIDO_LIDER": st.error("🔒 Modo Presentación Activo")
                         elif ficha_emergencia:
+                            st.markdown(f"<div style='font-size: 13px; color: #475569; margin-top: -10px; margin-bottom: 8px;'>💼 <b>Puesto Actual:</b> {ficha_emergencia['puesto_actual']}</div>", unsafe_allow_html=True)
                             with st.expander("📊 Mostrar Métricas del Candidato"):
                                 st.success(f"📊 **9-Box:** {ficha_emergencia['box']} | 🔥 **Enganche:** {ficha_emergencia['enganche']} | 📈 **EDR:** {ficha_emergencia['edr']}")
                         
@@ -1553,6 +1546,7 @@ def main():
                                 elif ficha_c == "RESTRINGIDO_LIDER_CUENTA": st.error("🔒 Acceso Restringido")
                                 elif ficha_c == "RESTRINGIDO_LIDER": st.error("🔒 Modo Presentación")
                                 elif ficha_c:
+                                    st.markdown(f"<div style='font-size: 13px; color: #475569; margin-top: -10px; margin-bottom: 8px;'>💼 <b>Puesto Actual:</b> {ficha_c['puesto_actual']}</div>", unsafe_allow_html=True)
                                     with st.expander("📊 Mostrar Métricas del Candidato"):
                                         st.success(f"📊 **9-Box:** {ficha_c['box']} | 🔥 **Enganche:** {ficha_c['enganche']} | 📈 **EDR:** {ficha_c['edr']}")
                                     pdi_diag = diagnosticar_pdi_ia(n_sucs[i], pos_seleccionada, ficha_c)
