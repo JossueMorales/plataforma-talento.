@@ -1219,7 +1219,7 @@ def main():
 
                         # 3. Interfaz Visual del Indicador (Tarjeta Estética Original)
                         st.markdown(f"""
-                        <div style='background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 6px solid {color_riesgo}; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;'>
+                        <div style='background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 6px solid {color_riesgo}; padding: 15px 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between; height: 95px; margin-bottom: 0px;'>
                             <div>
                                 <h3 style='margin: 0; color: #1e293b; font-size: 24px;'>{indice_riesgo_global}%</h3>
                                 <p style='margin: 0; color: #64748b; font-size: 14px; font-weight: bold;'>ÍNDICE DE RIESGO OPERATIVO ACTUAL</p>
@@ -1231,15 +1231,32 @@ def main():
                         </div>
                         """, unsafe_allow_html=True)
 
-                        # 4. Botón Interruptor para mostrar/ocultar los detalles
+                        # 4. Botón Interruptor Invisible (CSS Hack Overlay)
+                        st.markdown("""
+                        <style>
+                        /* Oculta el botón original y lo superpone sobre la tarjeta HTML */
+                        div[data-testid="stVerticalBlock"] > div:has(button[title="Clic para ver detalles de IA"]) {
+                            margin-top: -95px !important;
+                            margin-bottom: 10px !important;
+                            opacity: 0 !important;
+                            z-index: 999 !important;
+                        }
+                        div[data-testid="stVerticalBlock"] > div:has(button[title="Clic para ver detalles de IA"]) button {
+                            height: 95px !important;
+                            cursor: pointer !important;
+                        }
+                        </style>
+                        """, unsafe_allow_html=True)
+                        
                         if 'mostrar_dictamen_ia' not in st.session_state:
                             st.session_state['mostrar_dictamen_ia'] = False
 
-                        if st.button("🔍 Mostrar / Ocultar Análisis Detallado por Líder", use_container_width=True):
+                        # Este es el botón transparente que atrapa los clics
+                        if st.button(" ", help="Clic para ver detalles de IA", key="btn_ia_riesgo", use_container_width=True):
                             st.session_state['mostrar_dictamen_ia'] = not st.session_state['mostrar_dictamen_ia']
                             st.rerun()
 
-                        # 5. Dictamen Narrativo de la IA (Insights)
+                        # 5. Dictamen Narrativo de la IA (Insights que aparecen al hacer clic)
                         if st.session_state['mostrar_dictamen_ia']:
                             lideres_problema = {lid: data for lid, data in alertas_criticas_ia.items() if data["puestos_riesgo_critico"] > 0}
                             
