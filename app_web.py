@@ -1119,13 +1119,19 @@ def main():
                     rk1, rk2, rk3 = st.columns(3)
                     with rk1:
                         if st.button(f"🟢 Inmediato\n\n{pct_inm}% ({r_inm} colab.)", key="b_read_inm", use_container_width=True):
-                            st.session_state['filtro_kpi_plan'] = 'inmediato'; st.rerun()
+                            st.session_state['filtro_kpi_plan'] = None if st.session_state.get('filtro_kpi_plan') == 'inmediato' else 'inmediato'
+                            st.session_state['mostrar_dictamen_ia'] = False
+                            st.rerun()
                     with rk2:
                         if st.button(f"🟡 1 a 3 años\n\n{pct_1_3}% ({r_1_3} colab.)", key="b_read_1_3", use_container_width=True):
-                            st.session_state['filtro_kpi_plan'] = '1_3_anos'; st.rerun()
+                            st.session_state['filtro_kpi_plan'] = None if st.session_state.get('filtro_kpi_plan') == '1_3_anos' else '1_3_anos'
+                            st.session_state['mostrar_dictamen_ia'] = False
+                            st.rerun()
                     with rk3:
                         if st.button(f"🔵 Más de 3 años\n\n{pct_mas_3}% ({r_mas_3} colab.)", key="b_read_mas_3", use_container_width=True):
-                            st.session_state['filtro_kpi_plan'] = 'mas_3_anos'; st.rerun()
+                            st.session_state['filtro_kpi_plan'] = None if st.session_state.get('filtro_kpi_plan') == 'mas_3_anos' else 'mas_3_anos'
+                            st.session_state['mostrar_dictamen_ia'] = False
+                            st.rerun()
                     
                     st.write("---")
                     
@@ -1143,11 +1149,20 @@ def main():
                     
                     col_k1, col_k2, col_k3 = st.columns(3)
                     with col_k1:
-                        if st.button(f"📘 TOTAL CRÍTICAS\n\n{total_criticas}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'todas'; st.rerun()
+                        if st.button(f"📘 TOTAL CRÍTICAS\n\n{total_criticas}", use_container_width=True): 
+                            st.session_state['filtro_kpi_plan'] = None if st.session_state.get('filtro_kpi_plan') == 'todas' else 'todas'
+                            st.session_state['mostrar_dictamen_ia'] = False
+                            st.rerun()
                     with col_k2:
-                        if st.button(f"✅ MAPEO DEFINIDO\n\n{sucesores_definidos}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'con_sucesor'; st.rerun()
+                        if st.button(f"✅ MAPEO DEFINIDO\n\n{sucesores_definidos}", use_container_width=True): 
+                            st.session_state['filtro_kpi_plan'] = None if st.session_state.get('filtro_kpi_plan') == 'con_sucesor' else 'con_sucesor'
+                            st.session_state['mostrar_dictamen_ia'] = False
+                            st.rerun()
                     with col_k3:
-                        if st.button(f"🚨 PENDIENTES\n\n{sucesores_pendientes}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'pendientes'; st.rerun()
+                        if st.button(f"🚨 PENDIENTES\n\n{sucesores_pendientes}", use_container_width=True): 
+                            st.session_state['filtro_kpi_plan'] = None if st.session_state.get('filtro_kpi_plan') == 'pendientes' else 'pendientes'
+                            st.session_state['mostrar_dictamen_ia'] = False
+                            st.rerun()
                     
                     st.write("---")
                     
@@ -1217,9 +1232,32 @@ def main():
                             estatus_riesgo = "Vulnerabilidad Alta"
                             icono_riesgo = "🚨"
 
-                        # 3. Interfaz Visual del Indicador (Tarjeta Estética Original)
+                        # 3. Interfaz Visual del Indicador (Botón Transparente + Tarjeta Estética Original)
+                        if 'mostrar_dictamen_ia' not in st.session_state:
+                            st.session_state['mostrar_dictamen_ia'] = False
+
+                        # CSS para hacer el botón transparente pero clickeable encima de la tarjeta
+                        st.markdown("""
+                        <style>
+                        div[data-testid="stButton"] button[title="Clic para ver detalles de IA"] {
+                            opacity: 0.0;
+                            height: 95px !important; 
+                            width: 100% !important; 
+                            z-index: 10 !important;
+                            cursor: pointer !important;
+                        }
+                        </style>
+                        """, unsafe_allow_html=True)
+
+                        # El botón real, invisible pero funcional
+                        if st.button("Analisis IA", help="Clic para ver detalles de IA", key="btn_ia_riesgo", use_container_width=True):
+                            st.session_state['mostrar_dictamen_ia'] = not st.session_state['mostrar_dictamen_ia']
+                            st.session_state['filtro_kpi_plan'] = None # Cierra las otras listas
+                            st.rerun()
+
+                        # La tarjeta visual, empujada hacia arriba para quedar EXACTAMENTE debajo del botón invisible
                         st.markdown(f"""
-                        <div style='background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 6px solid {color_riesgo}; padding: 15px 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between; height: 95px; margin-bottom: 0px;'>
+                        <div style='margin-top: -110px; margin-bottom: 20px; pointer-events: none; background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 6px solid {color_riesgo}; padding: 15px 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between; height: 95px; position: relative; z-index: 1;'>
                             <div>
                                 <h3 style='margin: 0; color: #1e293b; font-size: 24px;'>{indice_riesgo_global}%</h3>
                                 <p style='margin: 0; color: #64748b; font-size: 14px; font-weight: bold;'>ÍNDICE DE RIESGO OPERATIVO ACTUAL</p>
@@ -1231,32 +1269,7 @@ def main():
                         </div>
                         """, unsafe_allow_html=True)
 
-                        # 4. Botón Interruptor Invisible (CSS Hack Overlay)
-                        st.markdown("""
-                        <style>
-                        /* Oculta el botón original y lo superpone sobre la tarjeta HTML */
-                        div[data-testid="stVerticalBlock"] > div:has(button[title="Clic para ver detalles de IA"]) {
-                            margin-top: -95px !important;
-                            margin-bottom: 10px !important;
-                            opacity: 0 !important;
-                            z-index: 999 !important;
-                        }
-                        div[data-testid="stVerticalBlock"] > div:has(button[title="Clic para ver detalles de IA"]) button {
-                            height: 95px !important;
-                            cursor: pointer !important;
-                        }
-                        </style>
-                        """, unsafe_allow_html=True)
-                        
-                        if 'mostrar_dictamen_ia' not in st.session_state:
-                            st.session_state['mostrar_dictamen_ia'] = False
-
-                        # Este es el botón transparente que atrapa los clics
-                        if st.button(" ", help="Clic para ver detalles de IA", key="btn_ia_riesgo", use_container_width=True):
-                            st.session_state['mostrar_dictamen_ia'] = not st.session_state['mostrar_dictamen_ia']
-                            st.rerun()
-
-                        # 5. Dictamen Narrativo de la IA (Insights que aparecen al hacer clic)
+                        # 4. Dictamen Narrativo de la IA (Insights que aparecen al hacer clic)
                         if st.session_state['mostrar_dictamen_ia']:
                             lideres_problema = {lid: data for lid, data in alertas_criticas_ia.items() if data["puestos_riesgo_critico"] > 0}
                             
