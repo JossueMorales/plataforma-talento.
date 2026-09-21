@@ -1126,6 +1126,7 @@ def main():
                     with rk3:
                         if st.button(f"🔵 Más de 3 años\n\n{pct_mas_3}% ({r_mas_3} colab.)", key="b_read_mas_3", use_container_width=True):
                             st.session_state['filtro_kpi_plan'] = 'mas_3_anos'; st.rerun()
+                    
                     st.write("---")
                     
                     if not df_posiciones_filtradas.empty:
@@ -1147,6 +1148,124 @@ def main():
                         if st.button(f"✅ MAPEO DEFINIDO\n\n{sucesores_definidos}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'con_sucesor'; st.rerun()
                     with col_k3:
                         if st.button(f"🚨 PENDIENTES\n\n{sucesores_pendientes}", use_container_width=True): st.session_state['filtro_kpi_plan'] = 'pendientes'; st.rerun()
+                    
+                    st.write("---")
+                    
+                    # ==========================================
+                    # MOTOR DE IA: ANÁLISIS DE RIESGO OPERATIVO Y VULNERABILIDAD
+                    # ==========================================
+                    st.markdown("#### 🧠 Análisis de IA: Índice de Riesgo Operativo")
+                    
+                    if not df_posiciones_filtradas.empty:
+                        riesgo_acumulado = 0
+                        alertas_criticas_ia = {}
+                        
+                        # 1. Procesamiento Algorítmico por cada posición
+                        for _, row in df_posiciones_filtradas.iterrows():
+                            puesto_nombre = clean_text(row.get('Nombre de la Posición', ''))
+                            jefe_id = clean_id(row.get('ID Del Jefe', ''))
+                            lider_nombre = dict_nom_global.get(jefe_id, 'Líder Desconocido')
+                            
+                            # Extraer Readiness
+                            readiness_list = [str(row.get(f'Tiempo de Readiness {i}', '')).lower() for i in range(1, 6)]
+                            tiene_inmediato = any('inmediato' in r for r in readiness_list)
+                            tiene_1a3 = any('1 a 3' in r for r in readiness_list)
+                            tiene_mas3 = any('más de 3' in r or 'mas de 3' in r for r in readiness_list)
+                            
+                            # a) Vulnerabilidad Base por Falta de Sucesión
+                            if tiene_inmediato: vuln_base = 0      # Riesgo nulo, cobertura total
+                            elif tiene_1a3: vuln_base = 30         # Riesgo bajo, en desarrollo
+                            elif tiene_mas3: vuln_base = 70        # Riesgo alto, cobertura muy lejana
+                            else: vuln_base = 100                  # Riesgo crítico, cero sucesores
+                            
+                            # b) Multiplicador por Riesgo de Fuga
+                            fuga = str(row.get('Riesgo de Fuga', 'Bajo')).strip().lower()
+                            if fuga == 'alto': 
+                                vuln_final = min(100, vuln_base + 50)  # Agrega 50 puntos de urgencia
+                            elif fuga == 'bajo': 
+                                vuln_final = max(0, vuln_base - 20)    # Resta 20 puntos, hay margen de tiempo
+                            else: 
+                                vuln_final = vuln_base
+                                
+                            riesgo_acumulado += vuln_final
+                            
+                            # c) Agrupar hallazgos por Líder para detectar cuellos de botella
+                            if lider_nombre not in alertas_criticas_ia:
+                                alertas_criticas_ia[lider_nombre] = {"total_puestos": 0, "puestos_riesgo_critico": 0, "detalles": []}
+                            
+                            alertas_criticas_ia[lider_nombre]["total_puestos"] += 1
+                            
+                            if vuln_final >= 80:
+                                alertas_criticas_ia[lider_nombre]["puestos_riesgo_critico"] += 1
+                                motivo = "Sin sucesores" if vuln_base == 100 else "Sucesor a +3 años con Fuga Alta"
+                                alertas_criticas_ia[lider_nombre]["detalles"].append(f"{puesto_nombre} ({motivo})")
+
+                        # 2. Cálculo del Score General de la Dirección / Área evaluada
+                        indice_riesgo_global = round(riesgo_acumulado / total_criticas, 1) if total_criticas > 0 else 0
+                        
+                        # Definición de Semáforo de Riesgo
+                        if indice_riesgo_global <= 30:
+                            color_riesgo = "#16a34a" # Verde
+                            estatus_riesgo = "Saludable (Bajo Riesgo)"
+                            icono_riesgo = "✅"
+                        elif indice_riesgo_global <= 60:
+                            color_riesgo = "#ca8a04" # Amarillo
+                            estatus_riesgo = "Estable (Riesgo Moderado)"
+                            icono_riesgo = "⚠️"
+                        else:
+                            color_riesgo = "#dc2626" # Rojo
+                            estatus_riesgo = "Vulnerabilidad Alta"
+                            icono_riesgo = "🚨"
+
+                        # 3. Interfaz Visual del Indicador
+                        st.markdown(f"""
+                        <div style='background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 6px solid {color_riesgo}; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between;'>
+                            <div>
+                                <h3 style='margin: 0; color: #1e293b; font-size: 24px;'>{indice_riesgo_global}%</h3>
+                                <p style='margin: 0; color: #64748b; font-size: 14px; font-weight: bold;'>ÍNDICE DE RIESGO OPERATIVO ACTUAL</p>
+                            </div>
+                            <div style='text-align: right;'>
+                                <h4 style='margin: 0; color: {color_riesgo}; font-size: 18px;'>{icono_riesgo} {estatus_riesgo}</h4>
+                                <p style='margin: 0; color: #94a3b8; font-size: 12px;'>Calculado por Fuga vs Readiness</p>
+                            </div>
+                        </div>
+                        <br>
+                        """, unsafe_allow_html=True)
+
+                        # 4. Dictamen Narrativo de la IA (Insights)
+                        lideres_problema = {lid: data for lid, data in alertas_criticas_ia.items() if data["puestos_riesgo_critico"] > 0}
+                        
+                        if not lideres_problema:
+                            st.success("🤖 **Dictamen IA:** La estructura evaluada presenta una resiliencia sólida. No se detectan concentraciones peligrosas de riesgo operativo.")
+                        else:
+                            st.warning("🤖 **Dictamen IA:** Se han detectado áreas con alta concentración de vulnerabilidad. Se sugiere revisión inmediata en las siguientes gerencias/jefaturas:")
+                            
+                            for lider, data in sorted(lideres_problema.items(), key=lambda item: item[1]['puestos_riesgo_critico'], reverse=True):
+                                pct_riesgo_lider = round((data["puestos_riesgo_critico"] / data["total_puestos"]) * 100) if data["total_puestos"] > 0 else 0
+                                if pct_riesgo_lider >= 50:
+                                    alerta_color = "red"
+                                    alerta_txt = "Foco Rojo"
+                                else:
+                                    alerta_color = "orange"
+                                    alerta_txt = "Precaución"
+                                    
+                                detalle_html = "".join([f"<li>{d}</li>" for d in data["detalles"]])
+                                
+                                st.markdown(f"""
+                                <details style='background:#f8fafc; border:1px solid #cbd5e1; padding:12px; border-radius:6px; cursor:pointer; margin-bottom:8px;'>
+                                    <summary style='font-weight:bold; font-size:14px; color:#0f172a; outline:none;'>
+                                        👤 Equipo de {lider} — <span style='color:{alerta_color};'>[{alerta_txt}: {data["puestos_riesgo_critico"]} de {data["total_puestos"]} puestos en riesgo]</span>
+                                    </summary>
+                                    <ul style='margin-top:10px; font-size:13px; color:#334155;'>
+                                        {detalle_html}
+                                    </ul>
+                                </details>
+                                """, unsafe_allow_html=True)
+                    else:
+                        st.info("Selecciona posiciones críticas para que la IA genere el análisis de Riesgo Operativo.")
+                    
+                    st.write("---")
+                    # ==========================================
                     
                     if 'filtro_kpi_plan' in st.session_state and st.session_state['filtro_kpi_plan']:
                         modo = st.session_state['filtro_kpi_plan']
