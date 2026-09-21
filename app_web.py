@@ -193,6 +193,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                 'direccion': clean_text(row_dict.get('Dirección', row_dict.get('Direccion')), 'No asignada'),
                 'box': clean_text(row_dict.get('Resultado 9 box'), 'Pendiente'),
                 'edr': clean_text(row_dict.get('EDR', row_dict.get('EDR ')), 'Pendiente'),
+                'riesgo_fuga': clean_text(row_dict.get('Riesgo de Fuga', 'Bajo')),
                 'lider': nombres_dict.get(jefe, 'Sin Líder') if jefe else 'Sin Líder',
                 'critica': clean_text(row_dict.get('Posición Crítica', row_dict.get('Posicion Critica')), 'No'),
                 'nombre': clean_text(row_dict.get('Nombre')),
@@ -268,6 +269,22 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             eng_ind = info['enganche_ind']
             if 1.0 <= eng_ind < 2.0: r_list.append("🚨 Riesgo de Fuga: Colaborador Desconectado")
             elif 2.0 <= eng_ind < 3.0: r_list.append("⚠️ Alerta: Bajo Enganche (Desinterés)")
+            
+            # ==========================================
+            # ANÁLISIS DE RIESGO OPERATIVO (FUGA TITULAR)
+            # ==========================================
+            fuga_val = info['riesgo_fuga'].lower()
+            if fuga_val == 'alto':
+                if es_critica:
+                    r_list.append("🔥 Riesgo Operativo Crítico: Titular clave con alta probabilidad de fuga")
+                else:
+                    r_list.append("🚨 Alerta Alta: Riesgo de Fuga del Titular")
+            elif fuga_val == 'medio':
+                if es_critica:
+                    r_list.append("⚠️ Riesgo Operativo Moderado: Titular clave en riesgo de fuga medio")
+                else:
+                    r_list.append("⚠️ Precaución: Riesgo de fuga medio")
+            # ==========================================
                 
             if info['es_lider']:
                 eng_area = info['enganche_area']
@@ -430,10 +447,10 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         
         G.add_node(
             emp, label=f"{prefijo}{acortar_nombre(info['nombre'])}\n({acortar_puesto(info['puesto'])})", 
-            title=f"<div style='padding: 5px; text-align: center;'><b>{prefijo}{info['nombre']}</b><br><small>{info['puesto']}</small></div>", 
+            title=f"<div style='padding: 5px; text-align: center;'><b>{prefijo}{info['nombre']}</b><br><small>{info['puesto']}</small><br><small>Riesgo de Fuga: {info['riesgo_fuga']}</small></div>", 
             size=28 if emp == raiz_principal else 18, color=obtener_color_9box(info['box']), shadow={'enabled': True, 'color': color_sombreado, 'size': 25, 'x': 0, 'y': 0}, 
             shape='dot', group=info['mla'], Nivel_MLA=info['mla'], Resultado_9Box=info['box'], EDR=info['edr'], Direccion=info['direccion'], Lider=info['lider'], 
-            Critica=info['critica'], Nombre=info['nombre'], Puesto=info['puesto'], Riesgos=info['riesgos'], Interes=info['interes'], 
+            Critica=info['critica'], Nombre=info['nombre'], Puesto=info['puesto'], Riesgos=info['riesgos'], Interes=info['interes'], Riesgo_Fuga=info['riesgo_fuga'],
             NomSuc1=nom_suc1, Read1=info['read1'], NomSuc2=nom_suc2, Read2=info['read2'], NomSuc3=nom_suc3, Read3=info['read3'], Eng_Ind=info['enganche_ind'], Eng_Area=info['enganche_area'], Es_Lider=info['es_lider'],
             font={'color': '#0f172a', 'strokeWidth': 2, 'strokeColor': '#ffffff', 'size': 11, 'face': 'Arial', 'weight': 'bold'}, Angle=coord_data['angle'], NivelCalculado=coord_data.get('nivel_calculado', 5), Dispersion=dispersion_offset, AnilloReal=coord_data.get('anillo_real', 5), hidden=is_hidden
         )
