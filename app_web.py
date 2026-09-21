@@ -1200,7 +1200,7 @@ def main():
                         'Sucesor P.3', 'Tiempo de Readiness 3', 'Positivo 3', 'Oportunidad 3',
                         'Sucesor P.4', 'Tiempo de Readiness 4', 'Positivo 4', 'Oportunidad 4',
                         'Sucesor P.5', 'Tiempo de Readiness 5', 'Positivo 5', 'Oportunidad 5',
-                        'Comentarios de Sucesión'
+                        'Riesgo de Fuga', 'Comentarios de Sucesión'
                     ]
                     cols_existentes = [c for c in cols_reporte if c in df_posiciones_filtradas.columns]
                     
@@ -1356,6 +1356,35 @@ def main():
                         
                         st.markdown(f"#### 📌 Posición Crítica: `{pos_seleccionada}`")
                         
+                        # ==========================================
+                        # REGLA DE NEGOCIO: VULNERABILIDAD Y RIESGO DE FUGA
+                        # ==========================================
+                        pos_upper = pos_seleccionada.upper()
+                        if "GERENTE" in pos_upper or "DIRECTOR" in pos_upper or "ABOGADA CORPORATIVA" in pos_upper:
+                            nivel_vulnerabilidad = "CRÍTICO 🔴"
+                        else:
+                            nivel_vulnerabilidad = "ALTO 🟠"
+                            
+                        st.markdown(f"**Nivel de Vulnerabilidad:** {nivel_vulnerabilidad}")
+                        
+                        def leer_campo(nombre_col):
+                            col_match = next((c for c in info_pos.index if str(nombre_col).strip().lower() == str(c).strip().lower()), None)
+                            val = info_pos[col_match] if col_match else ""
+                            return clean_text(val) if pd.notna(val) else ""
+                            
+                        c_riesgo_fuga = leer_campo('Riesgo de Fuga')
+                        if not c_riesgo_fuga: c_riesgo_fuga = "Bajo"
+                        
+                        st.markdown("##### 🏃‍♂️ Riesgo de Fuga del Ocupante Actual")
+                        n_riesgo_fuga = st.radio(
+                            "Selecciona el nivel de riesgo:", 
+                            ["Bajo", "Medio", "Alto"], 
+                            index=["Bajo", "Medio", "Alto"].index(c_riesgo_fuga.capitalize()) if c_riesgo_fuga.capitalize() in ["Bajo", "Medio", "Alto"] else 0,
+                            horizontal=True,
+                            key=f"r_fuga_{pos_seleccionada}"
+                        )
+                        # ==========================================
+                        
                         def mostrar_ficha_mini(nombre_cand, df_db):
                             if not nombre_cand or nombre_cand in ["Pendiente", "Vacante / Sin asignar", "No definido", "Sin sucesor identificado"]: st.info("Sin información de ocupante"); return
                             match = df_db[df_db['Nombre_Cruce'] == nombre_cand.strip().lower()]
@@ -1467,11 +1496,6 @@ def main():
                         
                         ph_pos = "Ej. Menciona los logros recientes más destacados, fortalezas clave o competencias técnicas consolidadas..."
                         ph_opo = "Ej. ¿Qué brechas de liderazgo, conocimientos técnicos o experiencia necesita cubrir para estar listo?"
-                        
-                        def leer_campo(nombre_col):
-                            col_match = next((c for c in info_pos.index if str(nombre_col).strip().lower() == str(c).strip().lower()), None)
-                            val = info_pos[col_match] if col_match else ""
-                            return clean_text(val) if pd.notna(val) else ""
 
                         c_suc_emergencia = leer_campo('Sucesor de emergencia') or "Pendiente"
                         
@@ -1589,6 +1613,7 @@ def main():
                                     
                                     idx_emergencia = idx_col('Sucesor de emergencia')
                                     idx_plan_accion = idx_col('Comentarios de Sucesión')
+                                    idx_riesgo_fuga = idx_col('Riesgo de Fuga')
                                     
                                     idxs_sucs = [idx_col(f'Sucesor P.{i}') for i in range(1, 6)]
                                     idxs_reads = [idx_col(f'Tiempo de Readiness {i}') for i in range(1, 6)]
@@ -1600,6 +1625,7 @@ def main():
                                         
                                         if idx_emergencia: pestana.update_cell(idx_excel, idx_emergencia, "Pendiente" if n_suc_emergencia == "Pendiente" else n_suc_emergencia)
                                         if idx_plan_accion: pestana.update_cell(idx_excel, idx_plan_accion, n_plan_accion)
+                                        if idx_riesgo_fuga: pestana.update_cell(idx_excel, idx_riesgo_fuga, n_riesgo_fuga)
                                         
                                         for i in range(5):
                                             if idxs_sucs[i]: pestana.update_cell(idx_excel, idxs_sucs[i], "Pendiente" if n_sucs[i] == "Pendiente" else n_sucs[i])
