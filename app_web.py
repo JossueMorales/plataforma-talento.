@@ -1205,62 +1205,55 @@ def main():
                         
                         # Definición de Semáforo de Riesgo
                         if indice_riesgo_global <= 30:
-                            color_riesgo = "#16a34a" # Verde
                             estatus_riesgo = "Saludable (Bajo Riesgo)"
                             icono_riesgo = "✅"
                         elif indice_riesgo_global <= 60:
-                            color_riesgo = "#ca8a04" # Amarillo
                             estatus_riesgo = "Estable (Riesgo Moderado)"
                             icono_riesgo = "⚠️"
                         else:
-                            color_riesgo = "#dc2626" # Rojo
                             estatus_riesgo = "Vulnerabilidad Alta"
                             icono_riesgo = "🚨"
 
-                        # 3. Interfaz Visual del Indicador
-                        st.markdown(f"""
-                        <div style='background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 6px solid {color_riesgo}; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between;'>
-                            <div>
-                                <h3 style='margin: 0; color: #1e293b; font-size: 24px;'>{indice_riesgo_global}%</h3>
-                                <p style='margin: 0; color: #64748b; font-size: 14px; font-weight: bold;'>ÍNDICE DE RIESGO OPERATIVO ACTUAL</p>
-                            </div>
-                            <div style='text-align: right;'>
-                                <h4 style='margin: 0; color: {color_riesgo}; font-size: 18px;'>{icono_riesgo} {estatus_riesgo}</h4>
-                                <p style='margin: 0; color: #94a3b8; font-size: 12px;'>Calculado por Fuga vs Readiness</p>
-                            </div>
-                        </div>
-                        <br>
-                        """, unsafe_allow_html=True)
+                        # 3. Interfaz Visual del Indicador (Botón)
+                        if 'mostrar_dictamen_ia' not in st.session_state:
+                            st.session_state['mostrar_dictamen_ia'] = False
+
+                        btn_label = f"🧠 ÍNDICE DE RIESGO OPERATIVO ACTUAL: {indice_riesgo_global}%\n\n{icono_riesgo} Estatus: {estatus_riesgo} (Clic para detalles)"
+                        
+                        if st.button(btn_label, use_container_width=True, key="btn_ia_riesgo"):
+                            st.session_state['mostrar_dictamen_ia'] = not st.session_state['mostrar_dictamen_ia']
+                            st.rerun()
 
                         # 4. Dictamen Narrativo de la IA (Insights)
-                        lideres_problema = {lid: data for lid, data in alertas_criticas_ia.items() if data["puestos_riesgo_critico"] > 0}
-                        
-                        if not lideres_problema:
-                            st.success("🤖 **Dictamen IA:** La estructura evaluada presenta una resiliencia sólida. No se detectan concentraciones peligrosas de riesgo operativo.")
-                        else:
-                            st.warning("🤖 **Dictamen IA:** Se han detectado áreas con alta concentración de vulnerabilidad. Se sugiere revisión inmediata en las siguientes gerencias/jefaturas:")
+                        if st.session_state['mostrar_dictamen_ia']:
+                            lideres_problema = {lid: data for lid, data in alertas_criticas_ia.items() if data["puestos_riesgo_critico"] > 0}
                             
-                            for lider, data in sorted(lideres_problema.items(), key=lambda item: item[1]['puestos_riesgo_critico'], reverse=True):
-                                pct_riesgo_lider = round((data["puestos_riesgo_critico"] / data["total_puestos"]) * 100) if data["total_puestos"] > 0 else 0
-                                if pct_riesgo_lider >= 50:
-                                    alerta_color = "red"
-                                    alerta_txt = "Foco Rojo"
-                                else:
-                                    alerta_color = "orange"
-                                    alerta_txt = "Precaución"
-                                    
-                                detalle_html = "".join([f"<li>{d}</li>" for d in data["detalles"]])
+                            if not lideres_problema:
+                                st.success("🤖 **Dictamen IA:** La estructura evaluada presenta una resiliencia sólida. No se detectan concentraciones peligrosas de riesgo operativo.")
+                            else:
+                                st.warning("🤖 **Dictamen IA:** Se han detectado áreas con alta concentración de vulnerabilidad. Se sugiere revisión inmediata en las siguientes gerencias/jefaturas:")
                                 
-                                st.markdown(f"""
-                                <details style='background:#f8fafc; border:1px solid #cbd5e1; padding:12px; border-radius:6px; cursor:pointer; margin-bottom:8px;'>
-                                    <summary style='font-weight:bold; font-size:14px; color:#0f172a; outline:none;'>
-                                        👤 Equipo de {lider} — <span style='color:{alerta_color};'>[{alerta_txt}: {data["puestos_riesgo_critico"]} de {data["total_puestos"]} puestos en riesgo]</span>
-                                    </summary>
-                                    <ul style='margin-top:10px; font-size:13px; color:#334155;'>
-                                        {detalle_html}
-                                    </ul>
-                                </details>
-                                """, unsafe_allow_html=True)
+                                for lider, data in sorted(lideres_problema.items(), key=lambda item: item[1]['puestos_riesgo_critico'], reverse=True):
+                                    pct_riesgo_lider = round((data["puestos_riesgo_critico"] / data["total_puestos"]) * 100) if data["total_puestos"] > 0 else 0
+                                    if pct_riesgo_lider >= 50:
+                                        alerta_color = "red"
+                                        alerta_txt = "Foco Rojo"
+                                    else:
+                                        alerta_color = "orange"
+                                        alerta_txt = "Precaución"
+                                        
+                                    detalle_html = "".join([f"<li>{d}</li>" for d in data["detalles"]])
+                                    
+                                    st.markdown(f"""
+                                    <details style='background:#f8fafc; border:1px solid #cbd5e1; padding:12px; border-radius:6px; cursor:pointer; margin-bottom:8px;'>
+                                        <summary style='font-weight:bold; font-size:14px; color:#0f172a; outline:none;'>
+                                            👤 Equipo de {lider} — <span style='color:{alerta_color};'>[{alerta_txt}: {data["puestos_riesgo_critico"]} de {data["total_puestos"]} puestos en riesgo]</span>
+                                        </summary>
+                                        <ul style='margin-top:10px; font-size:13px; color:#334155;'>
+                                            {detalle_html}
+                                        </ul>
+                                    </details>
+                                    """, unsafe_allow_html=True)
                     else:
                         st.info("Selecciona posiciones críticas para que la IA genere el análisis de Riesgo Operativo.")
                     
@@ -1398,7 +1391,7 @@ def main():
                         else:
                             box_c = clean_text(row_c.get('Resultado 9 box'), 'Pendiente')
                             edr_c = clean_text(row_c.get('EDR', row_c.get('EDR ')), 'Pendiente')
-                            eng_key = next((k for k in row_c.keys() if k and 'enganche' in str(k).lower()), None)
+                            eng_key = next((k for k in row.keys() if k and 'enganche' in str(k).lower()), None)
                             eng_c = clean_text(row_c.get(eng_key), 'N/A') if eng_key else 'N/A'
                             
                         return {"puesto_actual": puesto_actual, "direccion": dir_candidato, "box": box_c, "enganche": eng_c, "edr": edr_c}
