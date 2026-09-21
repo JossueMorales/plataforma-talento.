@@ -1205,26 +1205,41 @@ def main():
                         
                         # Definición de Semáforo de Riesgo
                         if indice_riesgo_global <= 30:
+                            color_riesgo = "#16a34a" # Verde
                             estatus_riesgo = "Saludable (Bajo Riesgo)"
                             icono_riesgo = "✅"
                         elif indice_riesgo_global <= 60:
+                            color_riesgo = "#ca8a04" # Amarillo
                             estatus_riesgo = "Estable (Riesgo Moderado)"
                             icono_riesgo = "⚠️"
                         else:
+                            color_riesgo = "#dc2626" # Rojo
                             estatus_riesgo = "Vulnerabilidad Alta"
                             icono_riesgo = "🚨"
 
-                        # 3. Interfaz Visual del Indicador (Botón)
+                        # 3. Interfaz Visual del Indicador (Tarjeta Estética Original)
+                        st.markdown(f"""
+                        <div style='background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 6px solid {color_riesgo}; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;'>
+                            <div>
+                                <h3 style='margin: 0; color: #1e293b; font-size: 24px;'>{indice_riesgo_global}%</h3>
+                                <p style='margin: 0; color: #64748b; font-size: 14px; font-weight: bold;'>ÍNDICE DE RIESGO OPERATIVO ACTUAL</p>
+                            </div>
+                            <div style='text-align: right;'>
+                                <h4 style='margin: 0; color: {color_riesgo}; font-size: 18px;'>{icono_riesgo} {estatus_riesgo}</h4>
+                                <p style='margin: 0; color: #94a3b8; font-size: 12px;'>Calculado por Fuga vs Readiness</p>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        # 4. Botón Interruptor para mostrar/ocultar los detalles
                         if 'mostrar_dictamen_ia' not in st.session_state:
                             st.session_state['mostrar_dictamen_ia'] = False
 
-                        btn_label = f"🧠 ÍNDICE DE RIESGO OPERATIVO ACTUAL: {indice_riesgo_global}%\n\n{icono_riesgo} Estatus: {estatus_riesgo} (Clic para detalles)"
-                        
-                        if st.button(btn_label, use_container_width=True, key="btn_ia_riesgo"):
+                        if st.button("🔍 Mostrar / Ocultar Análisis Detallado por Líder", use_container_width=True):
                             st.session_state['mostrar_dictamen_ia'] = not st.session_state['mostrar_dictamen_ia']
                             st.rerun()
 
-                        # 4. Dictamen Narrativo de la IA (Insights)
+                        # 5. Dictamen Narrativo de la IA (Insights)
                         if st.session_state['mostrar_dictamen_ia']:
                             lideres_problema = {lid: data for lid, data in alertas_criticas_ia.items() if data["puestos_riesgo_critico"] > 0}
                             
