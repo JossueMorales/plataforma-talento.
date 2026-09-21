@@ -1245,31 +1245,47 @@ def main():
                             </div>
                             <div style='text-align: right;'>
                                 <h4 style='margin: 0; color: {color_riesgo}; font-size: 18px;'>{icono_riesgo} {estatus_riesgo}</h4>
-                                <p style='margin: 0; color: #94a3b8; font-size: 12px;'>Calculado por Fuga vs Readiness</p>
+                                <p style='margin: 0; color: #94a3b8; font-size: 12px;'>Clic para ver / ocultar Detalles IA</p>
                             </div>
                         </div>
                         """, unsafe_allow_html=True)
 
-                        # Se jala el botón fantasma HACIA ARRIBA para que quede sobre la tarjeta
-                        st.markdown("""
-                        <style>
-                        div[data-testid="stButton"] button[title="Clic para ver detalles de IA"] {
-                            opacity: 0.0 !important;
-                            height: 95px !important; 
-                            width: 100% !important; 
-                            cursor: pointer !important;
-                            margin-top: -110px !important;
-                            margin-bottom: -15px !important;
-                            position: relative;
-                            z-index: 10 !important;
-                        }
-                        </style>
-                        """, unsafe_allow_html=True)
-
-                        if st.button(" ", help="Clic para ver detalles de IA", key="btn_ia_riesgo", use_container_width=True):
-                            st.session_state['mostrar_dictamen_ia'] = not st.session_state['mostrar_dictamen_ia']
+                        if st.button("BOTON_INVISIBLE_IA_RIESGO", key="btn_ia_riesgo", use_container_width=True):
+                            st.session_state['mostrar_dictamen_ia'] = not st.session_state.get('mostrar_dictamen_ia', False)
                             st.session_state['filtro_kpi_plan'] = None # Cierra las otras listas
                             st.rerun()
+
+                        # Código JS para superponer el botón y eliminar el espacio vacío
+                        components.html("""
+                        <script>
+                        const docs = window.parent.document;
+                        const buttons = docs.querySelectorAll('button');
+                        buttons.forEach(btn => {
+                            if(btn.innerText && btn.innerText.includes('BOTON_INVISIBLE_IA_RIESGO')) {
+                                // Volver el botón transparente y montarlo sobre la tarjeta
+                                btn.style.opacity = '0';
+                                btn.style.position = 'absolute';
+                                btn.style.top = '-110px';  
+                                btn.style.left = '0';
+                                btn.style.width = '100%';
+                                btn.style.height = '95px';
+                                btn.style.zIndex = '999';
+                                btn.style.cursor = 'pointer';
+                                
+                                // Colapsar el contenedor original para borrar el cuadro gris/blanco
+                                let container = btn.closest('div[data-testid="stElementContainer"]');
+                                if(!container) container = btn.closest('div.element-container');
+                                if(container) {
+                                    container.style.height = '0px';
+                                    container.style.minHeight = '0px';
+                                    container.style.margin = '0px';
+                                    container.style.padding = '0px';
+                                    container.style.overflow = 'hidden';
+                                }
+                            }
+                        });
+                        </script>
+                        """, height=0, width=0)
 
                         # 4. Dictamen Narrativo de la IA (Insights que aparecen al hacer clic)
                         if st.session_state['mostrar_dictamen_ia']:
