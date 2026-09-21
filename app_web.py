@@ -1232,11 +1232,10 @@ def main():
                             estatus_riesgo = "Vulnerabilidad Alta"
                             icono_riesgo = "🚨"
 
-                        # 3. Interfaz Visual del Indicador (Tarjeta Estética Original Primero)
+                        # 3. Interfaz Visual del Indicador
                         if 'mostrar_dictamen_ia' not in st.session_state:
                             st.session_state['mostrar_dictamen_ia'] = False
 
-                        # Se dibuja la tarjeta EN SU LUGAR NATURAL (así no se empalma con el título de arriba)
                         st.markdown(f"""
                         <div style='background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 6px solid {color_riesgo}; padding: 15px 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between; height: 95px; position: relative; z-index: 1;'>
                             <div>
@@ -1252,38 +1251,41 @@ def main():
 
                         if st.button("BOTON_INVISIBLE_IA_RIESGO", key="btn_ia_riesgo", use_container_width=True):
                             st.session_state['mostrar_dictamen_ia'] = not st.session_state.get('mostrar_dictamen_ia', False)
-                            st.session_state['filtro_kpi_plan'] = None # Cierra las otras listas
+                            st.session_state['filtro_kpi_plan'] = None 
                             st.rerun()
 
-                        # Código JS para superponer el botón y eliminar el espacio vacío
                         components.html("""
                         <script>
-                        const docs = window.parent.document;
-                        const buttons = docs.querySelectorAll('button');
-                        buttons.forEach(btn => {
-                            if(btn.innerText && btn.innerText.includes('BOTON_INVISIBLE_IA_RIESGO')) {
-                                // Volver el botón transparente y montarlo sobre la tarjeta
-                                btn.style.opacity = '0';
-                                btn.style.position = 'absolute';
-                                btn.style.top = '-110px';  
-                                btn.style.left = '0';
-                                btn.style.width = '100%';
-                                btn.style.height = '95px';
-                                btn.style.zIndex = '999';
-                                btn.style.cursor = 'pointer';
+                        function setupOverlay() {
+                            const docs = window.parent.document;
+                            const btns = Array.from(docs.querySelectorAll('button'));
+                            const targetBtn = btns.find(b => b.innerText && b.innerText.includes('BOTON_INVISIBLE_IA_RIESGO'));
+                            
+                            if (targetBtn) {
+                                targetBtn.style.opacity = '0';
+                                targetBtn.style.position = 'absolute';
+                                targetBtn.style.transform = 'translateY(-110px)'; // Jala el botón transparente sobre la tarjeta
+                                targetBtn.style.left = '0';
+                                targetBtn.style.width = '100%';
+                                targetBtn.style.height = '95px';
+                                targetBtn.style.zIndex = '9999';
+                                targetBtn.style.cursor = 'pointer';
                                 
-                                // Colapsar el contenedor original para borrar el cuadro gris/blanco
-                                let container = btn.closest('div[data-testid="stElementContainer"]');
-                                if(!container) container = btn.closest('div.element-container');
+                                let container = targetBtn.closest('div[data-testid="stElementContainer"]');
+                                if(!container) container = targetBtn.closest('div.element-container');
                                 if(container) {
+                                    container.style.overflow = 'visible'; // Evita que se recorte el botón invisible
                                     container.style.height = '0px';
                                     container.style.minHeight = '0px';
-                                    container.style.margin = '0px';
-                                    container.style.padding = '0px';
-                                    container.style.overflow = 'hidden';
+                                    container.style.padding = '0';
+                                    container.style.margin = '0';
                                 }
                             }
-                        });
+                        }
+                        
+                        const observer = new MutationObserver(setupOverlay);
+                        observer.observe(window.parent.document.body, {childList: true, subtree: true});
+                        setupOverlay();
                         </script>
                         """, height=0, width=0)
 
