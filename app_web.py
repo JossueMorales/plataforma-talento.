@@ -1232,32 +1232,13 @@ def main():
                             estatus_riesgo = "Vulnerabilidad Alta"
                             icono_riesgo = "🚨"
 
-                        # 3. Interfaz Visual del Indicador (Botón Transparente + Tarjeta Estética Original)
+                        # 3. Interfaz Visual del Indicador (Tarjeta Estética Original Primero)
                         if 'mostrar_dictamen_ia' not in st.session_state:
                             st.session_state['mostrar_dictamen_ia'] = False
 
-                        # CSS para hacer el botón transparente pero clickeable encima de la tarjeta
-                        st.markdown("""
-                        <style>
-                        div[data-testid="stButton"] button[title="Clic para ver detalles de IA"] {
-                            opacity: 0.0;
-                            height: 95px !important; 
-                            width: 100% !important; 
-                            z-index: 10 !important;
-                            cursor: pointer !important;
-                        }
-                        </style>
-                        """, unsafe_allow_html=True)
-
-                        # El botón real, invisible pero funcional
-                        if st.button("Analisis IA", help="Clic para ver detalles de IA", key="btn_ia_riesgo", use_container_width=True):
-                            st.session_state['mostrar_dictamen_ia'] = not st.session_state['mostrar_dictamen_ia']
-                            st.session_state['filtro_kpi_plan'] = None # Cierra las otras listas
-                            st.rerun()
-
-                        # La tarjeta visual, empujada hacia arriba para quedar EXACTAMENTE debajo del botón invisible
+                        # Se dibuja la tarjeta EN SU LUGAR NATURAL (así no se empalma con el título de arriba)
                         st.markdown(f"""
-                        <div style='margin-top: -110px; margin-bottom: 20px; pointer-events: none; background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 6px solid {color_riesgo}; padding: 15px 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between; height: 95px; position: relative; z-index: 1;'>
+                        <div style='background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 6px solid {color_riesgo}; padding: 15px 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between; height: 95px; position: relative; z-index: 1;'>
                             <div>
                                 <h3 style='margin: 0; color: #1e293b; font-size: 24px;'>{indice_riesgo_global}%</h3>
                                 <p style='margin: 0; color: #64748b; font-size: 14px; font-weight: bold;'>ÍNDICE DE RIESGO OPERATIVO ACTUAL</p>
@@ -1268,6 +1249,27 @@ def main():
                             </div>
                         </div>
                         """, unsafe_allow_html=True)
+
+                        # Se jala el botón fantasma HACIA ARRIBA para que quede sobre la tarjeta
+                        st.markdown("""
+                        <style>
+                        div[data-testid="stButton"] button[title="Clic para ver detalles de IA"] {
+                            opacity: 0.0 !important;
+                            height: 95px !important; 
+                            width: 100% !important; 
+                            cursor: pointer !important;
+                            margin-top: -110px !important;
+                            margin-bottom: -15px !important;
+                            position: relative;
+                            z-index: 10 !important;
+                        }
+                        </style>
+                        """, unsafe_allow_html=True)
+
+                        if st.button(" ", help="Clic para ver detalles de IA", key="btn_ia_riesgo", use_container_width=True):
+                            st.session_state['mostrar_dictamen_ia'] = not st.session_state['mostrar_dictamen_ia']
+                            st.session_state['filtro_kpi_plan'] = None # Cierra las otras listas
+                            st.rerun()
 
                         # 4. Dictamen Narrativo de la IA (Insights que aparecen al hacer clic)
                         if st.session_state['mostrar_dictamen_ia']:
