@@ -1090,55 +1090,46 @@ def main():
                         (~df_posiciones_filtradas['Nombre de la Posición'].astype(str).str.upper().str.contains('DIRECTOR GENERAL'))
                     ]
                     
-                    # NUEVA LÓGICA DE READINESS Y SUCESIÓN UNIFICADA (100% DE POSICIONES CRÍTICAS)
-                    total_criticas = len(df_posiciones_filtradas)
-                    c_inm = c_1_3 = c_mas_3 = c_sin_suc = 0
-                    invalid_sucs = ['pendiente', 'nan', 'none', '', 'no definido', 'sin sucesor identificado']
-                    
-                    col_suc1 = 'Sucesor P.1' if 'Sucesor P.1' in df_posiciones_filtradas.columns else 'Sucesor 1'
                     col_r1 = next((c for c in df_posiciones_filtradas.columns if 'readiness 1' in str(c).lower()), None)
-
-                    for _, r in df_posiciones_filtradas.iterrows():
-                        suc1 = clean_text(r.get(col_suc1, '')).lower()
-                        read1 = clean_text(r.get(col_r1, '')).lower() if col_r1 else ''
+                    col_r2 = next((c for c in df_posiciones_filtradas.columns if 'readiness 2' in str(c).lower()), None)
+                    col_r3 = next((c for c in df_posiciones_filtradas.columns if 'readiness 3' in str(c).lower()), None)
+                    col_r4 = next((c for c in df_posiciones_filtradas.columns if 'readiness 4' in str(c).lower()), None)
+                    col_r5 = next((c for c in df_posiciones_filtradas.columns if 'readiness 5' in str(c).lower()), None)
+                    
+                    r_inm = r_1_3 = r_mas_3 = 0
+                    if not df_posiciones_filtradas.empty:
+                        s1 = df_posiciones_filtradas[col_r1].astype(str).str.lower().fillna('') if col_r1 else pd.Series(['']*len(df_posiciones_filtradas))
+                        s2 = df_posiciones_filtradas[col_r2].astype(str).str.lower().fillna('') if col_r2 else pd.Series(['']*len(df_posiciones_filtradas))
+                        s3 = df_posiciones_filtradas[col_r3].astype(str).str.lower().fillna('') if col_r3 else pd.Series(['']*len(df_posiciones_filtradas))
+                        s4 = df_posiciones_filtradas[col_r4].astype(str).str.lower().fillna('') if col_r4 else pd.Series(['']*len(df_posiciones_filtradas))
+                        s5 = df_posiciones_filtradas[col_r5].astype(str).str.lower().fillna('') if col_r5 else pd.Series(['']*len(df_posiciones_filtradas))
                         
-                        if suc1 in invalid_sucs:
-                            c_sin_suc += 1
-                        elif 'inmediato' in read1:
-                            c_inm += 1
-                        elif '1 a 3' in read1:
-                            c_1_3 += 1
-                        elif 'mas de 3' in read1 or 'más de 3' in read1:
-                            c_mas_3 += 1
-                        else:
-                            c_sin_suc += 1 # Si hay un nombre pero no tiene tiempo definido, se considera pendiente
-                            
-                    pct_inm = round((c_inm / total_criticas) * 100, 1) if total_criticas > 0 else 0.0
-                    pct_1_3 = round((c_1_3 / total_criticas) * 100, 1) if total_criticas > 0 else 0.0
-                    pct_mas_3 = round((c_mas_3 / total_criticas) * 100, 1) if total_criticas > 0 else 0.0
-                    pct_sin_suc = round((c_sin_suc / total_criticas) * 100, 1) if total_criticas > 0 else 0.0
-
+                        todas_readiness = pd.concat([s1, s2, s3, s4, s5])
+                        r_inm = int(todas_readiness.str.contains('inmediato').sum())
+                        r_1_3 = int(todas_readiness.str.contains('1 a 3').sum())
+                        r_mas_3 = int(todas_readiness.str.contains('mas de 3|más de 3').sum())
+                    
+                    total_sucesores_mapeados = r_inm + r_1_3 + r_mas_3
+                    pct_inm = round((r_inm / total_sucesores_mapeados) * 100, 1) if total_sucesores_mapeados > 0 else 0.0
+                    pct_1_3 = round((r_1_3 / total_sucesores_mapeados) * 100, 1) if total_sucesores_mapeados > 0 else 0.0
+                    pct_mas_3 = round((r_mas_3 / total_sucesores_mapeados) * 100, 1) if total_sucesores_mapeados > 0 else 0.0
+                    
                     st.write("")
-                    st.markdown(f"#### 🩺 Salud de la Bancada ({total_criticas} Posiciones Críticas)")
-                    rk1, rk2, rk3, rk4 = st.columns(4)
+                    st.markdown("#### 🩺 Salud de la Bancada (Readiness Global)")
+                    rk1, rk2, rk3 = st.columns(3)
                     with rk1:
-                        if st.button(f"🟢 Inmediato\n\n{pct_inm}% ({c_inm} pos.)", key="b_read_inm", use_container_width=True):
+                        if st.button(f"🟢 Inmediato\n\n{pct_inm}% ({r_inm} colab.)", key="b_read_inm", use_container_width=True):
                             st.session_state['filtro_kpi_plan'] = None if st.session_state.get('filtro_kpi_plan') == 'inmediato' else 'inmediato'
                             st.session_state['mostrar_dictamen_ia'] = False
                             st.rerun()
                     with rk2:
-                        if st.button(f"🟡 1 a 3 años\n\n{pct_1_3}% ({c_1_3} pos.)", key="b_read_1_3", use_container_width=True):
+                        if st.button(f"🟡 1 a 3 años\n\n{pct_1_3}% ({r_1_3} colab.)", key="b_read_1_3", use_container_width=True):
                             st.session_state['filtro_kpi_plan'] = None if st.session_state.get('filtro_kpi_plan') == '1_3_anos' else '1_3_anos'
                             st.session_state['mostrar_dictamen_ia'] = False
                             st.rerun()
                     with rk3:
-                        if st.button(f"🔵 Más de 3 años\n\n{pct_mas_3}% ({c_mas_3} pos.)", key="b_read_mas_3", use_container_width=True):
+                        if st.button(f"🔵 Más de 3 años\n\n{pct_mas_3}% ({r_mas_3} colab.)", key="b_read_mas_3", use_container_width=True):
                             st.session_state['filtro_kpi_plan'] = None if st.session_state.get('filtro_kpi_plan') == 'mas_3_anos' else 'mas_3_anos'
-                            st.session_state['mostrar_dictamen_ia'] = False
-                            st.rerun()
-                    with rk4:
-                        if st.button(f"🚨 Sin Sucesor\n\n{pct_sin_suc}% ({c_sin_suc} pos.)", key="b_read_sin_suc", use_container_width=True):
-                            st.session_state['filtro_kpi_plan'] = None if st.session_state.get('filtro_kpi_plan') == 'sin_sucesor' else 'sin_sucesor'
                             st.session_state['mostrar_dictamen_ia'] = False
                             st.rerun()
                     
@@ -1147,9 +1138,9 @@ def main():
                     if not df_posiciones_filtradas.empty:
                         col_suc = 'Sucesor P.1' if 'Sucesor P.1' in df_posiciones_filtradas.columns else 'Sucesor 1'
                         sucs = df_posiciones_filtradas[col_suc].fillna('').astype(str).str.strip().str.lower()
-                        invalid_sucs = ['pendiente', 'nan', 'none', '', 'no definido', 'sin sucesor identificado']
+                        invalid_sucs = ['pendiente', 'nan', 'none', '', 'no definido']
                         df_posiciones_filtradas['Tiene_Sucesor'] = (~sucs.isin(invalid_sucs)).astype(int)
-                        # Nota: total_criticas ya está calculado arriba
+                        total_criticas = len(df_posiciones_filtradas)
                         sucesores_definidos = df_posiciones_filtradas['Tiene_Sucesor'].sum()
                         sucesores_pendientes = total_criticas - sucesores_definidos
                     else:
@@ -1245,9 +1236,8 @@ def main():
                         if 'mostrar_dictamen_ia' not in st.session_state:
                             st.session_state['mostrar_dictamen_ia'] = False
 
-                        # La tarjeta gráfica (Se dibuja primero, estática)
                         st.markdown(f"""
-                        <div style='background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 6px solid {color_riesgo}; padding: 15px 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between; height: 95px;'>
+                        <div style='background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 6px solid {color_riesgo}; padding: 15px 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between; height: 95px; position: relative; z-index: 1;'>
                             <div>
                                 <h3 style='margin: 0; color: #1e293b; font-size: 24px;'>{indice_riesgo_global}%</h3>
                                 <p style='margin: 0; color: #64748b; font-size: 14px; font-weight: bold;'>ÍNDICE DE RIESGO OPERATIVO ACTUAL</p>
@@ -1259,47 +1249,43 @@ def main():
                         </div>
                         """, unsafe_allow_html=True)
 
-                        # El botón nativo de Streamlit
                         if st.button("BOTON_INVISIBLE_IA_RIESGO", key="btn_ia_riesgo", use_container_width=True):
                             st.session_state['mostrar_dictamen_ia'] = not st.session_state.get('mostrar_dictamen_ia', False)
                             st.session_state['filtro_kpi_plan'] = None 
                             st.rerun()
 
-                        # Inyección JavaScript Avanzada (Observer) para montar el botón transparente y ocultar la caja
                         components.html("""
                         <script>
-                        function fixButton() {
+                        function setupOverlay() {
                             const docs = window.parent.document;
-                            const buttons = Array.from(docs.querySelectorAll('button'));
-                            const targetBtn = buttons.find(b => b.innerText && b.innerText.includes('BOTON_INVISIBLE_IA_RIESGO'));
+                            const btns = Array.from(docs.querySelectorAll('button'));
+                            const targetBtn = btns.find(b => b.innerText && b.innerText.includes('BOTON_INVISIBLE_IA_RIESGO'));
                             
                             if (targetBtn) {
+                                targetBtn.style.opacity = '0';
+                                targetBtn.style.position = 'absolute';
+                                targetBtn.style.transform = 'translateY(-110px)'; // Jala el botón transparente sobre la tarjeta
+                                targetBtn.style.left = '0';
+                                targetBtn.style.width = '100%';
+                                targetBtn.style.height = '95px';
+                                targetBtn.style.zIndex = '9999';
+                                targetBtn.style.cursor = 'pointer';
+                                
                                 let container = targetBtn.closest('div[data-testid="stElementContainer"]');
                                 if(!container) container = targetBtn.closest('div.element-container');
-                                
                                 if(container) {
+                                    container.style.overflow = 'visible'; // Evita que se recorte el botón invisible
                                     container.style.height = '0px';
                                     container.style.minHeight = '0px';
-                                    container.style.padding = '0px';
-                                    container.style.margin = '0px';
-                                    container.style.overflow = 'visible';
-                                    
-                                    targetBtn.style.opacity = '0';
-                                    targetBtn.style.position = 'absolute';
-                                    targetBtn.style.transform = 'translateY(-105px)';
-                                    targetBtn.style.left = '0';
-                                    targetBtn.style.width = '100%';
-                                    targetBtn.style.height = '95px';
-                                    targetBtn.style.zIndex = '9999';
-                                    targetBtn.style.cursor = 'pointer';
-                                    targetBtn.style.border = 'none';
+                                    container.style.padding = '0';
+                                    container.style.margin = '0';
                                 }
                             }
                         }
                         
-                        const observer = new MutationObserver(fixButton);
+                        const observer = new MutationObserver(setupOverlay);
                         observer.observe(window.parent.document.body, {childList: true, subtree: true});
-                        fixButton();
+                        setupOverlay();
                         </script>
                         """, height=0, width=0)
 
@@ -1342,49 +1328,36 @@ def main():
                     if 'filtro_kpi_plan' in st.session_state and st.session_state['filtro_kpi_plan']:
                         modo = st.session_state['filtro_kpi_plan']
                         
-                        lista_sucesores = []
-                        titulo_lista = ""
-                        
-                        if modo in ['inmediato', '1_3_anos', 'mas_3_anos', 'sin_sucesor']:
-                            if modo == 'inmediato': 
-                                target = 'inmediato'
-                                titulo_lista = "Posiciones con Sucesor P.1 Inmediato"
-                            elif modo == '1_3_anos': 
-                                target = '1 a 3'
-                                titulo_lista = "Posiciones con Sucesor P.1 a 1-3 años"
-                            elif modo == 'mas_3_anos': 
-                                target = 'mas de 3'
-                                titulo_lista = "Posiciones con Sucesor P.1 a +3 años"
-                            else:
-                                target = 'sin_sucesor'
-                                titulo_lista = "Posiciones Sin Sucesor Identificado"
-                                
+                        if modo in ['inmediato', '1_3_anos', 'mas_3_anos']:
+                            target_term1 = 'inmediato' if modo == 'inmediato' else ('1 a 3' if modo == '1_3_anos' else 'mas de 3')
+                            target_term2 = 'más de 3' if modo == 'mas_3_anos' else target_term1
+                            titulo_lista = f"Sucesores mapeados a: {target_term1.capitalize()}"
+                            
+                            lista_sucesores = []
                             for _, r in df_posiciones_filtradas.iterrows():
                                 pos = clean_text(r.get('Nombre de la Posición', ''))
                                 ocupante = clean_text(r.get('Nombre', ''))
                                 
-                                suc1 = clean_text(r.get(col_suc1, ''))
+                                s1 = clean_text(r.get('Sucesor P.1', r.get('Sucesor 1', '')))
                                 read1 = clean_text(r.get(col_r1, '')) if col_r1 else ''
+                                s2 = clean_text(r.get('Sucesor P.2', r.get('Sucesor 2', '')))
+                                read2 = clean_text(r.get(col_r2, '')) if col_r2 else ''
+                                s3 = clean_text(r.get('Sucesor P.3', r.get('Sucesor 3', '')))
+                                read3 = clean_text(r.get(col_r3, '')) if col_r3 else ''
+                                s4 = clean_text(r.get('Sucesor P.4', r.get('Sucesor 4', '')))
+                                read4 = clean_text(r.get(col_r4, '')) if col_r4 else ''
+                                s5 = clean_text(r.get('Sucesor P.5', r.get('Sucesor 5', '')))
+                                read5 = clean_text(r.get(col_r5, '')) if col_r5 else ''
                                 
-                                is_invalid = suc1.lower() in invalid_sucs or read1 == ''
-                                
-                                match = False
-                                if target == 'sin_sucesor' and is_invalid:
-                                    match = True
-                                elif target == 'inmediato' and 'inmediato' in read1.lower() and not is_invalid:
-                                    match = True
-                                elif target == '1 a 3' and '1 a 3' in read1.lower() and not is_invalid:
-                                    match = True
-                                elif target == 'mas de 3' and ('mas de 3' in read1.lower() or 'más de 3' in read1.lower()) and not is_invalid:
-                                    match = True
-                                    
-                                if match:
-                                    lista_sucesores.append({
-                                        "Posición Crítica": pos,
-                                        "Ocupante Actual": ocupante,
-                                        "Nombre del Sucesor P.1": suc1 if not is_invalid else "No definido / Sin Sucesor",
-                                        "Readiness P.1": read1 if not is_invalid else "Pendiente"
-                                    })
+                                for suc, read in [(s1, read1), (s2, read2), (s3, read3), (s4, read4), (s5, read5)]:
+                                    rl = read.lower()
+                                    if target_term1 in rl or target_term2 in rl:
+                                        lista_sucesores.append({
+                                            "Posición Crítica": pos,
+                                            "Ocupante Actual": ocupante,
+                                            "Nombre del Sucesor": suc if suc else "No definido",
+                                            "Readiness": read
+                                        })
                             
                             df_lista_suc = pd.DataFrame(lista_sucesores)
                             with st.container():
@@ -1395,7 +1368,7 @@ def main():
                                     st.info("No hay registros en esta categoría.")
                                 if st.button("❌ Cerrar lista", key="cerrar_lista_kpi_read"): st.session_state['filtro_kpi_plan'] = None; st.rerun()
 
-                        elif modo in ['todas', 'con_sucesor', 'pendientes']:
+                        else:
                             if modo == 'todas': df_mostrar = df_posiciones_filtradas; titulo_lista = "Todas las Posiciones Críticas"
                             elif modo == 'con_sucesor': df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 1]; titulo_lista = "Posiciones con Mapeo Definido"
                             else: df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 0]; titulo_lista = "Posiciones Pendientes de Sucesor"
@@ -2080,7 +2053,7 @@ def main():
                                     
                                     c_dir_list = [d.strip() for d in c_dir.split(",")] if c_dir else []
                                     opciones_dir = ["TODAS", "COLABORADOR"] + dirs
-                                    c_dir_list_valid = [d for d in c_dir_list if d in options_dir]
+                                    c_dir_list_valid = [d for d in c_dir_list if d in opciones_dir]
                                     
                                     c_lid_list = [l.strip() for l in c_lid.split(",")] if c_lid else ["TODOS"]
                                     lideres_para_admin = sorted(df_completo['Nombre'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
