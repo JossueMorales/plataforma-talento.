@@ -1214,7 +1214,7 @@ def main():
                         if 'mostrar_dictamen_ia' not in st.session_state:
                             st.session_state['mostrar_dictamen_ia'] = False
 
-                        # La tarjeta gráfica (Se dibuja primero, estática)
+                        # La tarjeta gráfica
                         st.markdown(f"""
                         <div style='background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 6px solid {color_riesgo}; padding: 15px 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between; height: 95px;'>
                             <div>
@@ -1234,7 +1234,7 @@ def main():
                             st.session_state['filtro_kpi_plan'] = None 
                             st.rerun()
 
-                        # Inyección JavaScript para empalmar y ocultar el contenedor gris
+                        # Inyección JavaScript Avanzada (Observer) para montar el botón transparente y ocultar la caja
                         components.html("""
                         <script>
                         function fixButton() {
@@ -1243,22 +1243,19 @@ def main():
                             const targetBtn = buttons.find(b => b.innerText && b.innerText.includes('BOTON_INVISIBLE_IA_RIESGO'));
                             
                             if (targetBtn) {
-                                // Encontramos el contenedor principal del botón en Streamlit
                                 let container = targetBtn.closest('div[data-testid="stElementContainer"]');
                                 if(!container) container = targetBtn.closest('div.element-container');
                                 
                                 if(container) {
-                                    // Eliminamos las restricciones del contenedor para que el botón pueda flotar
                                     container.style.height = '0px';
                                     container.style.minHeight = '0px';
                                     container.style.padding = '0px';
                                     container.style.margin = '0px';
                                     container.style.overflow = 'visible';
                                     
-                                    // Volvemos el botón transparente y lo arrastramos arriba de la tarjeta
                                     targetBtn.style.opacity = '0';
                                     targetBtn.style.position = 'absolute';
-                                    targetBtn.style.transform = 'translateY(-105px)'; // Lo empuja arriba de la tarjeta
+                                    targetBtn.style.transform = 'translateY(-105px)';
                                     targetBtn.style.left = '0';
                                     targetBtn.style.width = '100%';
                                     targetBtn.style.height = '95px';
@@ -1268,9 +1265,10 @@ def main():
                                 }
                             }
                         }
-                        // Ejecuta la función continuamente por 2 segundos para asegurar que React ya cargó el elemento
-                        let interval = setInterval(fixButton, 50);
-                        setTimeout(() => clearInterval(interval), 2000);
+                        
+                        const observer = new MutationObserver(fixButton);
+                        observer.observe(window.parent.document.body, {childList: true, subtree: true});
+                        fixButton();
                         </script>
                         """, height=0, width=0)
 
@@ -1313,59 +1311,46 @@ def main():
                     if 'filtro_kpi_plan' in st.session_state and st.session_state['filtro_kpi_plan']:
                         modo = st.session_state['filtro_kpi_plan']
                         
-                        lista_sucesores = []
+                        df_mostrar = pd.DataFrame()
                         titulo_lista = ""
                         
-                        if modo in ['inmediato', '1_3_anos', 'mas_3_anos', 'sin_sucesor']:
-                            if modo == 'inmediato': 
-                                target = 'inmediato'
-                                titulo_lista = "Posiciones con Sucesor P.1 Inmediato"
-                            elif modo == '1_3_anos': 
-                                target = '1 a 3'
-                                titulo_lista = "Posiciones con Sucesor P.1 a 1-3 años"
-                            elif modo == 'mas_3_anos': 
-                                target = 'mas de 3'
-                                titulo_lista = "Posiciones con Sucesor P.1 a +3 años"
-                            else:
-                                target = 'sin_sucesor'
-                                titulo_lista = "Posiciones Sin Sucesor Identificado"
-                                
-                            for _, r in df_posiciones_filtradas.iterrows():
-                                pos = clean_text(r.get('Nombre de la Posición', ''))
-                                ocupante = clean_text(r.get('Nombre', ''))
-                                
-                                suc1 = clean_text(r.get(col_suc1, ''))
-                                read1 = clean_text(r.get(col_r1, '')) if col_r1 else ''
-                                
-                                is_invalid = suc1.lower() in invalid_sucs or read1 == ''
-                                
-                                match = False
-                                if target == 'sin_sucesor' and is_invalid:
-                                    match = True
-                                elif target == 'inmediato' and 'inmediato' in read1.lower() and not is_invalid:
-                                    match = True
-                                elif target == '1 a 3' and '1 a 3' in read1.lower() and not is_invalid:
-                                    match = True
-                                elif target == 'mas de 3' and ('mas de 3' in read1.lower() or 'más de 3' in read1.lower()) and not is_invalid:
-                                    match = True
-                                    
-                                if match:
-                                    lista_sucesores.append({
-                                        "Posición Crítica": pos,
-                                        "Ocupante Actual": ocupante,
-                                        "Nombre del Sucesor P.1": suc1 if not is_invalid else "No definido / Sin Sucesor",
-                                        "Readiness P.1": read1 if not is_invalid else "Pendiente"
-                                    })
-                            
-                            df_lista_suc = pd.DataFrame(lista_sucesores)
-                            with st.container():
-                                st.markdown(f"#### 📋 {titulo_lista} ({len(df_lista_suc)} registros)")
-                                if not df_lista_suc.empty:
-                                    st.dataframe(df_lista_suc, use_container_width=True, hide_index=True)
-                                else:
-                                    st.info("No hay registros en esta categoría.")
-                                if st.button("❌ Cerrar lista", key="cerrar_lista_kpi_read"): st.session_state['filtro_kpi_plan'] = None; st.rerun()
+                        if modo == 'inmediato':
+                            df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas.apply(lambda r: 'inmediato' in str(r.get(col_r1, '')).lower() and str(r.get(col_suc1, '')).lower() not in invalid_sucs, axis=1)]
+                            titulo_lista = "Posiciones con Sucesor P.1 Inmediato"
+                        elif modo == '1_3_anos':
+                            df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas.apply(lambda r: '1 a 3' in str(r.get(col_r1, '')).lower() and str(r.get(col_suc1, '')).lower() not in invalid_sucs, axis=1)]
+                            titulo_lista = "Posiciones con Sucesor P.1 a 1-3 años"
+                        elif modo == 'mas_3_anos':
+                            df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas.apply(lambda r: ('mas de 3' in str(r.get(col_r1, '')).lower() or 'más de 3' in str(r.get(col_r1, '')).lower()) and str(r.get(col_suc1, '')).lower() not in invalid_sucs, axis=1)]
+                            titulo_lista = "Posiciones con Sucesor P.1 a +3 años"
+                        elif modo == 'sin_sucesor':
+                            df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas.apply(lambda r: str(r.get(col_suc1, '')).lower() in invalid_sucs or str(r.get(col_r1, '')).strip() == '', axis=1)]
+                            titulo_lista = "Posiciones Sin Sucesor Identificado"
+                        elif modo == 'todas':
+                            df_mostrar = df_posiciones_filtradas
+                            titulo_lista = "Todas las Posiciones Críticas"
+                        elif modo == 'con_sucesor':
+                            df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 1]
+                            titulo_lista = "Posiciones con Mapeo Definido"
+                        elif modo == 'pendientes':
+                            df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 0]
+                            titulo_lista = "Posiciones Pendientes de Sucesor"
 
+                        with st.container():
+                            st.markdown(f"#### 📋 {titulo_lista} (Haz clic para cargar)")
+                            if df_mostrar.empty: 
+                                st.info("No hay posiciones en esta categoría.")
+                            else:
+                                cols_grid = st.columns(3)
+                                for i, row_dict in enumerate(df_mostrar.to_dict('records')):
+                                    p_name = clean_text(row_dict.get('Nombre de la Posición'))
+                                    if p_name and cols_grid[i % 3].button(p_name, key=f"grid_btn_{i}_{modo}", use_container_width=True):
+                                        st.session_state['plan_pos'] = p_name
+                                        st.session_state['filtro_kpi_plan'] = None
+                                        st.rerun()
+                            if st.button("❌ Cerrar lista", key="cerrar_lista_kpi"): 
+                                st.session_state['filtro_kpi_plan'] = None
+                                st.rerun()
                     
                     st.write("---")
                     st.markdown("#### 📥 Exportar Reporte de Sucesiones")
