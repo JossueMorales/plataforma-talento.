@@ -1078,6 +1078,11 @@ def main():
                     df_posiciones_filtradas = df_seguro.copy()
                     df_posiciones_filtradas['id_clean'] = df_posiciones_filtradas['id Empleado'].apply(clean_id)
                     
+                    # --- NUEVO FILTRO ESTRICTO DE DIRECCIÓN ---
+                    if f_dir != "Todas":
+                        df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Dirección'].astype(str).str.strip() == f_dir]
+                    # ------------------------------------------
+
                     subordinados_nombres_limpios = []
                     if f_lid_plan != "Todos":
                         sub_ids = obtener_subordinados_ids(f_lid_plan)
@@ -1101,7 +1106,6 @@ def main():
                         (~df_posiciones_filtradas['Nombre de la Posición'].astype(str).str.upper().str.contains('DIRECTOR GENERAL'))
                     ]
                     
-                    # NUEVA LÓGICA DE READINESS Y SUCESIÓN UNIFICADA (100% DE POSICIONES CRÍTICAS)
                     col_suc1 = 'Sucesor P.1' if 'Sucesor P.1' in df_posiciones_filtradas.columns else 'Sucesor 1'
                     col_r1 = next((c for c in df_posiciones_filtradas.columns if 'readiness 1' in str(c).lower()), None)
 
@@ -1352,49 +1356,43 @@ def main():
                     if 'filtro_kpi_plan' in st.session_state and st.session_state['filtro_kpi_plan']:
                         modo = st.session_state['filtro_kpi_plan']
                         
-                        lista_sucesores = []
+                        df_mostrar = pd.DataFrame()
                         titulo_lista = ""
+                        
+                        invalid_sucs_local = ['pendiente', 'nan', 'none', '', 'no definido', 'sin sucesor identificado']
                         
                         if modo in ['inmediato', '1_3_anos', 'mas_3_anos', 'sin_sucesor']:
                             if modo == 'inmediato': 
-                                target = 'inmediato'
                                 titulo_lista = "Posiciones con Sucesor P.1 Inmediato"
                             elif modo == '1_3_anos': 
-                                target = '1 a 3'
                                 titulo_lista = "Posiciones con Sucesor P.1 a 1-3 años"
                             elif modo == 'mas_3_anos': 
-                                target = 'mas de 3'
                                 titulo_lista = "Posiciones con Sucesor P.1 a +3 años"
-                            else:
-                                target = 'sin_sucesor'
+                            elif modo == 'sin_sucesor':
                                 titulo_lista = "Posiciones Sin Sucesor Identificado"
                                 
-                            for _, r in df_posiciones_filtradas.iterrows():
+                            lista_sucesores = []
+                            df_sub = df_posiciones_filtradas[df_posiciones_filtradas['Cat_Sucesion'] == modo]
+                            
+                            for _, r in df_sub.iterrows():
                                 pos = clean_text(r.get('Nombre de la Posición', ''))
                                 ocupante = clean_text(r.get('Nombre', ''))
-                                
                                 suc1 = clean_text(r.get(col_suc1, ''))
                                 read1 = clean_text(r.get(col_r1, '')) if col_r1 else ''
                                 
-                                is_invalid = suc1.lower() in invalid_sucs or read1 == ''
-                                
-                                match = False
-                                if target == 'sin_sucesor' and is_invalid:
-                                    match = True
-                                elif target == 'inmediato' and 'inmediato' in read1.lower() and not is_invalid:
-                                    match = True
-                                elif target == '1 a 3' and '1 a 3' in read1.lower() and not is_invalid:
-                                    match = True
-                                elif target == 'mas de 3' and ('mas de 3' in read1.lower() or 'más de 3' in read1.lower()) and not is_invalid:
-                                    match = True
+                                if modo == 'sin_sucesor':
+                                    suc1_fmt = "No definido / Sin Sucesor"
+                                    read1_fmt = "Pendiente"
+                                else:
+                                    suc1_fmt = suc1
+                                    read1_fmt = read1
                                     
-                                if match:
-                                    lista_sucesores.append({
-                                        "Posición Crítica": pos,
-                                        "Ocupante Actual": ocupante,
-                                        "Nombre del Sucesor P.1": suc1 if not is_invalid else "No definido / Sin Sucesor",
-                                        "Readiness P.1": read1 if not is_invalid else "Pendiente"
-                                    })
+                                lista_sucesores.append({
+                                    "Posición Crítica": pos,
+                                    "Ocupante Actual": ocupante,
+                                    "Nombre del Sucesor P.1": suc1_fmt,
+                                    "Readiness P.1": read1_fmt
+                                })
                             
                             df_lista_suc = pd.DataFrame(lista_sucesores)
                             with st.container():
