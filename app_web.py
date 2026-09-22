@@ -1144,6 +1144,37 @@ def main():
                     
                     st.write("---")
                     
+                    if not df_posiciones_filtradas.empty:
+                        col_suc = 'Sucesor P.1' if 'Sucesor P.1' in df_posiciones_filtradas.columns else 'Sucesor 1'
+                        sucs = df_posiciones_filtradas[col_suc].fillna('').astype(str).str.strip().str.lower()
+                        invalid_sucs = ['pendiente', 'nan', 'none', '', 'no definido', 'sin sucesor identificado']
+                        df_posiciones_filtradas['Tiene_Sucesor'] = (~sucs.isin(invalid_sucs)).astype(int)
+                        # Nota: total_criticas ya está calculado arriba
+                        sucesores_definidos = df_posiciones_filtradas['Tiene_Sucesor'].sum()
+                        sucesores_pendientes = total_criticas - sucesores_definidos
+                    else:
+                        df_posiciones_filtradas['Tiene_Sucesor'] = 0
+                        total_criticas = 0; sucesores_definidos = 0; sucesores_pendientes = 0
+                    
+                    col_k1, col_k2, col_k3 = st.columns(3)
+                    with col_k1:
+                        if st.button(f"📘 TOTAL CRÍTICAS\n\n{total_criticas}", use_container_width=True): 
+                            st.session_state['filtro_kpi_plan'] = None if st.session_state.get('filtro_kpi_plan') == 'todas' else 'todas'
+                            st.session_state['mostrar_dictamen_ia'] = False
+                            st.rerun()
+                    with col_k2:
+                        if st.button(f"✅ MAPEO DEFINIDO\n\n{sucesores_definidos}", use_container_width=True): 
+                            st.session_state['filtro_kpi_plan'] = None if st.session_state.get('filtro_kpi_plan') == 'con_sucesor' else 'con_sucesor'
+                            st.session_state['mostrar_dictamen_ia'] = False
+                            st.rerun()
+                    with col_k3:
+                        if st.button(f"🚨 PENDIENTES\n\n{sucesores_pendientes}", use_container_width=True): 
+                            st.session_state['filtro_kpi_plan'] = None if st.session_state.get('filtro_kpi_plan') == 'pendientes' else 'pendientes'
+                            st.session_state['mostrar_dictamen_ia'] = False
+                            st.rerun()
+                    
+                    st.write("---")
+                    
                     # ==========================================
                     # MOTOR DE IA: ANÁLISIS DE RIESGO OPERATIVO Y VULNERABILIDAD
                     # ==========================================
@@ -1214,7 +1245,7 @@ def main():
                         if 'mostrar_dictamen_ia' not in st.session_state:
                             st.session_state['mostrar_dictamen_ia'] = False
 
-                        # La tarjeta gráfica
+                        # La tarjeta gráfica (Se dibuja primero, estática)
                         st.markdown(f"""
                         <div style='background-color: #ffffff; border: 1px solid #e2e8f0; border-left: 6px solid {color_riesgo}; padding: 15px 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between; height: 95px;'>
                             <div>
@@ -1311,46 +1342,74 @@ def main():
                     if 'filtro_kpi_plan' in st.session_state and st.session_state['filtro_kpi_plan']:
                         modo = st.session_state['filtro_kpi_plan']
                         
-                        df_mostrar = pd.DataFrame()
+                        lista_sucesores = []
                         titulo_lista = ""
                         
-                        if modo == 'inmediato':
-                            df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas.apply(lambda r: 'inmediato' in str(r.get(col_r1, '')).lower() and str(r.get(col_suc1, '')).lower() not in invalid_sucs, axis=1)]
-                            titulo_lista = "Posiciones con Sucesor P.1 Inmediato"
-                        elif modo == '1_3_anos':
-                            df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas.apply(lambda r: '1 a 3' in str(r.get(col_r1, '')).lower() and str(r.get(col_suc1, '')).lower() not in invalid_sucs, axis=1)]
-                            titulo_lista = "Posiciones con Sucesor P.1 a 1-3 años"
-                        elif modo == 'mas_3_anos':
-                            df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas.apply(lambda r: ('mas de 3' in str(r.get(col_r1, '')).lower() or 'más de 3' in str(r.get(col_r1, '')).lower()) and str(r.get(col_suc1, '')).lower() not in invalid_sucs, axis=1)]
-                            titulo_lista = "Posiciones con Sucesor P.1 a +3 años"
-                        elif modo == 'sin_sucesor':
-                            df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas.apply(lambda r: str(r.get(col_suc1, '')).lower() in invalid_sucs or str(r.get(col_r1, '')).strip() == '', axis=1)]
-                            titulo_lista = "Posiciones Sin Sucesor Identificado"
-                        elif modo == 'todas':
-                            df_mostrar = df_posiciones_filtradas
-                            titulo_lista = "Todas las Posiciones Críticas"
-                        elif modo == 'con_sucesor':
-                            df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 1]
-                            titulo_lista = "Posiciones con Mapeo Definido"
-                        elif modo == 'pendientes':
-                            df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 0]
-                            titulo_lista = "Posiciones Pendientes de Sucesor"
-
-                        with st.container():
-                            st.markdown(f"#### 📋 {titulo_lista} (Haz clic para cargar)")
-                            if df_mostrar.empty: 
-                                st.info("No hay posiciones en esta categoría.")
+                        if modo in ['inmediato', '1_3_anos', 'mas_3_anos', 'sin_sucesor']:
+                            if modo == 'inmediato': 
+                                target = 'inmediato'
+                                titulo_lista = "Posiciones con Sucesor P.1 Inmediato"
+                            elif modo == '1_3_anos': 
+                                target = '1 a 3'
+                                titulo_lista = "Posiciones con Sucesor P.1 a 1-3 años"
+                            elif modo == 'mas_3_anos': 
+                                target = 'mas de 3'
+                                titulo_lista = "Posiciones con Sucesor P.1 a +3 años"
                             else:
-                                cols_grid = st.columns(3)
-                                for i, row_dict in enumerate(df_mostrar.to_dict('records')):
-                                    p_name = clean_text(row_dict.get('Nombre de la Posición'))
-                                    if p_name and cols_grid[i % 3].button(p_name, key=f"grid_btn_{i}_{modo}", use_container_width=True):
-                                        st.session_state['plan_pos'] = p_name
-                                        st.session_state['filtro_kpi_plan'] = None
-                                        st.rerun()
-                            if st.button("❌ Cerrar lista", key="cerrar_lista_kpi"): 
-                                st.session_state['filtro_kpi_plan'] = None
-                                st.rerun()
+                                target = 'sin_sucesor'
+                                titulo_lista = "Posiciones Sin Sucesor Identificado"
+                                
+                            for _, r in df_posiciones_filtradas.iterrows():
+                                pos = clean_text(r.get('Nombre de la Posición', ''))
+                                ocupante = clean_text(r.get('Nombre', ''))
+                                
+                                suc1 = clean_text(r.get(col_suc1, ''))
+                                read1 = clean_text(r.get(col_r1, '')) if col_r1 else ''
+                                
+                                is_invalid = suc1.lower() in invalid_sucs or read1 == ''
+                                
+                                match = False
+                                if target == 'sin_sucesor' and is_invalid:
+                                    match = True
+                                elif target == 'inmediato' and 'inmediato' in read1.lower() and not is_invalid:
+                                    match = True
+                                elif target == '1 a 3' and '1 a 3' in read1.lower() and not is_invalid:
+                                    match = True
+                                elif target == 'mas de 3' and ('mas de 3' in read1.lower() or 'más de 3' in read1.lower()) and not is_invalid:
+                                    match = True
+                                    
+                                if match:
+                                    lista_sucesores.append({
+                                        "Posición Crítica": pos,
+                                        "Ocupante Actual": ocupante,
+                                        "Nombre del Sucesor P.1": suc1 if not is_invalid else "No definido / Sin Sucesor",
+                                        "Readiness P.1": read1 if not is_invalid else "Pendiente"
+                                    })
+                            
+                            df_lista_suc = pd.DataFrame(lista_sucesores)
+                            with st.container():
+                                st.markdown(f"#### 📋 {titulo_lista} ({len(df_lista_suc)} registros)")
+                                if not df_lista_suc.empty:
+                                    st.dataframe(df_lista_suc, use_container_width=True, hide_index=True)
+                                else:
+                                    st.info("No hay registros en esta categoría.")
+                                if st.button("❌ Cerrar lista", key="cerrar_lista_kpi_read"): st.session_state['filtro_kpi_plan'] = None; st.rerun()
+
+                        elif modo in ['todas', 'con_sucesor', 'pendientes']:
+                            if modo == 'todas': df_mostrar = df_posiciones_filtradas; titulo_lista = "Todas las Posiciones Críticas"
+                            elif modo == 'con_sucesor': df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 1]; titulo_lista = "Posiciones con Mapeo Definido"
+                            else: df_mostrar = df_posiciones_filtradas[df_posiciones_filtradas['Tiene_Sucesor'] == 0]; titulo_lista = "Posiciones Pendientes de Sucesor"
+                            
+                            with st.container():
+                                st.markdown(f"#### 📋 {titulo_lista} (Haz clic para cargar)")
+                                if df_mostrar.empty: st.info("No hay posiciones en esta categoría.")
+                                else:
+                                    cols_grid = st.columns(3)
+                                    for i, row_dict in enumerate(df_mostrar.to_dict('records')):
+                                        p_name = clean_text(row_dict.get('Nombre de la Posición'))
+                                        if p_name and cols_grid[i % 3].button(p_name, key=f"grid_btn_{i}_{modo}", use_container_width=True):
+                                            st.session_state['plan_pos'] = p_name; st.session_state['filtro_kpi_plan'] = None; st.rerun()
+                                if st.button("❌ Cerrar lista", key="cerrar_lista_kpi"): st.session_state['filtro_kpi_plan'] = None; st.rerun()
                     
                     st.write("---")
                     st.markdown("#### 📥 Exportar Reporte de Sucesiones")
@@ -2021,7 +2080,7 @@ def main():
                                     
                                     c_dir_list = [d.strip() for d in c_dir.split(",")] if c_dir else []
                                     opciones_dir = ["TODAS", "COLABORADOR"] + dirs
-                                    c_dir_list_valid = [d for d in c_dir_list if d in opciones_dir]
+                                    c_dir_list_valid = [d for d in c_dir_list if d in options_dir]
                                     
                                     c_lid_list = [l.strip() for l in c_lid.split(",")] if c_lid else ["TODOS"]
                                     lideres_para_admin = sorted(df_completo['Nombre'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
