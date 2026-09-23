@@ -177,6 +177,10 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
             except ValueError: eng_val = 0.0
         else: eng_val = 0.0
         
+        # Búsqueda dinámica de las columnas de Nivel
+        jer_key = next((k for k in row_dict.keys() if k and ('jerárquico' in str(k).lower() or 'jerarquico' in str(k).lower())), 'Nivel Jerárquico')
+        mla_key = next((k for k in row_dict.keys() if k and 'nivel mla' in str(k).lower()), 'Nivel MLA')
+        
         if emp:
             empleados_validos.add(emp)
             G_jerarquia.add_node(emp)
@@ -188,8 +192,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
             suc5_limpio = buscar_id_real(row_dict.get('Sucesor P.5', row_dict.get('Sucesor 5', '')))
             
             info_nodos[emp] = {
-                'jerarquia': clean_text(row_dict.get('Nivel Jerárquico'), 'N/A'),
-                'mla': clean_text(row_dict.get('Nivel MLA'), 'N/A'),
+                'jerarquia': clean_text(row_dict.get(jer_key, 'N/A')),
+                'mla': clean_text(row_dict.get(mla_key, 'N/A')),
                 'puesto': clean_text(row_dict.get('Nombre de la Posición')).upper(),
                 'direccion': clean_text(row_dict.get('Dirección', row_dict.get('Direccion')), 'No asignada'),
                 'box': clean_text(row_dict.get('Resultado 9 box'), 'Pendiente'),
@@ -446,6 +450,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
         color_sombreado = 'rgba(22, 163, 74, 0.8)' if eng >= 4 else ('rgba(234, 179, 8, 0.8)' if eng >= 3 else ('rgba(249, 115, 22, 0.8)' if eng >= 2 else ('rgba(220, 38, 38, 0.8)' if eng > 0 else 'rgba(0, 0, 0, 0.2)')))
         dispersion_offset = (((sum(ord(ch) for ch in str(emp)) % 9) / 8.0) * 0.4) - 0.2 
         
+        # INYECCIÓN SEPARADA: 'jerarquia' para la red, 'mla' para la vista de UI en PyVis
         G.add_node(
             emp, label=f"{prefijo}{acortar_nombre(info['nombre'])}\n({acortar_puesto(info['puesto'])})", 
             title=f"<div style='padding: 5px; text-align: center;'><b>{prefijo}{info['nombre']}</b><br><small>{info['puesto']}</small><br><small>Riesgo de Fuga: {info['riesgo_fuga']}</small></div>", 
@@ -892,6 +897,8 @@ def main():
         
         lider_permitido_str = str(st.session_state.get("lider_permitido", "TODOS")).strip()
         
+        col_jer = next((c for c in df_completo.columns if 'jerárquico' in str(c).lower() or 'jerarquico' in str(c).lower()), 'Nivel Jerárquico')
+        
         if es_colaborador:
             renderizar_mi_pdi(df_completo, df_pdi)
                                 
@@ -899,7 +906,7 @@ def main():
             if "TODAS" not in direccion_permitida:
                 lista_dirs = [d.strip() for d in direccion_permitida.split(",")]
                 mask_dir = df_completo['Dirección'].astype(str).str.upper().apply(lambda d_val: any(d in d_val for d in lista_dirs))
-                df_seguro = df_completo[mask_dir | (df_completo['Nivel Jerárquico'].astype(str).str.strip() == '5')]
+                df_seguro = df_completo[mask_dir | (df_completo[col_jer].astype(str).str.strip() == '5')]
             else:
                 df_seguro = df_completo.copy()
                 
@@ -944,7 +951,7 @@ def main():
 
             df_filtros = df_seguro
             if st.session_state["id_usuario"] != "admin":
-                df_filtros = df_seguro[~df_seguro['Nivel Jerárquico'].astype(str).str.strip().isin(['5'])]
+                df_filtros = df_seguro[~df_seguro[col_jer].astype(str).str.strip().isin(['5'])]
 
             col_head1, col_head2 = st.columns([2, 1])
             with col_head1:
@@ -959,10 +966,11 @@ def main():
                 
             if colab_buscado:
                 datos_c = df_seguro[df_seguro['Nombre'] == colab_buscado].iloc[0]
-                st.success(f"👤 **{colab_buscado}** | 🏢 **Puesto:** {clean_text(datos_c.get('Nombre de la Posición', 'N/A'))} | 📍 **Dirección:** {clean_text(datos_c.get('Dirección', datos_c.get('Direccion', 'N/A')))} | 📊 **9-Box:** {clean_text(datos_c.get('Resultado 9 box', 'N/A'))} | 📈 **EDR:** {clean_text(datos_c.get('EDR', datos_c.get('EDR ', 'N/A')))} | 🥇 **Nivel Jerárquico:** {clean_text(datos_c.get('Nivel Jerárquico', 'N/A'))}")
+                jer_key_c = next((k for k in datos_c.keys() if k and ('jerárquico' in str(k).lower() or 'jerarquico' in str(k).lower())), 'Nivel Jerárquico')
+                st.success(f"👤 **{colab_buscado}** | 🏢 **Puesto:** {clean_text(datos_c.get('Nombre de la Posición', 'N/A'))} | 📍 **Dirección:** {clean_text(datos_c.get('Dirección', datos_c.get('Direccion', 'N/A')))} | 📊 **9-Box:** {clean_text(datos_c.get('Resultado 9 box', 'N/A'))} | 📈 **EDR:** {clean_text(datos_c.get('EDR', datos_c.get('EDR ', 'N/A')))} | 🥇 **Nivel Jerárquico:** {clean_text(datos_c.get(jer_key_c, 'N/A'))}")
             
             dirs = sorted(df_filtros['Dirección'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
-            jerarquias = sorted(df_filtros['Nivel Jerárquico'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
+            jerarquias = sorted(df_filtros[col_jer].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
             boxes = sorted(df_filtros['Resultado 9 box'].dropna().astype(str).str.strip().str.upper()[lambda x: x != ''].unique().tolist())
             criticas = sorted(df_filtros['Posición Crítica'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
             edrs_col = 'EDR' if 'EDR' in df_filtros.columns else ('EDR ' if 'EDR ' in df_filtros.columns else None)
@@ -1074,7 +1082,8 @@ def main():
                     if f_dir != "Todas":
                         df_base_jerarquia = df_base_jerarquia[df_base_jerarquia['Dirección'].astype(str).str.strip() == f_dir]
                         
-                    niveles_disponibles = sorted(df_base_jerarquia['Nivel Jerárquico'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
+                    col_jer_base = next((c for c in df_base_jerarquia.columns if 'jerárquico' in str(c).lower() or 'jerarquico' in str(c).lower()), 'Nivel Jerárquico')
+                    niveles_disponibles = sorted(df_base_jerarquia[col_jer_base].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
                     
                     if st.session_state.get("id_usuario") != "admin" and '5' in niveles_disponibles:
                         niveles_disponibles.remove('5')
@@ -1100,8 +1109,10 @@ def main():
                         nodos_visibles_ids = kpis.get('nodos_visibles_ids', [])
                         df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['id_clean'].isin(nodos_visibles_ids)]
                     
+                    col_jer_fil = next((c for c in df_posiciones_filtradas.columns if 'jerárquico' in str(c).lower() or 'jerarquico' in str(c).lower()), 'Nivel Jerárquico')
+
                     if f_niv_plan != "Todos":
-                        df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Nivel Jerárquico'].astype(str).str.strip() == f_niv_plan]
+                        df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas[col_jer_fil].astype(str).str.strip() == f_niv_plan]
 
                     if not df_posiciones_filtradas.empty:
                         filtro_base = (df_posiciones_filtradas['Posición Crítica'].astype(str).str.strip().str.lower() == 'si')
@@ -1111,7 +1122,7 @@ def main():
                         else:
                             df_posiciones_filtradas = df_posiciones_filtradas[
                                 filtro_base &
-                                (df_posiciones_filtradas['Nivel Jerárquico'].astype(str).str.strip() != '5') &
+                                (df_posiciones_filtradas[col_jer_fil].astype(str).str.strip() != '5') &
                                 (~df_posiciones_filtradas['Nombre de la Posición'].astype(str).str.upper().str.contains('DIRECTOR GENERAL'))
                             ]
                     
@@ -1500,6 +1511,9 @@ def main():
                         
                         ocultar_metricas = es_lider_presentado or es_propia_colab
                         
+                        jer_key_c = next((k for k in row_c.keys() if k and ('jerárquico' in str(k).lower() or 'jerarquico' in str(k).lower())), 'Nivel Jerárquico')
+                        mla_key_c = next((k for k in row_c.keys() if k and 'nivel mla' in str(k).lower()), 'Nivel MLA')
+
                         if ocultar_metricas:
                             box_c = "🔒 Confidencial"
                             edr_c = "🔒 Confidencial"
@@ -1511,14 +1525,16 @@ def main():
                             edr_c = clean_text(row_c.get('EDR', row_c.get('EDR ')), 'Pendiente')
                             eng_key = next((k for k in row.keys() if k and 'enganche' in str(k).lower()), None)
                             eng_c = clean_text(row_c.get(eng_key), 'N/A') if eng_key else 'N/A'
-                            mla_c = clean_text(row_c.get('Nivel MLA'), 'N/A')
-                            jer_c = clean_text(row_c.get('Nivel Jerárquico'), 'N/A')
+                            mla_c = clean_text(row_c.get(mla_key_c, 'N/A'))
+                            jer_c = clean_text(row_c.get(jer_key_c, 'N/A'))
                             
                         return {"puesto_actual": puesto_actual, "direccion": dir_candidato, "box": box_c, "enganche": eng_c, "edr": edr_c, "mla": mla_c, "jerarquia": jer_c}
                     
                     def generar_sugerencias_ia(pos_destino, info_pos_destino):
                         if not pos_destino or df_completo.empty: return []
-                        mla_destino = clean_text(info_pos_destino.get('Nivel Jerárquico'), '')
+                        
+                        jer_key_dest = next((k for k in info_pos_destino.keys() if k and ('jerárquico' in str(k).lower() or 'jerarquico' in str(k).lower())), 'Nivel Jerárquico')
+                        mla_destino = clean_text(info_pos_destino.get(jer_key_dest, ''))
                         ocupante_destino = clean_text(info_pos_destino.get('Nombre'), '').lower()
                         
                         contexto_destino = extraer_contexto(pos_destino)
@@ -1554,7 +1570,8 @@ def main():
                             box = clean_text(row.get('Resultado 9 box')).upper()
                             if box not in ['1', '2', '3', '4', '5', '6']: continue 
                             
-                            mla_cand = clean_text(row.get('Nivel Jerárquico'))
+                            jer_key_cand = next((k for k in row.keys() if k and ('jerárquico' in str(k).lower() or 'jerarquico' in str(k).lower())), 'Nivel Jerárquico')
+                            mla_cand = clean_text(row.get(jer_key_cand, ''))
                             score = 0; razones = []
                             
                             if ctx_dest_puro.intersection(contexto_cand_puesto): score += 5; razones.append("Afinidad técnica actual")
@@ -1655,8 +1672,11 @@ def main():
                             
                             ocultar_metricas = es_lider_presentado or es_propia_colab
                             
-                            jer_c = "🔒" if ocultar_metricas else clean_text(row.get('Nivel Jerárquico', 'N/A'))
-                            mla_c = "🔒" if ocultar_metricas else clean_text(row.get('Nivel MLA', 'N/A'))
+                            jer_key_c = next((k for k in row.keys() if k and ('jerárquico' in str(k).lower() or 'jerarquico' in str(k).lower())), 'Nivel Jerárquico')
+                            mla_key_c = next((k for k in row.keys() if k and 'nivel mla' in str(k).lower()), 'Nivel MLA')
+
+                            jer_c = "🔒" if ocultar_metricas else clean_text(row.get(jer_key_c, 'N/A'))
+                            mla_c = "🔒" if ocultar_metricas else clean_text(row.get(mla_key_c, 'N/A'))
                             box = "🔒" if ocultar_metricas else clean_text(row.get('Resultado 9 box', 'Pendiente'))
                             edr_key = next((k for k in row.keys() if k and 'edr' in str(k).lower()), None)
                             edr = "🔒" if ocultar_metricas else (clean_text(row.get(edr_key, 'Pendiente')) if edr_key else 'Pendiente')
