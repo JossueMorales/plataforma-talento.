@@ -1056,13 +1056,6 @@ def main():
                     st.info("🔒 **Modo Presentación:** Selecciona a un líder aquí para limitar las posiciones críticas disponibles exclusivamente a su equipo. Útil para evitar fugas de información confidencial.")
                     
                     lideres_totales = sorted(list(set([dict_nom_global.get(clean_id(x), "Sin Líder") for x in df_seguro['ID Del Jefe'].dropna().unique() if clean_id(x)])))
-                    niveles_disponibles = sorted(df_seguro['Nivel Jerárquico'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
-                    
-                    col_f_lid, col_f_niv = st.columns(2)
-                    with col_f_lid:
-                        f_lid_plan = st.selectbox("👤 Líder a revisar (Modo Privado):", ["Todos"] + lideres_totales, key="modo_pres_lider")
-                    with col_f_niv:
-                        f_niv_plan = st.selectbox("📊 Nivel Jerárquico de la Posición:", ["Todos"] + niveles_disponibles, key="modo_pres_nivel")
                     
                     def obtener_subordinados_ids(lider_nombre):
                         lider_id = next((i for i, n in dict_nom_global.items() if n == lider_nombre), None)
@@ -1075,14 +1068,25 @@ def main():
                                 if d and d not in subs: subs.add(d); cola.append(d)
                         return subs
                     
-                    df_posiciones_filtradas = df_seguro.copy()
+                    df_base_jerarquia = df_seguro.copy()
+                    
+                    if f_dir != "Todas":
+                        df_base_jerarquia = df_base_jerarquia[df_base_jerarquia['Dirección'].astype(str).str.strip() == f_dir]
+                        
+                    niveles_disponibles = sorted(df_base_jerarquia['Nivel Jerárquico'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
+                    
+                    if st.session_state.get("id_usuario") != "admin" and '5' in niveles_disponibles:
+                        niveles_disponibles.remove('5')
+                    
+                    col_f_lid, col_f_niv = st.columns(2)
+                    with col_f_lid:
+                        f_lid_plan = st.selectbox("👤 Líder a revisar (Modo Privado):", ["Todos"] + lideres_totales, key="modo_pres_lider")
+                    with col_f_niv:
+                        f_niv_plan = st.selectbox("📊 Nivel Jerárquico de la Posición:", ["Todos"] + niveles_disponibles, key="modo_pres_nivel")
+
+                    df_posiciones_filtradas = df_base_jerarquia.copy()
                     df_posiciones_filtradas['id_clean'] = df_posiciones_filtradas['id Empleado'].apply(clean_id)
                     
-                    # --- NUEVO FILTRO ESTRICTO DE DIRECCIÓN ---
-                    if f_dir != "Todas":
-                        df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Dirección'].astype(str).str.strip() == f_dir]
-                    # ------------------------------------------
-
                     subordinados_nombres_limpios = []
                     if f_lid_plan != "Todos":
                         sub_ids = obtener_subordinados_ids(f_lid_plan)
@@ -1095,16 +1099,20 @@ def main():
                         nodos_visibles_ids = kpis.get('nodos_visibles_ids', [])
                         df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['id_clean'].isin(nodos_visibles_ids)]
                     
-                    # --- NUEVO FILTRO POR NIVEL JERÁRQUICO DE LA POSICIÓN ---
                     if f_niv_plan != "Todos":
                         df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['Nivel Jerárquico'].astype(str).str.strip() == f_niv_plan]
-                    # --------------------------------------------------------
 
-                    df_posiciones_filtradas = df_posiciones_filtradas[
-                        (df_posiciones_filtradas['Posición Crítica'].astype(str).str.strip().str.lower() == 'si') &
-                        (df_posiciones_filtradas['Nivel Jerárquico'].astype(str).str.strip() != '5') &
-                        (~df_posiciones_filtradas['Nombre de la Posición'].astype(str).str.upper().str.contains('DIRECTOR GENERAL'))
-                    ]
+                    if not df_posiciones_filtradas.empty:
+                        filtro_base = (df_posiciones_filtradas['Posición Crítica'].astype(str).str.strip().str.lower() == 'si')
+                        
+                        if f_niv_plan == '5' and st.session_state.get("id_usuario") == "admin":
+                            df_posiciones_filtradas = df_posiciones_filtradas[filtro_base]
+                        else:
+                            df_posiciones_filtradas = df_posiciones_filtradas[
+                                filtro_base &
+                                (df_posiciones_filtradas['Nivel Jerárquico'].astype(str).str.strip() != '5') &
+                                (~df_posiciones_filtradas['Nombre de la Posición'].astype(str).str.upper().str.contains('DIRECTOR GENERAL'))
+                            ]
                     
                     col_suc1 = 'Sucesor P.1' if 'Sucesor P.1' in df_posiciones_filtradas.columns else 'Sucesor 1'
                     col_r1 = next((c for c in df_posiciones_filtradas.columns if 'readiness 1' in str(c).lower()), None)
@@ -1136,6 +1144,7 @@ def main():
                         sucesores_definidos = c_inm + c_1_3 + c_mas_3 + c_sin_suc
                         sucesores_pendientes = c_pend
                     else:
+                        df_posiciones_filtradas['Cat_Sucesion'] = "" 
                         c_inm = c_1_3 = c_mas_3 = c_sin_suc = c_pend = 0
                         total_criticas = 0; sucesores_definidos = 0; sucesores_pendientes = 0
 
