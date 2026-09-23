@@ -146,7 +146,7 @@ def login():
 # MOTOR PRINCIPAL (GRAFO CON CACHÉ Y LAZY LOADING)
 # ==========================================
 @st.cache_data(show_spinner=False)
-def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_edr, f_riesgos, renderizar_mapa, usuario_activo_id):
+def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_box, f_edr, f_riesgos, renderizar_mapa, usuario_activo_id):
     G = nx.MultiDiGraph()
     G_jerarquia = nx.DiGraph() 
     jefes_dict = {}
@@ -188,7 +188,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             suc5_limpio = buscar_id_real(row_dict.get('Sucesor P.5', row_dict.get('Sucesor 5', '')))
             
             info_nodos[emp] = {
-                'mla': clean_text(row_dict.get('Nivel Jerárquico'), 'N/A'),
+                'jerarquia': clean_text(row_dict.get('Nivel Jerárquico'), 'N/A'),
+                'mla': clean_text(row_dict.get('Nivel MLA'), 'N/A'),
                 'puesto': clean_text(row_dict.get('Nombre de la Posición')).upper(),
                 'direccion': clean_text(row_dict.get('Dirección', row_dict.get('Direccion')), 'No asignada'),
                 'box': clean_text(row_dict.get('Resultado 9 box'), 'Pendiente'),
@@ -253,7 +254,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         
     for emp, info in info_nodos.items():
         r_list = []
-        if info['mla'] != '5':
+        if info['jerarquia'] != '5':
             es_critica = (info['critica'].lower() == 'si')
             tiene_oficial = (sucesores_oficiales_de.get(emp, 0) > 0)
             tiene_hipos_9box = (sucesores_de_9box.get(emp, 0) > 0)
@@ -310,12 +311,12 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                 
     nodos_visibles = set()
     for emp, info in info_nodos.items():
-        if info['mla'] == '5': nodos_visibles.add(emp); continue
+        if info['jerarquia'] == '5': nodos_visibles.add(emp); continue
         if f_lid != "Todos" and info['nombre'] == f_lid: nodos_visibles.add(emp); continue
         if f_dir != "Todas" and info['direccion'] != f_dir: continue
         if f_lid != "Todos" and emp not in descendientes_validos: continue
         if f_crit != "Todas" and info['critica'] != f_crit: continue
-        if f_mla != "Todos" and info['mla'] != f_mla: continue
+        if f_jerarquia != "Todos" and info['jerarquia'] != f_jerarquia: continue
         if f_box != "Todos" and info['box'] != f_box: continue
         if f_edr != "Todos" and info['edr'] != f_edr: continue
         if f_riesgos and not info['riesgos_lista']: continue
@@ -327,7 +328,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             if s_id and s_id in info_nodos: nodos_rescatados.add(s_id)
     nodos_visibles = nodos_rescatados
     
-    raiz_principal = next((emp for emp, info in info_nodos.items() if info['mla'] == '5'), None)
+    raiz_principal = next((emp for emp, info in info_nodos.items() if info['jerarquia'] == '5'), None)
     if not raiz_principal:
         posibles_raices = [n for n in G_jerarquia.nodes() if G_jerarquia.in_degree(n) == 0]
         if posibles_raices: raiz_principal = max(posibles_raices, key=lambda x: len(nx.descendants(G_jerarquia, x)))
@@ -348,8 +349,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
     Arbol = nx.bfs_tree(G_jerarquia, raiz_principal) if raiz_principal else G_jerarquia
     
     def obtener_anillo_estricto(emp_id, depth_arbol):
-        mla = str(info_nodos.get(emp_id, {}).get('mla', '')).replace('.0', '').strip() 
-        return {'5':0, '4':1, '3':2, '2':3, '1':4}.get(mla, min(depth_arbol, 5))
+        jer = str(info_nodos.get(emp_id, {}).get('jerarquia', '')).replace('.0', '').strip() 
+        return {'5':0, '4':1, '3':2, '2':3, '1':4}.get(jer, min(depth_arbol, 5))
         
     SEPARACION_ANILLOS = 348 
     conteo_hojas = {}
@@ -414,7 +415,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
         nom_suc3 = nombres_dict.get(info['suc3_id'], info['suc3_id']) if info['suc3_id'] else ""
         
         if not is_hidden:
-            es_andres = info['mla'] == '5' or 'ANDRES EDUARDO VILLARREAL' in info['nombre'].upper()
+            es_andres = info['jerarquia'] == '5' or 'ANDRES EDUARDO VILLARREAL' in info['nombre'].upper()
             nodo_data = {"Nombre": info['nombre'], "Dirección": info['direccion'], "Puesto": info['puesto']}
             data_total.append(nodo_data)
             
@@ -436,7 +437,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
                 for r in info['riesgos_lista']: alertas_tabla.append({"Colaborador": info['nombre'], "Líder Directo": info['lider'], "Puesto": info['puesto'], "Dirección": info['direccion'], "Alerta Detectada por IA": r})
             
             if info['box'].lower() not in ['pendiente', 'n/a', 'nan', 'none', '']: data_nueve_box.append({"Nombre": info['nombre'], "Puesto": info['puesto'], "Dirección": info['direccion'], "Resultado 9-Box": info['box']})
-            if info['mla'] == '1': data_operativos.append(nodo_data)
+            if info['jerarquia'] == '1': data_operativos.append(nodo_data)
                 
         prefijo = "🚨 " if info['riesgos_lista'] else ""
         coord_data = coords.get(emp, {'angle':0, 'nivel_calculado':5, 'profundidad':5, 'anillo_real': 5})
@@ -449,7 +450,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_e
             emp, label=f"{prefijo}{acortar_nombre(info['nombre'])}\n({acortar_puesto(info['puesto'])})", 
             title=f"<div style='padding: 5px; text-align: center;'><b>{prefijo}{info['nombre']}</b><br><small>{info['puesto']}</small><br><small>Riesgo de Fuga: {info['riesgo_fuga']}</small></div>", 
             size=28 if emp == raiz_principal else 18, color=obtener_color_9box(info['box']), shadow={'enabled': True, 'color': color_sombreado, 'size': 25, 'x': 0, 'y': 0}, 
-            shape='dot', group=info['mla'], Nivel_Jerarquico=info['mla'], Resultado_9Box=info['box'], EDR=info['edr'], Direccion=info['direccion'], Lider=info['lider'], 
+            shape='dot', group=info['jerarquia'], Nivel_Jerarquico=info['jerarquia'], Nivel_MLA=info['mla'], Resultado_9Box=info['box'], EDR=info['edr'], Direccion=info['direccion'], Lider=info['lider'], 
             Critica=info['critica'], Nombre=info['nombre'], Puesto=info['puesto'], Riesgos=info['riesgos'], Interes=info['interes'], Riesgo_Fuga=info['riesgo_fuga'],
             NomSuc1=nom_suc1, Read1=info['read1'], NomSuc2=nom_suc2, Read2=info['read2'], NomSuc3=nom_suc3, Read3=info['read3'], Eng_Ind=info['enganche_ind'], Eng_Area=info['enganche_area'], Es_Lider=info['es_lider'],
             font={'color': '#0f172a', 'strokeWidth': 2, 'strokeColor': '#ffffff', 'size': 11, 'face': 'Arial', 'weight': 'bold'}, Angle=coord_data['angle'], NivelCalculado=coord_data.get('nivel_calculado', 5), Dispersion=dispersion_offset, AnilloReal=coord_data.get('anillo_real', 5), hidden=is_hidden
@@ -961,7 +962,7 @@ def main():
                 st.success(f"👤 **{colab_buscado}** | 🏢 **Puesto:** {clean_text(datos_c.get('Nombre de la Posición', 'N/A'))} | 📍 **Dirección:** {clean_text(datos_c.get('Dirección', datos_c.get('Direccion', 'N/A')))} | 📊 **9-Box:** {clean_text(datos_c.get('Resultado 9 box', 'N/A'))} | 📈 **EDR:** {clean_text(datos_c.get('EDR', datos_c.get('EDR ', 'N/A')))} | 🥇 **Nivel Jerárquico:** {clean_text(datos_c.get('Nivel Jerárquico', 'N/A'))}")
             
             dirs = sorted(df_filtros['Dirección'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
-            mlas = sorted(df_filtros['Nivel Jerárquico'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
+            jerarquias = sorted(df_filtros['Nivel Jerárquico'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
             boxes = sorted(df_filtros['Resultado 9 box'].dropna().astype(str).str.strip().str.upper()[lambda x: x != ''].unique().tolist())
             criticas = sorted(df_filtros['Posición Crítica'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
             edrs_col = 'EDR' if 'EDR' in df_filtros.columns else ('EDR ' if 'EDR ' in df_filtros.columns else None)
@@ -977,7 +978,7 @@ def main():
             
             f_lid = col_f2.selectbox("Líder", ["Todos"] + lideres)
             f_crit = col_f3.selectbox("Pos. Crítica", ["Todas"] + criticas)
-            f_mla = col_f4.selectbox("Nivel Jerárquico", ["Todos"] + mlas)
+            f_jerarquia = col_f4.selectbox("Nivel Jerárquico", ["Todos"] + jerarquias)
             f_box = col_f5.selectbox("9-Box", ["Todos"] + boxes)
             f_edr = col_f6.selectbox("EDR (Resultados)", ["Todos"] + edrs)
             
@@ -996,7 +997,7 @@ def main():
                         renderizar_mapa = True
             st.write("") 
             
-            html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_mla, f_box, f_edr, f_riesgos, renderizar_mapa, st.session_state["id_usuario"])
+            html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_box, f_edr, f_riesgos, renderizar_mapa, st.session_state["id_usuario"])
             
             if kpis is not None:
                 if st.session_state["id_usuario"] == "admin":
@@ -1503,13 +1504,17 @@ def main():
                             box_c = "🔒 Confidencial"
                             edr_c = "🔒 Confidencial"
                             eng_c = "🔒 Confidencial"
+                            mla_c = "🔒 Confidencial"
+                            jer_c = "🔒 Confidencial"
                         else:
                             box_c = clean_text(row_c.get('Resultado 9 box'), 'Pendiente')
                             edr_c = clean_text(row_c.get('EDR', row_c.get('EDR ')), 'Pendiente')
                             eng_key = next((k for k in row.keys() if k and 'enganche' in str(k).lower()), None)
                             eng_c = clean_text(row_c.get(eng_key), 'N/A') if eng_key else 'N/A'
+                            mla_c = clean_text(row_c.get('Nivel MLA'), 'N/A')
+                            jer_c = clean_text(row_c.get('Nivel Jerárquico'), 'N/A')
                             
-                        return {"puesto_actual": puesto_actual, "direccion": dir_candidato, "box": box_c, "enganche": eng_c, "edr": edr_c}
+                        return {"puesto_actual": puesto_actual, "direccion": dir_candidato, "box": box_c, "enganche": eng_c, "edr": edr_c, "mla": mla_c, "jerarquia": jer_c}
                     
                     def generar_sugerencias_ia(pos_destino, info_pos_destino):
                         if not pos_destino or df_completo.empty: return []
@@ -1650,7 +1655,8 @@ def main():
                             
                             ocultar_metricas = es_lider_presentado or es_propia_colab
                             
-                            mla = "🔒" if ocultar_metricas else clean_text(row.get('Nivel Jerárquico', 'N/A'))
+                            jer_c = "🔒" if ocultar_metricas else clean_text(row.get('Nivel Jerárquico', 'N/A'))
+                            mla_c = "🔒" if ocultar_metricas else clean_text(row.get('Nivel MLA', 'N/A'))
                             box = "🔒" if ocultar_metricas else clean_text(row.get('Resultado 9 box', 'Pendiente'))
                             edr_key = next((k for k in row.keys() if k and 'edr' in str(k).lower()), None)
                             edr = "🔒" if ocultar_metricas else (clean_text(row.get(edr_key, 'Pendiente')) if edr_key else 'Pendiente')
@@ -1667,7 +1673,8 @@ def main():
                                 <p style='margin: 2px 0; font-size: 13px; color: #475569;'><b>Dirección:</b> {dir_c}</p>
                                 <hr style='margin: 10px 0; border: 0; border-top: 1px dashed #cbd5e1;'>
                                 <div style='display: flex; gap: 8px; margin-bottom: 10px;'>
-                                    <span style='background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>Nivel: {mla}</span>
+                                    <span style='background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>Jerarquía: {jer_c}</span>
+                                    <span style='background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>MLA: {mla_c}</span>
                                     <span style='background: #f1f5f9; color: #334155; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>9-BOX: {box}</span>
                                     <span style='background: #f1f5f9; color: #334155; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>EDR: {edr}</span>
                                 </div>
