@@ -1447,27 +1447,73 @@ def main():
                                 if st.button("❌ Cerrar lista", key="cerrar_lista_kpi"): st.session_state['filtro_kpi_plan'] = None; st.rerun()
                     
                     st.write("---")
+                    # ==========================================
+                    # GENERADOR DE REPORTES PERSONALIZADOS
+                    # ==========================================
                     st.markdown("#### 📥 Generador de Reportes Personalizados")
-                    st.info("Diseña tu propio reporte. Puedes descargar a todo el personal o solo las posiciones críticas, y quitar columnas confidenciales (ej. ocultar el nombre de la posición) para compartirlo de forma segura.")
+                    st.info("Diseña tu propio reporte. Puedes descargar a todo el personal o solo las posiciones críticas, cruzar datos de los sucesores automáticamente, y quitar columnas confidenciales para compartirlo de forma segura.")
                     
                     col_rep1, col_rep2 = st.columns([1, 2])
                     with col_rep1:
                         tipo_reporte = st.radio(
-                            "1️⃣ ¿A quiénes deseas incluir?", 
+                            "1️⃣ ¿A quiénes deseas incluir en las filas?", 
                             ["Solo Posiciones Críticas", "Todos los Colaboradores (Según filtros)"]
                         )
+                        enriquecer_reporte = st.checkbox("🔄 Enriquecer reporte con datos de Sucesores (Dirección, 9-Box, EDR, etc.)", value=False)
                     
-                    df_base_export = df_posiciones_filtradas if tipo_reporte == "Solo Posiciones Críticas" else df_seguro
+                    df_base_export = df_posiciones_filtradas.copy() if tipo_reporte == "Solo Posiciones Críticas" else df_seguro.copy()
                     
                     if not df_base_export.empty:
+                        if enriquecer_reporte:
+                            with st.spinner("Cruzando datos de talento en memoria..."):
+                                dict_empleados = {}
+                                jer_key_global = next((k for k in df_completo.columns if 'jerárquico' in str(k).lower() or 'jerarquico' in str(k).lower()), 'Nivel Jerárquico')
+                                for _, row_emp in df_completo.iterrows():
+                                    nom_key = str(row_emp.get('Nombre', '')).strip().lower()
+                                    if nom_key:
+                                        dict_empleados[nom_key] = {
+                                            'Dirección': clean_text(row_emp.get('Dirección', row_emp.get('Direccion', ''))),
+                                            'Nivel Jerárquico': clean_text(row_emp.get(jer_key_global, '')),
+                                            '9-Box': clean_text(row_emp.get('Resultado 9 box', '')),
+                                            'EDR': clean_text(row_emp.get('EDR', row_emp.get('EDR ', '')))
+                                        }
+                                
+                                for i in range(1, 4):
+                                    col_suc_name = f'Sucesor P.{i}' if f'Sucesor P.{i}' in df_base_export.columns else f'Sucesor {i}'
+                                    if col_suc_name in df_base_export.columns:
+                                        dir_list, jer_list, box_list, edr_list = [], [], [], []
+                                        for _, r in df_base_export.iterrows():
+                                            suc_val = str(r.get(col_suc_name, '')).strip().lower()
+                                            if suc_val and suc_val not in ['pendiente', 'nan', 'none', '', 'no definido', 'sin sucesor identificado']:
+                                                datos_suc = dict_empleados.get(suc_val, {})
+                                                dir_list.append(datos_suc.get('Dirección', 'No Encontrado'))
+                                                jer_list.append(datos_suc.get('Nivel Jerárquico', 'N/A'))
+                                                box_list.append(datos_suc.get('9-Box', 'Pendiente'))
+                                                edr_list.append(datos_suc.get('EDR', 'Pendiente'))
+                                            else:
+                                                dir_list.append('')
+                                                jer_list.append('')
+                                                box_list.append('')
+                                                edr_list.append('')
+                                                
+                                        df_base_export[f'Sucesor {i} - Dirección'] = dir_list
+                                        df_base_export[f'Sucesor {i} - Nivel Jerárquico'] = jer_list
+                                        df_base_export[f'Sucesor {i} - 9 Box'] = box_list
+                                        df_base_export[f'Sucesor {i} - EDR'] = edr_list
+
                         todas_las_columnas = df_base_export.columns.tolist()
                         columnas_limpias = [c for c in todas_las_columnas if c not in ['id_clean', 'Cat_Sucesion', 'Tiene_Sucesor', '_peso_jerarquia']]
                         
-                        cols_default = [
-                            'Nombre', 'Nombre de la Posición', 'Dirección', 'Líder',
-                            'Nivel Jerárquico', 'Resultado 9 box', 'EDR',
-                            'Sucesor P.1', 'Tiempo de Readiness 1'
-                        ]
+                        col_jer_limpia = next((c for c in columnas_limpias if 'jerárquico' in str(c).lower() or 'jerarquico' in str(c).lower()), 'Nivel Jerárquico')
+                        col_suc1_limpia = 'Sucesor P.1' if 'Sucesor P.1' in columnas_limpias else ('Sucesor 1' if 'Sucesor 1' in columnas_limpias else None)
+                        
+                        cols_default = ['Nombre', 'Nombre de la Posición', 'Dirección', 'Líder', col_jer_limpia, 'Resultado 9 box', 'EDR']
+                        if col_suc1_limpia:
+                            cols_default.extend([col_suc1_limpia, 'Tiempo de Readiness 1'])
+                        
+                        if enriquecer_reporte:
+                            cols_default.extend(['Sucesor 1 - Dirección', 'Sucesor 1 - 9 Box', 'Sucesor 1 - EDR'])
+                            
                         cols_sugeridas = [c for c in cols_default if c in columnas_limpias]
                         
                         with col_rep2:
