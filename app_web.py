@@ -1152,12 +1152,25 @@ def main():
                         c_mas_3 = (df_posiciones_filtradas['Cat_Sucesion'] == 'mas_3_anos').sum()
                         c_sin_suc = (df_posiciones_filtradas['Cat_Sucesion'] == 'sin_sucesor').sum()
                         c_pend = (df_posiciones_filtradas['Cat_Sucesion'] == 'pendiente').sum()
+                        
+                        invalid_sucs_local = ['pendiente', 'nan', 'none', '', 'no definido', 'sin sucesor identificado']
+                        def get_valid_suc(row):
+                            s = clean_text(row.get(col_suc1, ''))
+                            return s if s.lower() not in invalid_sucs_local else None
+
+                        df_posiciones_filtradas['Sucesor_Limpio'] = df_posiciones_filtradas.apply(get_valid_suc, axis=1)
+
+                        p_inm = df_posiciones_filtradas[df_posiciones_filtradas['Cat_Sucesion'] == 'inmediato']['Sucesor_Limpio'].dropna().nunique()
+                        p_1_3 = df_posiciones_filtradas[df_posiciones_filtradas['Cat_Sucesion'] == '1_3_anos']['Sucesor_Limpio'].dropna().nunique()
+                        p_mas_3 = df_posiciones_filtradas[df_posiciones_filtradas['Cat_Sucesion'] == 'mas_3_anos']['Sucesor_Limpio'].dropna().nunique()
+                        
                         total_criticas = len(df_posiciones_filtradas)
                         sucesores_definidos = c_inm + c_1_3 + c_mas_3 + c_sin_suc
                         sucesores_pendientes = c_pend
                     else:
                         df_posiciones_filtradas['Cat_Sucesion'] = "" 
                         c_inm = c_1_3 = c_mas_3 = c_sin_suc = c_pend = 0
+                        p_inm = p_1_3 = p_mas_3 = 0
                         total_criticas = 0; sucesores_definidos = 0; sucesores_pendientes = 0
 
                     pct_inm = round((c_inm / total_criticas) * 100, 1) if total_criticas > 0 else 0.0
@@ -1169,17 +1182,17 @@ def main():
                     st.markdown(f"#### 🩺 Salud de la Bancada ({total_criticas} Posiciones Críticas)")
                     rk1, rk2, rk3, rk4 = st.columns(4)
                     with rk1:
-                        if st.button(f"🟢 Inmediato\n\n{pct_inm}% ({c_inm} pos.)", key="b_read_inm", use_container_width=True):
+                        if st.button(f"🟢 Inmediato\n\n{pct_inm}% ({c_inm} pos. / {p_inm} pers.)", key="b_read_inm", use_container_width=True):
                             st.session_state['filtro_kpi_plan'] = None if st.session_state.get('filtro_kpi_plan') == 'inmediato' else 'inmediato'
                             st.session_state['mostrar_dictamen_ia'] = False
                             st.rerun()
                     with rk2:
-                        if st.button(f"🟡 1 a 3 años\n\n{pct_1_3}% ({c_1_3} pos.)", key="b_read_1_3", use_container_width=True):
+                        if st.button(f"🟡 1 a 3 años\n\n{pct_1_3}% ({c_1_3} pos. / {p_1_3} pers.)", key="b_read_1_3", use_container_width=True):
                             st.session_state['filtro_kpi_plan'] = None if st.session_state.get('filtro_kpi_plan') == '1_3_anos' else '1_3_anos'
                             st.session_state['mostrar_dictamen_ia'] = False
                             st.rerun()
                     with rk3:
-                        if st.button(f"🔵 Más de 3 años\n\n{pct_mas_3}% ({c_mas_3} pos.)", key="b_read_mas_3", use_container_width=True):
+                        if st.button(f"🔵 Más de 3 años\n\n{pct_mas_3}% ({c_mas_3} pos. / {p_mas_3} pers.)", key="b_read_mas_3", use_container_width=True):
                             st.session_state['filtro_kpi_plan'] = None if st.session_state.get('filtro_kpi_plan') == 'mas_3_anos' else 'mas_3_anos'
                             st.session_state['mostrar_dictamen_ia'] = False
                             st.rerun()
@@ -1502,7 +1515,7 @@ def main():
                                         df_base_export[f'Sucesor {i} - EDR'] = edr_list
 
                         todas_las_columnas = df_base_export.columns.tolist()
-                        columnas_limpias = [c for c in todas_las_columnas if c not in ['id_clean', 'Cat_Sucesion', 'Tiene_Sucesor', '_peso_jerarquia']]
+                        columnas_limpias = [c for c in todas_las_columnas if c not in ['id_clean', 'Cat_Sucesion', 'Tiene_Sucesor', '_peso_jerarquia', 'Sucesor_Limpio']]
                         
                         col_jer_limpia = next((c for c in columnas_limpias if 'jerárquico' in str(c).lower() or 'jerarquico' in str(c).lower()), 'Nivel Jerárquico')
                         col_suc1_limpia = 'Sucesor P.1' if 'Sucesor P.1' in columnas_limpias else ('Sucesor 1' if 'Sucesor 1' in columnas_limpias else None)
