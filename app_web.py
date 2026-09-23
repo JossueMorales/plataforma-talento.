@@ -1447,28 +1447,49 @@ def main():
                                 if st.button("❌ Cerrar lista", key="cerrar_lista_kpi"): st.session_state['filtro_kpi_plan'] = None; st.rerun()
                     
                     st.write("---")
-                    st.markdown("#### 📥 Exportar Reporte de Sucesiones")
-                    cols_reporte = [
-                        'Nombre', 'Nombre de la Posición',
-                        'Sucesor de emergencia',
-                        'Sucesor P.1', 'Tiempo de Readiness 1', 'Positivo 1', 'Oportunidad 1',
-                        'Sucesor P.2', 'Tiempo de Readiness 2', 'Positivo 2', 'Oportunidad 2',
-                        'Sucesor P.3', 'Tiempo de Readiness 3', 'Positivo 3', 'Oportunidad 3',
-                        'Sucesor P.4', 'Tiempo de Readiness 4', 'Positivo 4', 'Oportunidad 4',
-                        'Sucesor P.5', 'Tiempo de Readiness 5', 'Positivo 5', 'Oportunidad 5',
-                        'Riesgo de Fuga', 'Comentarios de Sucesión'
-                    ]
-                    cols_existentes = [c for c in cols_reporte if c in df_posiciones_filtradas.columns]
+                    st.markdown("#### 📥 Generador de Reportes Personalizados")
+                    st.info("Diseña tu propio reporte. Puedes descargar a todo el personal o solo las posiciones críticas, y quitar columnas confidenciales (ej. ocultar el nombre de la posición) para compartirlo de forma segura.")
                     
-                    if not df_posiciones_filtradas.empty:
-                        df_export = df_posiciones_filtradas[cols_existentes].T
-                        csv_data = df_export.to_csv(header=False).encode('utf-8-sig')
-                        st.download_button(
-                            label="📊 Descargar Reporte Completo (CSV para Excel)",
-                            data=csv_data,
-                            file_name=f'Reporte_Sucesiones_{f_lid_plan.replace(" ", "_")}.csv',
-                            mime='text/csv'
+                    col_rep1, col_rep2 = st.columns([1, 2])
+                    with col_rep1:
+                        tipo_reporte = st.radio(
+                            "1️⃣ ¿A quiénes deseas incluir?", 
+                            ["Solo Posiciones Críticas", "Todos los Colaboradores (Según filtros)"]
                         )
+                    
+                    df_base_export = df_posiciones_filtradas if tipo_reporte == "Solo Posiciones Críticas" else df_seguro
+                    
+                    if not df_base_export.empty:
+                        todas_las_columnas = df_base_export.columns.tolist()
+                        columnas_limpias = [c for c in todas_las_columnas if c not in ['id_clean', 'Cat_Sucesion', 'Tiene_Sucesor', '_peso_jerarquia']]
+                        
+                        cols_default = [
+                            'Nombre', 'Nombre de la Posición', 'Dirección', 'Líder',
+                            'Nivel Jerárquico', 'Resultado 9 box', 'EDR',
+                            'Sucesor P.1', 'Tiempo de Readiness 1'
+                        ]
+                        cols_sugeridas = [c for c in cols_default if c in columnas_limpias]
+                        
+                        with col_rep2:
+                            columnas_seleccionadas = st.multiselect(
+                                "2️⃣ Selecciona las columnas a exportar (Quita las confidenciales):", 
+                                options=columnas_limpias, 
+                                default=cols_sugeridas
+                            )
+                        
+                        if columnas_seleccionadas:
+                            df_export = df_base_export[columnas_seleccionadas]
+                            csv_data = df_export.to_csv(index=False).encode('utf-8-sig')
+                            
+                            st.download_button(
+                                label="📊 Descargar Reporte a Excel (CSV)",
+                                data=csv_data,
+                                file_name=f'Reporte_Personalizado_{f_lid_plan.replace(" ", "_")}.csv',
+                                mime='text/csv',
+                                use_container_width=True
+                            )
+                        else:
+                            st.warning("⚠️ Selecciona al menos una columna para generar el archivo.")
                     else:
                         st.info("No hay datos para exportar con los filtros actuales.")
                     st.write("---")
