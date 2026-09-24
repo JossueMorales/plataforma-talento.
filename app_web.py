@@ -177,7 +177,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
             except ValueError: eng_val = 0.0
         else: eng_val = 0.0
         
-        # Búsqueda dinámica de las columnas de Nivel
         jer_key = next((k for k in row_dict.keys() if k and ('jerárquico' in str(k).lower() or 'jerarquico' in str(k).lower())), 'Nivel Jerárquico')
         mla_key = next((k for k in row_dict.keys() if k and 'nivel mla' in str(k).lower()), 'Nivel MLA')
         
@@ -275,9 +274,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
             if 1.0 <= eng_ind < 2.0: r_list.append("🚨 Riesgo de Fuga: Colaborador Desconectado")
             elif 2.0 <= eng_ind < 3.0: r_list.append("⚠️ Alerta: Bajo Enganche (Desinterés)")
             
-            # ==========================================
-            # ANÁLISIS DE RIESGO OPERATIVO (FUGA TITULAR)
-            # ==========================================
             fuga_val = info['riesgo_fuga'].lower()
             if fuga_val == 'alto':
                 if es_critica:
@@ -289,7 +285,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
                     r_list.append("⚠️ Riesgo Operativo Moderado: Titular clave en riesgo de fuga medio")
                 else:
                     r_list.append("⚠️ Precaución: Riesgo de fuga medio")
-            # ==========================================
                 
             if info['es_lider']:
                 eng_area = info['enganche_area']
@@ -450,7 +445,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
         color_sombreado = 'rgba(22, 163, 74, 0.8)' if eng >= 4 else ('rgba(234, 179, 8, 0.8)' if eng >= 3 else ('rgba(249, 115, 22, 0.8)' if eng >= 2 else ('rgba(220, 38, 38, 0.8)' if eng > 0 else 'rgba(0, 0, 0, 0.2)')))
         dispersion_offset = (((sum(ord(ch) for ch in str(emp)) % 9) / 8.0) * 0.4) - 0.2 
         
-        # INYECCIÓN SEPARADA: 'jerarquia' para la red, 'mla' para la vista de UI en PyVis
         G.add_node(
             emp, label=f"{prefijo}{acortar_nombre(info['nombre'])}\n({acortar_puesto(info['puesto'])})", 
             title=f"<div style='padding: 5px; text-align: center;'><b>{prefijo}{info['nombre']}</b><br><small>{info['puesto']}</small><br><small>Riesgo de Fuga: {info['riesgo_fuga']}</small></div>", 
@@ -1082,17 +1076,9 @@ def main():
                     if f_dir:
                         df_base_jerarquia = df_base_jerarquia[df_base_jerarquia['Dirección'].astype(str).str.strip().isin(f_dir)]
                         
-                    col_jer_base = next((c for c in df_base_jerarquia.columns if 'jerárquico' in str(c).lower() or 'jerarquico' in str(c).lower()), 'Nivel Jerárquico')
-                    niveles_disponibles = sorted(df_base_jerarquia[col_jer_base].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
-                    
-                    if st.session_state.get("id_usuario") != "admin" and '5' in niveles_disponibles:
-                        niveles_disponibles.remove('5')
-                    
-                    col_f_lid_loc, col_f_niv_loc, col_f_exc_loc = st.columns([1, 1, 2])
+                    col_f_lid_loc, col_f_exc_loc = st.columns([1, 2])
                     with col_f_lid_loc:
                         f_lid_plan = st.selectbox("👤 Líder a revisar (Modo Privado):", ["Todos"] + lideres_totales, key="modo_pres_lider")
-                    with col_f_niv_loc:
-                        f_niv_plan = st.multiselect("📊 Niveles Jerárquicos:", options=niveles_disponibles, placeholder="Todos", key="modo_pres_nivel")
                     with col_f_exc_loc:
                         pos_opciones = sorted(df_seguro['Nombre de la Posición'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
                         f_pos_extra_plan = st.multiselect("➕ Excepciones (Incluir posiciones específicas):", options=pos_opciones, placeholder="Busca y agrega puestos...", key="modo_pres_extra")
@@ -1118,8 +1104,8 @@ def main():
                         cond_base = (df_posiciones_filtradas['Posición Crítica'].astype(str).str.strip().str.lower() == 'si')
                         
                         cond_niveles = pd.Series(True, index=df_posiciones_filtradas.index)
-                        if f_niv_plan:
-                            cond_niveles = df_posiciones_filtradas[col_jer_fil].astype(str).str.strip().isin(f_niv_plan)
+                        if f_jerarquia:
+                            cond_niveles = df_posiciones_filtradas[col_jer_fil].astype(str).str.strip().isin(f_jerarquia)
                             
                         cond_excepciones = pd.Series(False, index=df_posiciones_filtradas.index)
                         if f_pos_extra_plan:
@@ -1128,7 +1114,7 @@ def main():
                         df_posiciones_filtradas = df_posiciones_filtradas[cond_base & (cond_niveles | cond_excepciones)]
                         
                         is_admin = st.session_state.get("id_usuario") == "admin"
-                        wants_level_5 = is_admin and (('5' in f_niv_plan) or any('DIRECTOR GENERAL' in p.upper() for p in f_pos_extra_plan))
+                        wants_level_5 = is_admin and (('5' in f_jerarquia) or any('DIRECTOR GENERAL' in p.upper() for p in f_pos_extra_plan))
                         
                         if not wants_level_5:
                             df_posiciones_filtradas = df_posiciones_filtradas[
