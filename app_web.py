@@ -1430,18 +1430,32 @@ def main():
                                 suc1 = clean_text(r.get(col_suc1, ''))
                                 read1 = clean_text(r.get(col_r1, '')) if col_r1 else ''
                                 
+                                col_s2 = 'Sucesor P.2' if 'Sucesor P.2' in df_posiciones_filtradas.columns else ('Sucesor 2' if 'Sucesor 2' in df_posiciones_filtradas.columns else None)
+                                col_r2 = next((c for c in df_posiciones_filtradas.columns if 'readiness 2' in str(c).lower()), None)
+                                suc2 = clean_text(r.get(col_s2, '')) if col_s2 else ''
+                                read2 = clean_text(r.get(col_r2, '')) if col_r2 else ''
+
+                                col_s3 = 'Sucesor P.3' if 'Sucesor P.3' in df_posiciones_filtradas.columns else ('Sucesor 3' if 'Sucesor 3' in df_posiciones_filtradas.columns else None)
+                                col_r3 = next((c for c in df_posiciones_filtradas.columns if 'readiness 3' in str(c).lower()), None)
+                                suc3 = clean_text(r.get(col_s3, '')) if col_s3 else ''
+                                read3 = clean_text(r.get(col_r3, '')) if col_r3 else ''
+                                
                                 if modo == 'sin_sucesor':
                                     suc1_fmt = "No definido / Sin Sucesor"
                                     read1_fmt = "Pendiente"
                                 else:
-                                    suc1_fmt = suc1
-                                    read1_fmt = read1
+                                    suc1_fmt = suc1 if suc1 else "Pendiente"
+                                    read1_fmt = read1 if read1 else "Pendiente"
                                     
                                 lista_sucesores.append({
                                     "Posición Crítica": pos,
                                     "Ocupante Actual": ocupante,
-                                    "Nombre del Sucesor P.1": suc1_fmt,
-                                    "Readiness P.1": read1_fmt
+                                    "Sucesor 1": suc1_fmt,
+                                    "Readiness 1": read1_fmt,
+                                    "Sucesor 2": suc2 if suc2 else "Pendiente",
+                                    "Readiness 2": read2 if read2 else "Pendiente",
+                                    "Sucesor 3": suc3 if suc3 else "Pendiente",
+                                    "Readiness 3": read3 if read3 else "Pendiente"
                                 })
                             
                             df_lista_suc = pd.DataFrame(lista_sucesores)
