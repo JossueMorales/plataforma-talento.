@@ -979,7 +979,6 @@ def main():
             criticas = sorted(df_filtros['Posición Crítica'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
             edrs_col = 'EDR' if 'EDR' in df_filtros.columns else ('EDR ' if 'EDR ' in df_filtros.columns else None)
             edrs = sorted(df_filtros[edrs_col].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist()) if edrs_col else []
-            puestos_opciones = sorted(df_filtros['Nombre de la Posición'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
             
             col_f1, col_f2, col_f3, col_f4 = st.columns(4)
             f_dir = col_f1.multiselect("Dirección", options=dirs, placeholder="Todas")
@@ -993,10 +992,31 @@ def main():
             f_crit = col_f3.multiselect("Pos. Crítica", options=criticas, placeholder="Todas")
             f_jerarquia = col_f4.multiselect("Nivel Jerárquico", options=jerarquias, placeholder="Todos")
             
-            col_f5, col_f6, col_f7 = st.columns(3)
-            f_box = col_f5.multiselect("9-Box", options=boxes, placeholder="Todos")
-            f_edr = col_f6.multiselect("EDR (Resultados)", options=edrs, placeholder="Todos")
-            f_puesto = col_f7.multiselect("Posición / Puesto", options=puestos_opciones, placeholder="Todos")
+            # --- CASCADA DE PUESTOS ---
+            df_temp_puestos = df_filtros.copy()
+            if f_dir: df_temp_puestos = df_temp_puestos[df_temp_puestos['Dirección'].astype(str).str.strip().isin(f_dir)]
+            if f_lid: 
+                lideres_ids_filt = [k for k, v in dict_nom_global.items() if v in f_lid]
+                df_temp_puestos = df_temp_puestos[df_temp_puestos['ID Del Jefe'].isin(lideres_ids_filt)]
+            if f_crit: df_temp_puestos = df_temp_puestos[df_temp_puestos['Posición Crítica'].astype(str).str.strip().isin(f_crit)]
+            if f_jerarquia: df_temp_puestos = df_temp_puestos[df_temp_puestos[col_jer].astype(str).str.strip().isin(f_jerarquia)]
+            
+            col_f5, col_f6, col_f7 = st.columns([1, 1, 2])
+            with col_f5:
+                st.write("")
+                f_box = st.multiselect("9-Box", options=boxes, placeholder="Todos")
+            with col_f6:
+                st.write("")
+                f_edr = st.multiselect("EDR (Resultados)", options=edrs, placeholder="Todos")
+                
+            if f_box: df_temp_puestos = df_temp_puestos[df_temp_puestos['Resultado 9 box'].astype(str).str.strip().str.upper().isin(f_box)]
+            if f_edr: df_temp_puestos = df_temp_puestos[df_temp_puestos[edrs_col].astype(str).str.strip().isin(f_edr)]
+            
+            puestos_opciones = sorted(df_temp_puestos['Nombre de la Posición'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
+            
+            with col_f7:
+                auto_puestos = st.checkbox("☑️ Auto-seleccionar puestos filtrados", value=False)
+                f_puesto = st.multiselect("Posición / Puesto", options=puestos_opciones, default=puestos_opciones if auto_puestos else None, placeholder="Todos")
             
             col_chk1, col_chk2 = st.columns(2)
             with col_chk1:
@@ -1399,7 +1419,6 @@ def main():
                         st.info("Selecciona posiciones críticas para que la IA genere el análisis de Riesgo Operativo.")
                     
                     st.write("---")
-                    # ==========================================
                     
                     if 'filtro_kpi_plan' in st.session_state and st.session_state['filtro_kpi_plan']:
                         modo = st.session_state['filtro_kpi_plan']
@@ -2137,7 +2156,7 @@ def main():
                                 if col_pdi_kpi:
                                     df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar[col_pdi_kpi].astype(str).str.contains(f_cat)]
                                     c_f1, c_f2 = st.columns([8, 2])
-                                    c_f1.info(f"👆 **Filtro Activo:** Mostrando exclusively las acciones de la categoría **{f_cat}%**.")
+                                    c_f1.info(f"👆 **Filtro Activo:** Mostrando exclusivamente las acciones de la categoría **{f_cat}%**.")
                                     if c_f2.button("❌ Quitar filtro", use_container_width=True):
                                         st.session_state['filtro_pdi_cat'] = None
                                         st.rerun()
