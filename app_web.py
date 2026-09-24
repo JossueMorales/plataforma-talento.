@@ -305,8 +305,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
         info_nodos[emp]['riesgos'] = " | ".join(r_list) if r_list else "Ninguno"
         
     descendientes_validos = set()
-    if f_lid != "Todos":
-        lider_ids = [emp for emp, inf in info_nodos.items() if inf['nombre'] == f_lid]
+    if f_lid:
+        lider_ids = [emp for emp, inf in info_nodos.items() if inf['nombre'] in f_lid]
         for l_id in lider_ids:
             descendientes_validos.add(l_id)
             try:
@@ -316,13 +316,13 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
     nodos_visibles = set()
     for emp, info in info_nodos.items():
         if info['jerarquia'] == '5': nodos_visibles.add(emp); continue
-        if f_lid != "Todos" and info['nombre'] == f_lid: nodos_visibles.add(emp); continue
-        if f_dir != "Todas" and info['direccion'] != f_dir: continue
-        if f_lid != "Todos" and emp not in descendientes_validos: continue
-        if f_crit != "Todas" and info['critica'] != f_crit: continue
-        if f_jerarquia != "Todos" and info['jerarquia'] != f_jerarquia: continue
-        if f_box != "Todos" and info['box'] != f_box: continue
-        if f_edr != "Todos" and info['edr'] != f_edr: continue
+        if f_lid and info['nombre'] in f_lid: nodos_visibles.add(emp); continue
+        if f_dir and info['direccion'] not in f_dir: continue
+        if f_lid and emp not in descendientes_validos: continue
+        if f_crit and info['critica'] not in f_crit: continue
+        if f_jerarquia and info['jerarquia'] not in f_jerarquia: continue
+        if f_box and info['box'] not in f_box: continue
+        if f_edr and info['edr'] not in f_edr: continue
         if f_riesgos and not info['riesgos_lista']: continue
         nodos_visibles.add(emp)
         
@@ -977,25 +977,25 @@ def main():
             edrs = sorted(df_filtros[edrs_col].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist()) if edrs_col else []
             
             col_f1, col_f2, col_f3, col_f4, col_f5, col_f6 = st.columns(6)
-            f_dir = col_f1.selectbox("Dirección", ["Todas"] + dirs)
+            f_dir = col_f1.multiselect("Dirección", options=dirs, placeholder="Todas")
             
-            if f_dir != "Todas": lideres_ids = df_filtros[df_filtros['Dirección'].astype(str).str.strip() == f_dir]['ID Del Jefe'].dropna().unique()
+            if f_dir: lideres_ids = df_filtros[df_filtros['Dirección'].astype(str).str.strip().isin(f_dir)]['ID Del Jefe'].dropna().unique()
             else: lideres_ids = df_filtros['ID Del Jefe'].dropna().unique()
                 
             lideres = sorted(list(set([dict_nom_global.get(clean_id(x), "Sin Líder") for x in lideres_ids if clean_id(x)])))
             
-            f_lid = col_f2.selectbox("Líder", ["Todos"] + lideres)
-            f_crit = col_f3.selectbox("Pos. Crítica", ["Todas"] + criticas)
-            f_jerarquia = col_f4.selectbox("Nivel Jerárquico", ["Todos"] + jerarquias)
-            f_box = col_f5.selectbox("9-Box", ["Todos"] + boxes)
-            f_edr = col_f6.selectbox("EDR (Resultados)", ["Todos"] + edrs)
+            f_lid = col_f2.multiselect("Líder", options=lideres, placeholder="Todos")
+            f_crit = col_f3.multiselect("Pos. Crítica", options=criticas, placeholder="Todas")
+            f_jerarquia = col_f4.multiselect("Nivel Jerárquico", options=jerarquias, placeholder="Todos")
+            f_box = col_f5.multiselect("9-Box", options=boxes, placeholder="Todos")
+            f_edr = col_f6.multiselect("EDR (Resultados)", options=edrs, placeholder="Todos")
             
             col_chk1, col_chk2 = st.columns(2)
             with col_chk1:
                 f_riesgos = st.checkbox("🚨 Mostrar Solo Colaboradores con Riesgos Detectados")
                 
             renderizar_mapa = True
-            if f_dir == "Todas" and f_lid == "Todos":
+            if not f_dir and not f_lid:
                 renderizar_mapa = False
                 
             with col_chk2:
@@ -1053,7 +1053,7 @@ def main():
                             df_lista = pd.DataFrame(kpis[f"data_{vista}"])
                             if not df_lista.empty:
                                 if vista == "alertas": df_lista = df_lista.drop_duplicates(subset=["Nombre", "Alerta"]).reset_index(drop=True)
-                                if "TODAS" not in direccion_permitida and "Dirección" in df_lista.columns: df_lista = df_lista.drop(columns=["Dirección"])
+                                if f_dir and "Dirección" in df_lista.columns: df_lista = df_lista.drop(columns=["Dirección"])
                                 st.dataframe(df_lista, use_container_width=True, hide_index=True)
                             else: st.info("No hay registros en esta categoría.")
                             if st.button("❌ Cerrar Lista", use_container_width=True): st.session_state["vista_kpi"] = None; st.rerun()
@@ -1079,8 +1079,8 @@ def main():
                     
                     df_base_jerarquia = df_seguro.copy()
                     
-                    if f_dir != "Todas":
-                        df_base_jerarquia = df_base_jerarquia[df_base_jerarquia['Dirección'].astype(str).str.strip() == f_dir]
+                    if f_dir:
+                        df_base_jerarquia = df_base_jerarquia[df_base_jerarquia['Dirección'].astype(str).str.strip().isin(f_dir)]
                         
                     col_jer_base = next((c for c in df_base_jerarquia.columns if 'jerárquico' in str(c).lower() or 'jerarquico' in str(c).lower()), 'Nivel Jerárquico')
                     niveles_disponibles = sorted(df_base_jerarquia[col_jer_base].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
@@ -1088,10 +1088,10 @@ def main():
                     if st.session_state.get("id_usuario") != "admin" and '5' in niveles_disponibles:
                         niveles_disponibles.remove('5')
                     
-                    col_f_lid, col_f_niv = st.columns(2)
-                    with col_f_lid:
+                    col_f_lid_loc, col_f_niv_loc = st.columns(2)
+                    with col_f_lid_loc:
                         f_lid_plan = st.selectbox("👤 Líder a revisar (Modo Privado):", ["Todos"] + lideres_totales, key="modo_pres_lider")
-                    with col_f_niv:
+                    with col_f_niv_loc:
                         f_niv_plan = st.selectbox("📊 Nivel Jerárquico de la Posición:", ["Todos"] + niveles_disponibles, key="modo_pres_nivel")
 
                     df_posiciones_filtradas = df_base_jerarquia.copy()
