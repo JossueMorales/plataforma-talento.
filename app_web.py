@@ -177,7 +177,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
             except ValueError: eng_val = 0.0
         else: eng_val = 0.0
         
-        # Búsqueda dinámica de las columnas de Nivel
         jer_key = next((k for k in row_dict.keys() if k and ('jerárquico' in str(k).lower() or 'jerarquico' in str(k).lower())), 'Nivel Jerárquico')
         mla_key = next((k for k in row_dict.keys() if k and 'nivel mla' in str(k).lower()), 'Nivel MLA')
         
@@ -275,9 +274,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
             if 1.0 <= eng_ind < 2.0: r_list.append("🚨 Riesgo de Fuga: Colaborador Desconectado")
             elif 2.0 <= eng_ind < 3.0: r_list.append("⚠️ Alerta: Bajo Enganche (Desinterés)")
             
-            # ==========================================
-            # ANÁLISIS DE RIESGO OPERATIVO (FUGA TITULAR)
-            # ==========================================
             fuga_val = info['riesgo_fuga'].lower()
             if fuga_val == 'alto':
                 if es_critica:
@@ -289,7 +285,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
                     r_list.append("⚠️ Riesgo Operativo Moderado: Titular clave en riesgo de fuga medio")
                 else:
                     r_list.append("⚠️ Precaución: Riesgo de fuga medio")
-            # ==========================================
                 
             if info['es_lider']:
                 eng_area = info['enganche_area']
@@ -313,10 +308,13 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
                 if l_id in G_jerarquia: descendientes_validos.update(nx.descendants(G_jerarquia, l_id))
             except nx.NetworkXError: pass
                 
-    nodos_visibles = set()
+    # ==========================================
+    # FILTRO ESTRICTO (Para Tablas y KPIs)
+    # ==========================================
+    nodos_estrictos = set()
     for emp, info in info_nodos.items():
-        if info['jerarquia'] == '5': nodos_visibles.add(emp); continue
-        if f_lid and info['nombre'] in f_lid: nodos_visibles.add(emp); continue
+        if info['jerarquia'] == '5': nodos_estrictos.add(emp); continue
+        if f_lid and info['nombre'] in f_lid: nodos_estrictos.add(emp); continue
         if f_dir and info['direccion'] not in f_dir: continue
         if f_lid and emp not in descendientes_validos: continue
         if f_crit and info['critica'] not in f_crit: continue
@@ -325,14 +323,16 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
         if f_edr and info['edr'] not in f_edr: continue
         if f_puesto and info['puesto'].strip().upper() not in [p.strip().upper() for p in f_puesto]: continue
         if f_riesgos and not info['riesgos_lista']: continue
-        nodos_visibles.add(emp)
+        nodos_estrictos.add(emp)
         
-    nodos_rescatados = set(nodos_visibles)
-    for emp in nodos_visibles:
+    # ==========================================
+    # FILTRO DE RESCATE (Solo para el Mapa PyVis)
+    # ==========================================
+    nodos_rescatados = set(nodos_estrictos)
+    for emp in nodos_estrictos:
         for s_id in [info_nodos[emp]['suc1_id'], info_nodos[emp]['suc2_id'], info_nodos[emp]['suc3_id'], info_nodos[emp]['suc4_id'], info_nodos[emp]['suc5_id']]:
             if s_id and s_id in info_nodos: nodos_rescatados.add(s_id)
-    nodos_visibles = nodos_rescatados
-    
+            
     raiz_principal = next((emp for emp, info in info_nodos.items() if info['jerarquia'] == '5'), None)
     if not raiz_principal:
         posibles_raices = [n for n in G_jerarquia.nodes() if G_jerarquia.in_degree(n) == 0]
@@ -344,9 +344,9 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
     if target_node_id in G_jerarquia.nodes():
         nodo_central_id = target_node_id
         
-    nodos_activos = set(nodos_visibles)
+    nodos_activos = set(nodos_rescatados)
     if raiz_principal and raiz_principal in G_jerarquia:
-        for v in nodos_visibles:
+        for v in nodos_rescatados:
             if v in G_jerarquia:
                 try: nodos_activos.update(nx.ancestors(G_jerarquia, v))
                 except nx.NetworkXError: pass
@@ -363,11 +363,11 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
     def calcular_hojas(n):
         hijos = [c for c in Arbol.successors(n) if c in nodos_activos]
         if not hijos:
-            val = 1 if n in nodos_visibles else 0
+            val = 1 if n in nodos_rescatados else 0
             conteo_hojas[n] = val
             return val
         total = sum(calcular_hojas(c) for c in hijos)
-        if total == 0 and n in nodos_visibles: total = 1
+        if total == 0 and n in nodos_rescatados: total = 1
         conteo_hojas[n] = total
         return total
         
@@ -399,7 +399,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
         coords[raiz_principal] = {'x': 0, 'y': 0, 'angle': 0, 'anillo_real': 0, 'nivel_calculado': 0, 'dispersion': 0, 'profundidad': 0}
         asignar_coordenada_radial(raiz_principal, 0, 2 * math.pi, 0)
         
-    nodos_sin_coords = [n for n in G_jerarquia.nodes() if n not in coords and n in nodos_visibles]
+    nodos_sin_coords = [n for n in G_jerarquia.nodes() if n not in coords and n in nodos_rescatados]
     if nodos_sin_coords:
         angulo_extra = (2 * math.pi) / len(nodos_sin_coords)
         angulo_actual = 0
@@ -414,12 +414,15 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
     alertas_tabla, data_total, data_sucesores, data_nueve_box, data_enganche, data_edr, data_operativos = [], [], [], [], [], [], []
     
     for emp, info in info_nodos.items():
-        is_hidden = emp not in nodos_visibles
+        is_hidden_map = emp not in nodos_rescatados
+        is_hidden_kpi = emp not in nodos_estrictos
+        
         nom_suc1 = nombres_dict.get(info['suc1_id'], info['suc1_id']) if info['suc1_id'] else ""
         nom_suc2 = nombres_dict.get(info['suc2_id'], info['suc2_id']) if info['suc2_id'] else ""
         nom_suc3 = nombres_dict.get(info['suc3_id'], info['suc3_id']) if info['suc3_id'] else ""
         
-        if not is_hidden:
+        # LÓGICA ESTRICTA PARA KPIS Y TABLAS
+        if not is_hidden_kpi:
             es_andres = info['jerarquia'] == '5' or 'ANDRES EDUARDO VILLARREAL' in info['nombre'].upper()
             nodo_data = {"Nombre": info['nombre'], "Dirección": info['direccion'], "Puesto": info['puesto']}
             data_total.append(nodo_data)
@@ -451,7 +454,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
         color_sombreado = 'rgba(22, 163, 74, 0.8)' if eng >= 4 else ('rgba(234, 179, 8, 0.8)' if eng >= 3 else ('rgba(249, 115, 22, 0.8)' if eng >= 2 else ('rgba(220, 38, 38, 0.8)' if eng > 0 else 'rgba(0, 0, 0, 0.2)')))
         dispersion_offset = (((sum(ord(ch) for ch in str(emp)) % 9) / 8.0) * 0.4) - 0.2 
         
-        # INYECCIÓN SEPARADA: 'jerarquia' para la red, 'mla' para la vista de UI en PyVis
+        # INYECCIÓN PARA EL MAPA VISUAL (Usa is_hidden_map)
         G.add_node(
             emp, label=f"{prefijo}{acortar_nombre(info['nombre'])}\n({acortar_puesto(info['puesto'])})", 
             title=f"<div style='padding: 5px; text-align: center;'><b>{prefijo}{info['nombre']}</b><br><small>{info['puesto']}</small><br><small>Riesgo de Fuga: {info['riesgo_fuga']}</small></div>", 
@@ -459,11 +462,11 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
             shape='dot', group=info['jerarquia'], Nivel_Jerarquico=info['jerarquia'], Nivel_MLA=info['mla'], Resultado_9Box=info['box'], EDR=info['edr'], Direccion=info['direccion'], Lider=info['lider'], 
             Critica=info['critica'], Nombre=info['nombre'], Puesto=info['puesto'], Riesgos=info['riesgos'], Interes=info['interes'], Riesgo_Fuga=info['riesgo_fuga'],
             NomSuc1=nom_suc1, Read1=info['read1'], NomSuc2=nom_suc2, Read2=info['read2'], NomSuc3=nom_suc3, Read3=info['read3'], Eng_Ind=info['enganche_ind'], Eng_Area=info['enganche_area'], Es_Lider=info['es_lider'],
-            font={'color': '#0f172a', 'strokeWidth': 2, 'strokeColor': '#ffffff', 'size': 11, 'face': 'Arial', 'weight': 'bold'}, Angle=coord_data['angle'], NivelCalculado=coord_data.get('nivel_calculado', 5), Dispersion=dispersion_offset, AnilloReal=coord_data.get('anillo_real', 5), hidden=is_hidden
+            font={'color': '#0f172a', 'strokeWidth': 2, 'strokeColor': '#ffffff', 'size': 11, 'face': 'Arial', 'weight': 'bold'}, Angle=coord_data['angle'], NivelCalculado=coord_data.get('nivel_calculado', 5), Dispersion=dispersion_offset, AnilloReal=coord_data.get('anillo_real', 5), hidden=is_hidden_map
         )
         
     for jefe, emp in G_jerarquia.edges():
-        is_hidden_edge = jefe not in nodos_visibles or emp not in nodos_visibles
+        is_hidden_edge = jefe not in nodos_rescatados or emp not in nodos_rescatados
         eng_emp = info_nodos[emp]['enganche_ind']
         color_edge_shadow = 'rgba(22, 163, 74, 0.8)' if eng_emp >= 4 else ('rgba(234, 179, 8, 0.8)' if eng_emp >= 3 else ('rgba(249, 115, 22, 0.8)' if eng_emp >= 2 else ('rgba(220, 38, 38, 0.8)' if eng_emp > 0 else 'rgba(0, 0, 0, 0.0)')))
         G.add_edge(jefe, emp, color='#94a3b8', width=2, dashes=False, title='Estructura', hidden=is_hidden_edge, is_struct=True, is_9box=False, is_succ=False, smooth=False, shadow={'enabled': True, 'color': color_edge_shadow, 'size': 15, 'x': 0, 'y': 0})
@@ -472,20 +475,20 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
         box = info['box'].upper()
         if box in ['5', '2']:
             j1 = obtener_jefe_nivel_arriba(emp, 1)
-            if j1: G.add_edge(emp, j1, color='#22c55e', width=3, dashes=[5,5], title='Proyección N+1', hidden=(emp not in nodos_visibles or j1 not in nodos_visibles), is_struct=False, is_9box=True, is_succ=False, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.2})
+            if j1: G.add_edge(emp, j1, color='#22c55e', width=3, dashes=[5,5], title='Proyección N+1', hidden=(emp not in nodos_rescatados or j1 not in nodos_rescatados), is_struct=False, is_9box=True, is_succ=False, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.2})
         if box in ['1', '3']:
             j2 = obtener_jefe_nivel_arriba(emp, 2)
-            if j2: G.add_edge(emp, j2, color='#166534', width=3.5, dashes=[5,5], title='Proyección N+2', hidden=(emp not in nodos_visibles or j2 not in nodos_visibles), is_struct=False, is_9box=True, is_succ=False, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.3})
+            if j2: G.add_edge(emp, j2, color='#166534', width=3.5, dashes=[5,5], title='Proyección N+2', hidden=(emp not in nodos_rescatados or j2 not in nodos_rescatados), is_struct=False, is_9box=True, is_succ=False, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.3})
             
         for s_id, read_time in [(info['suc1_id'], info['read1']), (info['suc2_id'], info['read2']), (info['suc3_id'], info['read3']), (info['suc4_id'], info['read4']), (info['suc5_id'], info['read5'])]:
             if s_id and s_id in empleados_validos:
-                is_hidden_edge = (emp not in nodos_visibles or s_id not in nodos_visibles)
+                is_hidden_edge = (emp not in nodos_rescatados or s_id not in nodos_rescatados)
                 val = get_readiness_val(read_time)
                 dashes_style = False if val == 1 else ([10, 10] if val == 2 else [4, 8])
                 edge_width = 6 if val == 1 else (4 if val == 2 else 2)
                 G.add_edge(emp, s_id, color='#9c27b0', width=edge_width, dashes=dashes_style, title=f'🎯 Sucesor: {read_time}', hidden=is_hidden_edge, is_struct=False, is_9box=False, is_succ=True, smooth={'enabled': True, 'type': 'curvedCW', 'roundness': 0.6})
                 
-    eng_list = [info_nodos[n]['enganche_ind'] for n in nodos_visibles if info_nodos[n]['enganche_ind'] > 0 and 'ANDRES EDUARDO VILLARREAL' not in info_nodos[n]['nombre'].upper()]
+    eng_list = [info_nodos[n]['enganche_ind'] for n in nodos_estrictos if info_nodos[n]['enganche_ind'] > 0 and 'ANDRES EDUARDO VILLARREAL' not in info_nodos[n]['nombre'].upper()]
     avg_enganche = round(sum(eng_list) / len(eng_list), 1) if eng_list else 0.0
     
     kpis = {
@@ -494,7 +497,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
         'data_total': data_total, 'data_sucesores': data_sucesores, 'data_nueve_box': data_nueve_box, 'data_operativos': data_operativos,
         'data_alertas': [{"Nombre": a['Colaborador'], "Dirección": a['Dirección'], "Puesto": a['Puesto'], "Alerta": a['Alerta Detectada por IA']} for a in alertas_tabla],
         'data_enganche': data_enganche, 'data_edr': data_edr,
-        'nodos_visibles_ids': list(nodos_visibles)
+        'nodos_visibles_ids': list(nodos_estrictos)
     }
     
     if not renderizar_mapa:
@@ -1092,19 +1095,19 @@ def main():
                     df_posiciones_filtradas['id_clean'] = df_posiciones_filtradas['id Empleado'].apply(clean_id)
                     
                     subordinados_nombres_limpios = []
-                    nodos_visibles_ids = kpis.get('nodos_visibles_ids', [])
+                    nodos_estrictos_ids = kpis.get('nodos_visibles_ids', [])
                     
                     if f_lid_plan != "Todos":
                         sub_ids = obtener_subordinados_ids(f_lid_plan)
                         lider_id = next((i for i, n in dict_nom_global.items() if n == f_lid_plan), None)
                         if lider_id: sub_ids.add(lider_id)
                         
-                        sub_ids_filtrados = [s for s in sub_ids if s in nodos_visibles_ids]
+                        sub_ids_filtrados = [s for s in sub_ids if s in nodos_estrictos_ids]
                         
                         df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['id_clean'].isin(sub_ids_filtrados)]
                         subordinados_nombres_limpios = [str(dict_nom_global.get(s)).strip().lower() for s in sub_ids_filtrados if s in dict_nom_global and str(dict_nom_global.get(s)).strip() != '']
                     else:
-                        df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['id_clean'].isin(nodos_visibles_ids)]
+                        df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['id_clean'].isin(nodos_estrictos_ids)]
                     
                     col_jer_fil = next((c for c in df_posiciones_filtradas.columns if 'jerárquico' in str(c).lower() or 'jerarquico' in str(c).lower()), 'Nivel Jerárquico')
 
@@ -1511,7 +1514,7 @@ def main():
                         )
                         enriquecer_reporte = st.checkbox("🔄 Enriquecer reporte con datos de Sucesores (Dirección, 9-Box, EDR, etc.)", value=False)
                     
-                    df_base_export = df_posiciones_filtradas.copy() if tipo_reporte == "Solo Posiciones Críticas" else df_seguro.copy()
+                    df_base_export = df_posiciones_filtradas.copy() if tipo_reporte == "Solo Posiciones Críticas" else df_seguro[df_seguro['id_clean'].isin(nodos_estrictos_ids)].copy()
                     
                     if not df_base_export.empty:
                         if enriquecer_reporte:
@@ -2134,7 +2137,7 @@ def main():
                                 if col_pdi_kpi:
                                     df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar[col_pdi_kpi].astype(str).str.contains(f_cat)]
                                     c_f1, c_f2 = st.columns([8, 2])
-                                    c_f1.info(f"👆 **Filtro Activo:** Mostrando exclusivamente las acciones de la categoría **{f_cat}%**.")
+                                    c_f1.info(f"👆 **Filtro Activo:** Mostrando exclusively las acciones de la categoría **{f_cat}%**.")
                                     if c_f2.button("❌ Quitar filtro", use_container_width=True):
                                         st.session_state['filtro_pdi_cat'] = None
                                         st.rerun()
