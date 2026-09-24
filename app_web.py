@@ -1088,11 +1088,14 @@ def main():
                     if st.session_state.get("id_usuario") != "admin" and '5' in niveles_disponibles:
                         niveles_disponibles.remove('5')
                     
-                    col_f_lid_loc, col_f_niv_loc = st.columns(2)
+                    col_f_lid_loc, col_f_niv_loc, col_f_exc_loc = st.columns([1, 1, 2])
                     with col_f_lid_loc:
                         f_lid_plan = st.selectbox("👤 Líder a revisar (Modo Privado):", ["Todos"] + lideres_totales, key="modo_pres_lider")
                     with col_f_niv_loc:
-                        f_niv_plan = st.selectbox("📊 Nivel Jerárquico de la Posición:", ["Todos"] + niveles_disponibles, key="modo_pres_nivel")
+                        f_niv_plan = st.multiselect("📊 Niveles Jerárquicos:", options=niveles_disponibles, placeholder="Todos", key="modo_pres_nivel")
+                    with col_f_exc_loc:
+                        pos_opciones = sorted(df_seguro['Nombre de la Posición'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
+                        f_pos_extra_plan = st.multiselect("➕ Excepciones (Incluir posiciones específicas):", options=pos_opciones, placeholder="Busca y agrega puestos...", key="modo_pres_extra")
 
                     df_posiciones_filtradas = df_base_jerarquia.copy()
                     df_posiciones_filtradas['id_clean'] = df_posiciones_filtradas['id Empleado'].apply(clean_id)
@@ -1111,17 +1114,24 @@ def main():
                     
                     col_jer_fil = next((c for c in df_posiciones_filtradas.columns if 'jerárquico' in str(c).lower() or 'jerarquico' in str(c).lower()), 'Nivel Jerárquico')
 
-                    if f_niv_plan != "Todos":
-                        df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas[col_jer_fil].astype(str).str.strip() == f_niv_plan]
-
                     if not df_posiciones_filtradas.empty:
-                        filtro_base = (df_posiciones_filtradas['Posición Crítica'].astype(str).str.strip().str.lower() == 'si')
+                        cond_base = (df_posiciones_filtradas['Posición Crítica'].astype(str).str.strip().str.lower() == 'si')
                         
-                        if f_niv_plan == '5' and st.session_state.get("id_usuario") == "admin":
-                            df_posiciones_filtradas = df_posiciones_filtradas[filtro_base]
-                        else:
+                        cond_niveles = pd.Series(True, index=df_posiciones_filtradas.index)
+                        if f_niv_plan:
+                            cond_niveles = df_posiciones_filtradas[col_jer_fil].astype(str).str.strip().isin(f_niv_plan)
+                            
+                        cond_excepciones = pd.Series(False, index=df_posiciones_filtradas.index)
+                        if f_pos_extra_plan:
+                            cond_excepciones = df_posiciones_filtradas['Nombre de la Posición'].astype(str).str.strip().isin(f_pos_extra_plan)
+
+                        df_posiciones_filtradas = df_posiciones_filtradas[cond_base & (cond_niveles | cond_excepciones)]
+                        
+                        is_admin = st.session_state.get("id_usuario") == "admin"
+                        wants_level_5 = is_admin and (('5' in f_niv_plan) or any('DIRECTOR GENERAL' in p.upper() for p in f_pos_extra_plan))
+                        
+                        if not wants_level_5:
                             df_posiciones_filtradas = df_posiciones_filtradas[
-                                filtro_base &
                                 (df_posiciones_filtradas[col_jer_fil].astype(str).str.strip() != '5') &
                                 (~df_posiciones_filtradas['Nombre de la Posición'].astype(str).str.upper().str.contains('DIRECTOR GENERAL'))
                             ]
