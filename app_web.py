@@ -1413,54 +1413,66 @@ def main():
                         
                         if modo in ['inmediato', '1_3_anos', 'mas_3_anos', 'sin_sucesor']:
                             if modo == 'inmediato': 
-                                titulo_lista = "Posiciones con Sucesor P.1 Inmediato"
+                                titulo_lista = "Posiciones con al menos un Sucesor Inmediato"
                             elif modo == '1_3_anos': 
-                                titulo_lista = "Posiciones con Sucesor P.1 a 1-3 años"
+                                titulo_lista = "Posiciones con al menos un Sucesor a 1-3 años"
                             elif modo == 'mas_3_anos': 
-                                titulo_lista = "Posiciones con Sucesor P.1 a +3 años"
+                                titulo_lista = "Posiciones con al menos un Sucesor a +3 años"
                             elif modo == 'sin_sucesor':
                                 titulo_lista = "Posiciones Sin Sucesor Identificado"
                                 
                             lista_sucesores = []
-                            df_sub = df_posiciones_filtradas[df_posiciones_filtradas['Cat_Sucesion'] == modo]
                             
-                            for _, r in df_sub.iterrows():
+                            for _, r in df_posiciones_filtradas.iterrows():
                                 pos = clean_text(r.get('Nombre de la Posición', ''))
                                 ocupante = clean_text(r.get('Nombre', ''))
-                                suc1 = clean_text(r.get(col_suc1, ''))
-                                read1 = clean_text(r.get(col_r1, '')) if col_r1 else ''
                                 
-                                col_s2 = 'Sucesor P.2' if 'Sucesor P.2' in df_posiciones_filtradas.columns else ('Sucesor 2' if 'Sucesor 2' in df_posiciones_filtradas.columns else None)
-                                col_r2 = next((c for c in df_posiciones_filtradas.columns if 'readiness 2' in str(c).lower()), None)
-                                suc2 = clean_text(r.get(col_s2, '')) if col_s2 else ''
-                                read2 = clean_text(r.get(col_r2, '')) if col_r2 else ''
-
-                                col_s3 = 'Sucesor P.3' if 'Sucesor P.3' in df_posiciones_filtradas.columns else ('Sucesor 3' if 'Sucesor 3' in df_posiciones_filtradas.columns else None)
-                                col_r3 = next((c for c in df_posiciones_filtradas.columns if 'readiness 3' in str(c).lower()), None)
-                                suc3 = clean_text(r.get(col_s3, '')) if col_s3 else ''
-                                read3 = clean_text(r.get(col_r3, '')) if col_r3 else ''
+                                sucs = []
+                                reads = []
+                                for i in range(1, 6):
+                                    c_suc = f'Sucesor P.{i}' if f'Sucesor P.{i}' in df_posiciones_filtradas.columns else (f'Sucesor {i}' if f'Sucesor {i}' in df_posiciones_filtradas.columns else None)
+                                    c_read = next((c for c in df_posiciones_filtradas.columns if f'readiness {i}' in str(c).lower()), None)
+                                    sucs.append(clean_text(r.get(c_suc, '')) if c_suc else '')
+                                    reads.append(clean_text(r.get(c_read, '')) if c_read else '')
                                 
-                                if modo == 'sin_sucesor':
-                                    suc1_fmt = "No definido / Sin Sucesor"
-                                    read1_fmt = "Pendiente"
-                                else:
-                                    suc1_fmt = suc1 if suc1 else "Pendiente"
-                                    read1_fmt = read1 if read1 else "Pendiente"
+                                is_sin_sucesor = True
+                                has_match = False
+                                
+                                for i in range(5):
+                                    s = sucs[i].lower()
+                                    read = reads[i].lower()
                                     
-                                lista_sucesores.append({
-                                    "Posición Crítica": pos,
-                                    "Ocupante Actual": ocupante,
-                                    "Sucesor 1": suc1_fmt,
-                                    "Readiness 1": read1_fmt,
-                                    "Sucesor 2": suc2 if suc2 else "Pendiente",
-                                    "Readiness 2": read2 if read2 else "Pendiente",
-                                    "Sucesor 3": suc3 if suc3 else "Pendiente",
-                                    "Readiness 3": read3 if read3 else "Pendiente"
-                                })
+                                    if s and s not in invalid_sucs_local:
+                                        is_sin_sucesor = False
+                                        if modo == 'inmediato' and 'inmediato' in read: has_match = True
+                                        elif modo == '1_3_anos' and '1 a 3' in read: has_match = True
+                                        elif modo == 'mas_3_anos' and ('mas de 3' in read or 'más de 3' in read): has_match = True
+                                        
+                                if modo == 'sin_sucesor' and is_sin_sucesor:
+                                    has_match = True
+                                    
+                                if has_match:
+                                    item = {
+                                        "Posición Crítica": pos,
+                                        "Ocupante Actual": ocupante
+                                    }
+                                    for i in range(5):
+                                        suc_val = sucs[i] if sucs[i] and sucs[i].lower() not in invalid_sucs_local else ("No definido" if modo=='sin_sucesor' else "Pendiente")
+                                        read_val = reads[i] if reads[i] and sucs[i].lower() not in invalid_sucs_local else "Pendiente"
+                                        item[f"Sucesor {i+1}"] = suc_val
+                                        item[f"Readiness {i+1}"] = read_val
+                                        
+                                    lista_sucesores.append(item)
                             
                             df_lista_suc = pd.DataFrame(lista_sucesores)
+                            
+                            if not df_lista_suc.empty:
+                                for i in [5, 4, 3]: 
+                                    if all(df_lista_suc[f"Sucesor {i}"] == "Pendiente"):
+                                        df_lista_suc = df_lista_suc.drop(columns=[f"Sucesor {i}", f"Readiness {i}"])
+                                        
                             with st.container():
-                                st.markdown(f"#### 📋 {titulo_lista} ({len(df_lista_suc)} registros)")
+                                st.markdown(f"#### 📋 {titulo_lista} ({len(df_lista_suc)} posiciones)")
                                 if not df_lista_suc.empty:
                                     st.dataframe(df_lista_suc, use_container_width=True, hide_index=True)
                                 else:
