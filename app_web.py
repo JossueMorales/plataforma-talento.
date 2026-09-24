@@ -146,7 +146,7 @@ def login():
 # MOTOR PRINCIPAL (GRAFO CON CACHÉ Y LAZY LOADING)
 # ==========================================
 @st.cache_data(show_spinner=False)
-def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_box, f_edr, f_riesgos, renderizar_mapa, usuario_activo_id):
+def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_box, f_edr, f_puesto, f_riesgos, renderizar_mapa, usuario_activo_id):
     G = nx.MultiDiGraph()
     G_jerarquia = nx.DiGraph() 
     jefes_dict = {}
@@ -177,6 +177,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
             except ValueError: eng_val = 0.0
         else: eng_val = 0.0
         
+        # Búsqueda dinámica de las columnas de Nivel
         jer_key = next((k for k in row_dict.keys() if k and ('jerárquico' in str(k).lower() or 'jerarquico' in str(k).lower())), 'Nivel Jerárquico')
         mla_key = next((k for k in row_dict.keys() if k and 'nivel mla' in str(k).lower()), 'Nivel MLA')
         
@@ -274,6 +275,9 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
             if 1.0 <= eng_ind < 2.0: r_list.append("🚨 Riesgo de Fuga: Colaborador Desconectado")
             elif 2.0 <= eng_ind < 3.0: r_list.append("⚠️ Alerta: Bajo Enganche (Desinterés)")
             
+            # ==========================================
+            # ANÁLISIS DE RIESGO OPERATIVO (FUGA TITULAR)
+            # ==========================================
             fuga_val = info['riesgo_fuga'].lower()
             if fuga_val == 'alto':
                 if es_critica:
@@ -285,6 +289,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
                     r_list.append("⚠️ Riesgo Operativo Moderado: Titular clave en riesgo de fuga medio")
                 else:
                     r_list.append("⚠️ Precaución: Riesgo de fuga medio")
+            # ==========================================
                 
             if info['es_lider']:
                 eng_area = info['enganche_area']
@@ -318,6 +323,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
         if f_jerarquia and info['jerarquia'] not in f_jerarquia: continue
         if f_box and info['box'] not in f_box: continue
         if f_edr and info['edr'] not in f_edr: continue
+        if f_puesto and info['puesto'].strip().upper() not in [p.strip().upper() for p in f_puesto]: continue
         if f_riesgos and not info['riesgos_lista']: continue
         nodos_visibles.add(emp)
         
@@ -445,6 +451,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
         color_sombreado = 'rgba(22, 163, 74, 0.8)' if eng >= 4 else ('rgba(234, 179, 8, 0.8)' if eng >= 3 else ('rgba(249, 115, 22, 0.8)' if eng >= 2 else ('rgba(220, 38, 38, 0.8)' if eng > 0 else 'rgba(0, 0, 0, 0.2)')))
         dispersion_offset = (((sum(ord(ch) for ch in str(emp)) % 9) / 8.0) * 0.4) - 0.2 
         
+        # INYECCIÓN SEPARADA: 'jerarquia' para la red, 'mla' para la vista de UI en PyVis
         G.add_node(
             emp, label=f"{prefijo}{acortar_nombre(info['nombre'])}\n({acortar_puesto(info['puesto'])})", 
             title=f"<div style='padding: 5px; text-align: center;'><b>{prefijo}{info['nombre']}</b><br><small>{info['puesto']}</small><br><small>Riesgo de Fuga: {info['riesgo_fuga']}</small></div>", 
@@ -969,8 +976,9 @@ def main():
             criticas = sorted(df_filtros['Posición Crítica'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
             edrs_col = 'EDR' if 'EDR' in df_filtros.columns else ('EDR ' if 'EDR ' in df_filtros.columns else None)
             edrs = sorted(df_filtros[edrs_col].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist()) if edrs_col else []
+            puestos_opciones = sorted(df_filtros['Nombre de la Posición'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
             
-            col_f1, col_f2, col_f3, col_f4, col_f5, col_f6 = st.columns(6)
+            col_f1, col_f2, col_f3, col_f4 = st.columns(4)
             f_dir = col_f1.multiselect("Dirección", options=dirs, placeholder="Todas")
             
             if f_dir: lideres_ids = df_filtros[df_filtros['Dirección'].astype(str).str.strip().isin(f_dir)]['ID Del Jefe'].dropna().unique()
@@ -981,8 +989,11 @@ def main():
             f_lid = col_f2.multiselect("Líder", options=lideres, placeholder="Todos")
             f_crit = col_f3.multiselect("Pos. Crítica", options=criticas, placeholder="Todas")
             f_jerarquia = col_f4.multiselect("Nivel Jerárquico", options=jerarquias, placeholder="Todos")
+            
+            col_f5, col_f6, col_f7 = st.columns(3)
             f_box = col_f5.multiselect("9-Box", options=boxes, placeholder="Todos")
             f_edr = col_f6.multiselect("EDR (Resultados)", options=edrs, placeholder="Todos")
+            f_puesto = col_f7.multiselect("Posición / Puesto", options=puestos_opciones, placeholder="Todos")
             
             col_chk1, col_chk2 = st.columns(2)
             with col_chk1:
@@ -999,7 +1010,7 @@ def main():
                         renderizar_mapa = True
             st.write("") 
             
-            html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_box, f_edr, f_riesgos, renderizar_mapa, st.session_state["id_usuario"])
+            html_mapa, df_alertas, kpis = generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_box, f_edr, f_puesto, f_riesgos, renderizar_mapa, st.session_state["id_usuario"])
             
             if kpis is not None:
                 if st.session_state["id_usuario"] == "admin":
@@ -1073,48 +1084,36 @@ def main():
                     
                     df_base_jerarquia = df_seguro.copy()
                     
-                    if f_dir:
-                        df_base_jerarquia = df_base_jerarquia[df_base_jerarquia['Dirección'].astype(str).str.strip().isin(f_dir)]
-                        
-                    col_f_lid_loc, col_f_exc_loc = st.columns([1, 2])
+                    col_f_lid_loc, col_espacio = st.columns([1, 2])
                     with col_f_lid_loc:
                         f_lid_plan = st.selectbox("👤 Líder a revisar (Modo Privado):", ["Todos"] + lideres_totales, key="modo_pres_lider")
-                    with col_f_exc_loc:
-                        pos_opciones = sorted(df_seguro['Nombre de la Posición'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
-                        f_pos_extra_plan = st.multiselect("➕ Excepciones (Incluir posiciones específicas):", options=pos_opciones, placeholder="Busca y agrega puestos...", key="modo_pres_extra")
 
                     df_posiciones_filtradas = df_base_jerarquia.copy()
                     df_posiciones_filtradas['id_clean'] = df_posiciones_filtradas['id Empleado'].apply(clean_id)
                     
                     subordinados_nombres_limpios = []
+                    nodos_visibles_ids = kpis.get('nodos_visibles_ids', [])
+                    
                     if f_lid_plan != "Todos":
                         sub_ids = obtener_subordinados_ids(f_lid_plan)
                         lider_id = next((i for i, n in dict_nom_global.items() if n == f_lid_plan), None)
                         if lider_id: sub_ids.add(lider_id)
-                        df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['id_clean'].isin(sub_ids)]
                         
-                        subordinados_nombres_limpios = [str(dict_nom_global.get(s)).strip().lower() for s in sub_ids if s in dict_nom_global and str(dict_nom_global.get(s)).strip() != '']
+                        sub_ids_filtrados = [s for s in sub_ids if s in nodos_visibles_ids]
+                        
+                        df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['id_clean'].isin(sub_ids_filtrados)]
+                        subordinados_nombres_limpios = [str(dict_nom_global.get(s)).strip().lower() for s in sub_ids_filtrados if s in dict_nom_global and str(dict_nom_global.get(s)).strip() != '']
                     else:
-                        nodos_visibles_ids = kpis.get('nodos_visibles_ids', [])
                         df_posiciones_filtradas = df_posiciones_filtradas[df_posiciones_filtradas['id_clean'].isin(nodos_visibles_ids)]
                     
                     col_jer_fil = next((c for c in df_posiciones_filtradas.columns if 'jerárquico' in str(c).lower() or 'jerarquico' in str(c).lower()), 'Nivel Jerárquico')
 
                     if not df_posiciones_filtradas.empty:
-                        cond_base = (df_posiciones_filtradas['Posición Crítica'].astype(str).str.strip().str.lower() == 'si')
-                        
-                        cond_niveles = pd.Series(True, index=df_posiciones_filtradas.index)
-                        if f_jerarquia:
-                            cond_niveles = df_posiciones_filtradas[col_jer_fil].astype(str).str.strip().isin(f_jerarquia)
-                            
-                        cond_excepciones = pd.Series(False, index=df_posiciones_filtradas.index)
-                        if f_pos_extra_plan:
-                            cond_excepciones = df_posiciones_filtradas['Nombre de la Posición'].astype(str).str.strip().isin(f_pos_extra_plan)
-
-                        df_posiciones_filtradas = df_posiciones_filtradas[cond_base & (cond_niveles | cond_excepciones)]
+                        filtro_base = (df_posiciones_filtradas['Posición Crítica'].astype(str).str.strip().str.lower() == 'si')
+                        df_posiciones_filtradas = df_posiciones_filtradas[filtro_base]
                         
                         is_admin = st.session_state.get("id_usuario") == "admin"
-                        wants_level_5 = is_admin and (('5' in f_jerarquia) or any('DIRECTOR GENERAL' in p.upper() for p in f_pos_extra_plan))
+                        wants_level_5 = is_admin and (('5' in f_jerarquia) or (f_puesto and any('DIRECTOR GENERAL' in p.upper() for p in f_puesto)))
                         
                         if not wants_level_5:
                             df_posiciones_filtradas = df_posiciones_filtradas[
