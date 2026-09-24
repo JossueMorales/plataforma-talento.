@@ -1154,15 +1154,31 @@ def main():
                         c_pend = (df_posiciones_filtradas['Cat_Sucesion'] == 'pendiente').sum()
                         
                         invalid_sucs_local = ['pendiente', 'nan', 'none', '', 'no definido', 'sin sucesor identificado']
-                        def get_valid_suc(row):
-                            s = clean_text(row.get(col_suc1, ''))
-                            return s if s.lower() not in invalid_sucs_local else None
+                        
+                        sucs_inm = set()
+                        sucs_1_3 = set()
+                        sucs_mas_3 = set()
 
-                        df_posiciones_filtradas['Sucesor_Limpio'] = df_posiciones_filtradas.apply(get_valid_suc, axis=1)
-
-                        p_inm = df_posiciones_filtradas[df_posiciones_filtradas['Cat_Sucesion'] == 'inmediato']['Sucesor_Limpio'].dropna().nunique()
-                        p_1_3 = df_posiciones_filtradas[df_posiciones_filtradas['Cat_Sucesion'] == '1_3_anos']['Sucesor_Limpio'].dropna().nunique()
-                        p_mas_3 = df_posiciones_filtradas[df_posiciones_filtradas['Cat_Sucesion'] == 'mas_3_anos']['Sucesor_Limpio'].dropna().nunique()
+                        for i in range(1, 6):
+                            c_suc = f'Sucesor P.{i}' if f'Sucesor P.{i}' in df_posiciones_filtradas.columns else (f'Sucesor {i}' if f'Sucesor {i}' in df_posiciones_filtradas.columns else None)
+                            c_read = next((c for c in df_posiciones_filtradas.columns if f'readiness {i}' in str(c).lower()), None)
+                            
+                            if c_suc and c_read:
+                                for _, r in df_posiciones_filtradas.iterrows():
+                                    nombre_suc = clean_text(r.get(c_suc, '')).strip()
+                                    read_suc = clean_text(r.get(c_read, '')).strip().lower()
+                                    
+                                    if nombre_suc and nombre_suc.lower() not in invalid_sucs_local:
+                                        if 'inmediato' in read_suc:
+                                            sucs_inm.add(nombre_suc)
+                                        elif '1 a 3' in read_suc:
+                                            sucs_1_3.add(nombre_suc)
+                                        elif 'mas de 3' in read_suc or 'más de 3' in read_suc:
+                                            sucs_mas_3.add(nombre_suc)
+                        
+                        p_inm = len(sucs_inm)
+                        p_1_3 = len(sucs_1_3)
+                        p_mas_3 = len(sucs_mas_3)
                         
                         total_criticas = len(df_posiciones_filtradas)
                         sucesores_definidos = c_inm + c_1_3 + c_mas_3 + c_sin_suc
