@@ -1107,6 +1107,9 @@ def main():
                     
                     df_base_jerarquia = df_seguro.copy()
                     
+                    if f_dir:
+                        df_base_jerarquia = df_base_jerarquia[df_base_jerarquia['Dirección'].astype(str).str.strip().isin(f_dir)]
+                        
                     col_f_lid_loc, col_espacio = st.columns([1, 2])
                     with col_f_lid_loc:
                         f_lid_plan = st.selectbox("👤 Líder a revisar (Modo Privado):", ["Todos"] + lideres_totales, key="modo_pres_lider")
@@ -1148,20 +1151,34 @@ def main():
                     col_r1 = next((c for c in df_posiciones_filtradas.columns if 'readiness 1' in str(c).lower()), None)
 
                     def get_status_categoria(row):
-                        suc1 = clean_text(row.get(col_suc1, '')).lower()
-                        read1 = clean_text(row.get(col_r1, '')).lower() if col_r1 else ''
-                        if suc1 in ['pendiente', 'nan', 'none', '', 'no definido']:
-                            return 'pendiente'
-                        elif 'sin sucesor' in suc1:
+                        invalid_sucs = ['pendiente', 'nan', 'none', '', 'no definido', 'sin sucesor identificado']
+                        estados_encontrados = []
+                        
+                        for i in range(1, 6):
+                            c_s = f'Sucesor P.{i}' if f'Sucesor P.{i}' in row.index else (f'Sucesor {i}' if f'Sucesor {i}' in row.index else None)
+                            c_r = next((c for c in row.index if f'readiness {i}' in str(c).lower()), None)
+                            
+                            suc_val = clean_text(row.get(c_s, '')) if c_s else ''
+                            read_val = clean_text(row.get(c_r, '')).lower() if c_r else ''
+                            
+                            if suc_val.lower() not in invalid_sucs:
+                                if 'inmediato' in read_val:
+                                    estados_encontrados.append(1)
+                                elif '1 a 3' in read_val:
+                                    estados_encontrados.append(2)
+                                elif 'mas de 3' in read_val or 'más de 3' in read_val:
+                                    estados_encontrados.append(3)
+                                else:
+                                    estados_encontrados.append(4)
+                                    
+                        if not estados_encontrados:
                             return 'sin_sucesor'
-                        elif 'inmediato' in read1:
-                            return 'inmediato'
-                        elif '1 a 3' in read1:
-                            return '1_3_anos'
-                        elif 'mas de 3' in read1 or 'más de 3' in read1:
-                            return 'mas_3_anos'
-                        else:
-                            return 'pendiente'
+                            
+                        mejor_estado = min(estados_encontrados)
+                        if mejor_estado == 1: return 'inmediato'
+                        if mejor_estado == 2: return '1_3_anos'
+                        if mejor_estado == 3: return 'mas_3_anos'
+                        return 'pendiente'
 
                     if not df_posiciones_filtradas.empty:
                         df_posiciones_filtradas['Cat_Sucesion'] = df_posiciones_filtradas.apply(get_status_categoria, axis=1)
@@ -1994,7 +2011,7 @@ def main():
                         
                         st.write("---")
                         st.markdown("#### 📋 Plan de Acción / Comentarios Adicionales")
-                        st.info("Utiliza este espacio para justificar si no hay sucesores o detallar el plan a seguir.")
+                        st.info("Utiliza este espacio para justifycar si no hay sucesores o detallar el plan a seguir.")
                         
                         c_plan_accion = leer_campo('Comentarios de Sucesión') 
                         n_plan_accion = st.text_area("Comentarios del Plan de Acción:", value=c_plan_accion, height=100, key=f"t_plan_accion_{pos_seleccionada}")
