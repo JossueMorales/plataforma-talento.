@@ -284,7 +284,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
                 if es_critica:
                     r_list.append("⚠️ Riesgo Operativo Moderado: Titular clave en riesgo de fuga medio")
                 else:
-                    r_list.append("⚠️️ Precaución: Riesgo de fuga medio")
+                    r_list.append("⚠️ Precaución: Riesgo de fuga medio")
                 
             if info['es_lider']:
                 eng_area = info['enganche_area']
@@ -692,7 +692,7 @@ def renderizar_mi_pdi(df_completo, df_pdi):
         btn_guardar_pdi = st.form_submit_button("💾 Guardar y Compartir mi PDI con mi Líder", use_container_width=True)
         
         if btn_guardar_pdi:
-            with st.spinner("☁️️ Sincronizando con Base de Datos (Múltiples Filas)..."):
+            with st.spinner("☁️ Sincronizando con Base de Datos (Múltiples Filas)..."):
                 try:
                     secretos = st.secrets["connections"]["gsheets"]
                     credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
@@ -1149,22 +1149,23 @@ def main():
                         estados_encontrados = []
                         
                         for i in range(1, 6):
-                            c_s = f'Sucesor P.{i}' if f'Sucesor P.{i}' in row.index else (f'Sucesor {i}' if f'Sucesor {i}' in row.index else None)
+                            c_s = next((c for c in row.index if f'sucesor p.{i}' in str(c).lower() or f'sucesor {i}' in str(c).lower()), None)
                             c_r = next((c for c in row.index if f'readiness {i}' in str(c).lower()), None)
                             
-                            suc_val = clean_text(row.get(c_s, '')) if c_s else ''
-                            read_val = clean_text(row.get(c_r, '')).lower() if c_r else ''
-                            
-                            if suc_val.lower() not in invalid_sucs:
-                                if 'inmediato' in read_val:
-                                    estados_encontrados.append(1)
-                                elif '1 a 3' in read_val:
-                                    estados_encontrados.append(2)
-                                elif 'mas de 3' in read_val or 'más de 3' in read_val:
-                                    estados_encontrados.append(3)
-                                else:
-                                    estados_encontrados.append(4)
-                                    
+                            if c_s and c_r:
+                                suc_val = clean_text(row.get(c_s, '')).strip().lower()
+                                read_val = clean_text(row.get(c_r, '')).strip().lower()
+                                
+                                if suc_val and suc_val not in invalid_sucs and "vacante" not in suc_val:
+                                    if 'inmediato' in read_val:
+                                        estados_encontrados.append(1)
+                                    elif '1 a 3' in read_val:
+                                        estados_encontrados.append(2)
+                                    elif 'mas de 3' in read_val or 'más de 3' in read_val:
+                                        estados_encontrados.append(3)
+                                    else:
+                                        estados_encontrados.append(4)
+                                        
                         if not estados_encontrados:
                             return 'sin_sucesor'
                             
@@ -1189,7 +1190,7 @@ def main():
                         sucs_mas_3 = set()
 
                         for i in range(1, 6):
-                            c_suc = f'Sucesor P.{i}' if f'Sucesor P.{i}' in df_posiciones_filtradas.columns else (f'Sucesor {i}' if f'Sucesor {i}' in df_posiciones_filtradas.columns else None)
+                            c_suc = next((c for c in df_posiciones_filtradas.columns if f'sucesor p.{i}' in str(c).lower() or f'sucesor {i}' in str(c).lower()), None)
                             c_read = next((c for c in df_posiciones_filtradas.columns if f'readiness {i}' in str(c).lower()), None)
                             
                             if c_suc and c_read:
@@ -1197,7 +1198,7 @@ def main():
                                     nombre_suc = clean_text(r.get(c_suc, '')).strip()
                                     read_suc = clean_text(r.get(c_read, '')).strip().lower()
                                     
-                                    if nombre_suc and nombre_suc.lower() not in invalid_sucs_local:
+                                    if nombre_suc and nombre_suc.lower() not in invalid_sucs_local and "vacante" not in nombre_suc.lower():
                                         if 'inmediato' in read_suc:
                                             sucs_inm.add(nombre_suc)
                                         elif '1 a 3' in read_suc:
@@ -1328,7 +1329,7 @@ def main():
                         elif indice_riesgo_global <= 60:
                             color_riesgo = "#ca8a04" # Amarillo
                             estatus_riesgo = "Estable (Riesgo Moderado)"
-                            icono_riesgo = "⚠️️"
+                            icono_riesgo = "⚠️"
                         else:
                             color_riesgo = "#dc2626" # Rojo
                             estatus_riesgo = "Vulnerabilidad Alta"
@@ -1458,8 +1459,9 @@ def main():
                                 sucs = []
                                 reads = []
                                 for i in range(1, 6):
-                                    c_suc = f'Sucesor P.{i}' if f'Sucesor P.{i}' in df_posiciones_filtradas.columns else (f'Sucesor {i}' if f'Sucesor {i}' in df_posiciones_filtradas.columns else None)
+                                    c_suc = next((c for c in df_posiciones_filtradas.columns if f'sucesor p.{i}' in str(c).lower() or f'sucesor {i}' in str(c).lower()), None)
                                     c_read = next((c for c in df_posiciones_filtradas.columns if f'readiness {i}' in str(c).lower()), None)
+                                    
                                     sucs.append(clean_text(r.get(c_suc, '')) if c_suc else '')
                                     reads.append(clean_text(r.get(c_read, '')) if c_read else '')
                                 
@@ -1470,7 +1472,7 @@ def main():
                                     s = sucs[i].lower()
                                     read = reads[i].lower()
                                     
-                                    if s and s not in invalid_sucs_local:
+                                    if s and s not in invalid_sucs_local and "vacante" not in s:
                                         is_sin_sucesor = False
                                         if modo == 'inmediato' and 'inmediato' in read: has_match = True
                                         elif modo == '1_3_anos' and '1 a 3' in read: has_match = True
@@ -1691,12 +1693,15 @@ def main():
                             
                         st.markdown(f"**Nivel de Vulnerabilidad:** {nivel_vulnerabilidad}")
                         
-                        def leer_campo(nombre_col):
-                            col_match = next((c for c in info_pos.index if str(nombre_col).strip().lower() == str(c).strip().lower()), None)
-                            val = info_pos[col_match] if col_match else ""
-                            return clean_text(val) if pd.notna(val) else ""
+                        def leer_campo(keyword1, keyword2=None):
+                            for c in info_pos.index:
+                                cl = str(c).strip().lower()
+                                if keyword1.lower() in cl or (keyword2 and keyword2.lower() in cl):
+                                    val = info_pos[c]
+                                    return clean_text(val) if pd.notna(val) else ""
+                            return ""
                             
-                        c_riesgo_fuga = leer_campo('Riesgo de Fuga')
+                        c_riesgo_fuga = leer_campo('riesgo de fuga')
                         if not c_riesgo_fuga: c_riesgo_fuga = "Bajo"
                         
                         st.markdown("##### 🏃‍♂️ Riesgo de Fuga del Ocupante Actual")
@@ -1740,8 +1745,12 @@ def main():
                             edr = "🔒" if ocultar_metricas else (clean_text(row.get(edr_key, 'Pendiente')) if edr_key else 'Pendiente')
                             eng_key = next((k for k in row.keys() if k and 'enganche' in str(k).lower()), None)
                             eng = "🔒" if ocultar_metricas else (clean_text(row.get(eng_key, 'N/A')) if eng_key else 'N/A')
-                            suc1 = get_nom(row.get('Sucesor P.1', row.get('Sucesor 1', '')))
-                            read1 = clean_text(row.get('Tiempo de Readiness 1', ''))
+                            
+                            c_suc_temp = next((c for c in row.index if 'sucesor p.1' in str(c).lower() or 'sucesor 1' in str(c).lower()), None)
+                            suc1 = get_nom(row.get(c_suc_temp, '')) if c_suc_temp else 'Pendiente'
+                            
+                            c_read_temp = next((c for c in row.index if 'readiness 1' in str(c).lower()), None)
+                            read1 = clean_text(row.get(c_read_temp, '')) if c_read_temp else ''
                             
                             st.markdown(f"""
                             <div style='padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; font-family: sans-serif; background: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-bottom: 10px;'>
@@ -1826,17 +1835,17 @@ def main():
                         ph_pos = "Ej. Menciona los logros recientes más destacados, fortalezas clave o competencias técnicas consolidadas..."
                         ph_opo = "Ej. ¿Qué brechas de liderazgo, conocimientos técnicos o experiencia necesita cubrir para estar listo?"
 
-                        c_suc_emergencia = leer_campo('Sucesor de emergencia') or "Pendiente"
+                        c_suc_emergencia = leer_campo('emergencia') or "Pendiente"
                         
                         c_sucs = []
                         c_reads = []
                         c_pos = []
                         c_opos = []
                         for i in range(1, 6):
-                            c_sucs.append(leer_campo(f'Sucesor P.{i}') or "Pendiente")
-                            c_reads.append(leer_campo(f'Tiempo de Readiness {i}') or "Pendiente")
-                            c_pos.append(leer_campo(f'Positivo {i}'))
-                            c_opos.append(leer_campo(f'Oportunidad {i}'))
+                            c_sucs.append(leer_campo(f'sucesor p.{i}', f'sucesor {i}') or "Pendiente")
+                            c_reads.append(leer_campo(f'readiness {i}') or "Pendiente")
+                            c_pos.append(leer_campo(f'positivo {i}'))
+                            c_opos.append(leer_campo(f'oportunidad {i}'))
                             
                             if c_sucs[-1] not in opciones_sucesores: opciones_sucesores.append(c_sucs[-1])
                             if c_reads[-1] not in opciones_tiempo: opciones_tiempo.append(c_reads[-1])
@@ -1934,20 +1943,21 @@ def main():
                                     
                                     headers_bd = pestana.row_values(1)
                                     
-                                    def idx_col(nombre):
+                                    def idx_col_dinamico(kw1, kw2=None):
                                         for i, header in enumerate(headers_bd):
-                                            if str(header).strip().lower() == str(nombre).strip().lower():
+                                            hl = str(header).strip().lower()
+                                            if kw1 in hl or (kw2 and kw2 in hl):
                                                 return i + 1
                                         return None
                                     
-                                    idx_emergencia = idx_col('Sucesor de emergencia')
-                                    idx_plan_accion = idx_col('Comentarios de Sucesión')
-                                    idx_riesgo_fuga = idx_col('Riesgo de Fuga')
+                                    idx_emergencia = idx_col_dinamico('emergencia')
+                                    idx_plan_accion = idx_col_dinamico('comentarios de sucesión', 'comentarios de sucesion')
+                                    idx_riesgo_fuga = idx_col_dinamico('riesgo de fuga')
                                     
-                                    idxs_sucs = [idx_col(f'Sucesor P.{i}') for i in range(1, 6)]
-                                    idxs_reads = [idx_col(f'Tiempo de Readiness {i}') for i in range(1, 6)]
-                                    idxs_pos = [idx_col(f'Positivo {i}') for i in range(1, 6)]
-                                    idxs_opos = [idx_col(f'Oportunidad {i}') for i in range(1, 6)]
+                                    idxs_sucs = [idx_col_dinamico(f'sucesor p.{i}', f'sucesor {i}') for i in range(1, 6)]
+                                    idxs_reads = [idx_col_dinamico(f'readiness {i}') for i in range(1, 6)]
+                                    idxs_pos = [idx_col_dinamico(f'positivo {i}') for i in range(1, 6)]
+                                    idxs_opos = [idx_col_dinamico(f'oportunidad {i}') for i in range(1, 6)]
                                     
                                     for idx_p in df_ocupantes.index:
                                         idx_excel = idx_p + 2 
@@ -2098,7 +2108,7 @@ def main():
                                 if filtro_estatus: df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Estatus'].isin(filtro_estatus)]
                             
                             st.dataframe(df_pdi_mostrar, use_container_width=True, hide_index=True)
-                        else: st.warning("⚠️ Esperando el primer guardado para construir la tabla de seguimiento.")
+                        else: st.warning("⚠️️ Esperando el primer guardado para construir la tabla de seguimiento.")
                     else: st.warning("⚠️ No hay planes de desarrollo registrados en el equipo todavía.")
                 
                 # LA NUEVA MAGIA: PESTAÑA PERSONAL DEL LÍDER
@@ -2155,7 +2165,7 @@ def main():
                                             }
                                     
                                     for i in range(1, 4):
-                                        col_suc_name = f'Sucesor P.{i}' if f'Sucesor P.{i}' in df_base_export.columns else f'Sucesor {i}'
+                                        col_suc_name = next((c for c in df_base_export.columns if f'sucesor p.{i}' in str(c).lower() or f'sucesor {i}' in str(c).lower()), None)
                                         if col_suc_name in df_base_export.columns:
                                             dir_list, jer_list, box_list, edr_list = [], [], [], []
                                             for _, r in df_base_export.iterrows():
@@ -2181,11 +2191,13 @@ def main():
                             columnas_limpias = [c for c in todas_las_columnas if c not in ['id_clean', 'Cat_Sucesion', 'Tiene_Sucesor', '_peso_jerarquia', 'Sucesor_Limpio']]
                             
                             col_jer_limpia = next((c for c in columnas_limpias if 'jerárquico' in str(c).lower() or 'jerarquico' in str(c).lower()), 'Nivel Jerárquico')
-                            col_suc1_limpia = 'Sucesor P.1' if 'Sucesor P.1' in columnas_limpias else ('Sucesor 1' if 'Sucesor 1' in columnas_limpias else None)
+                            col_suc1_limpia = next((c for c in columnas_limpias if 'sucesor p.1' in str(c).lower() or 'sucesor 1' in str(c).lower()), None)
                             
                             cols_default = ['Nombre', 'Nombre de la Posición', 'Dirección', 'Líder', col_jer_limpia, 'Resultado 9 box', 'EDR']
                             if col_suc1_limpia:
-                                cols_default.extend([col_suc1_limpia, 'Tiempo de Readiness 1'])
+                                col_read1_limpia = next((c for c in columnas_limpias if 'readiness 1' in str(c).lower()), None)
+                                if col_read1_limpia: cols_default.append(col_read1_limpia)
+                                cols_default.append(col_suc1_limpia)
                             
                             if enriquecer_reporte:
                                 cols_default.extend(['Sucesor 1 - Dirección', 'Sucesor 1 - 9 Box', 'Sucesor 1 - EDR'])
@@ -2214,15 +2226,16 @@ def main():
                                 invalid_sucs = ['pendiente', 'nan', 'none', '', 'no definido', 'sin sucesor identificado']
                                 estados_encontrados = []
                                 for i in range(1, 6):
-                                    c_s = f'Sucesor P.{i}' if f'Sucesor P.{i}' in row.index else (f'Sucesor {i}' if f'Sucesor {i}' in row.index else None)
+                                    c_s = next((c for c in row.index if f'sucesor p.{i}' in str(c).lower() or f'sucesor {i}' in str(c).lower()), None)
                                     c_r = next((c for c in row.index if f'readiness {i}' in str(c).lower()), None)
-                                    suc_val = clean_text(row.get(c_s, '')) if c_s else ''
-                                    read_val = clean_text(row.get(c_r, '')).lower() if c_r else ''
-                                    if suc_val.lower() not in invalid_sucs:
-                                        if 'inmediato' in read_val: estados_encontrados.append(1)
-                                        elif '1 a 3' in read_val: estados_encontrados.append(2)
-                                        elif 'mas de 3' in read_val or 'más de 3' in read_val: estados_encontrados.append(3)
-                                        else: estados_encontrados.append(4)
+                                    if c_s and c_r:
+                                        suc_val = clean_text(row.get(c_s, '')).strip().lower()
+                                        read_val = clean_text(row.get(c_r, '')).strip().lower()
+                                        if suc_val and suc_val not in invalid_sucs and "vacante" not in suc_val:
+                                            if 'inmediato' in read_val: estados_encontrados.append(1)
+                                            elif '1 a 3' in read_val: estados_encontrados.append(2)
+                                            elif 'mas de 3' in read_val or 'más de 3' in read_val: estados_encontrados.append(3)
+                                            else: estados_encontrados.append(4)
                                 if not estados_encontrados: return 'sin_sucesor'
                                 mejor_estado = min(estados_encontrados)
                                 if mejor_estado == 1: return 'inmediato'
@@ -2267,13 +2280,13 @@ def main():
                                     invalid_sucs_local = ['pendiente', 'nan', 'none', '', 'no definido', 'sin sucesor identificado']
                                     
                                     for i in range(1, 6):
-                                        c_suc = f'Sucesor P.{i}' if f'Sucesor P.{i}' in df_suc_analisis.columns else (f'Sucesor {i}' if f'Sucesor {i}' in df_suc_analisis.columns else None)
+                                        c_suc = next((c for c in df_suc_analisis.columns if f'sucesor p.{i}' in str(c).lower() or f'sucesor {i}' in str(c).lower()), None)
                                         c_read = next((c for c in df_suc_analisis.columns if f'readiness {i}' in str(c).lower()), None)
                                         if c_suc and c_read:
                                             for _, r in df_suc_analisis.iterrows():
                                                 n_s = clean_text(r.get(c_suc, '')).strip()
                                                 r_s = clean_text(r.get(c_read, '')).strip().lower()
-                                                if n_s and n_s.lower() not in invalid_sucs_local:
+                                                if n_s and n_s.lower() not in invalid_sucs_local and "vacante" not in n_s.lower():
                                                     sucs_totales.add(n_s)
                                                     if 'inmediato' in r_s: sucs_inm_rep.add(n_s)
                                                     elif '1 a 3' in r_s: sucs_1_3_rep.add(n_s)
