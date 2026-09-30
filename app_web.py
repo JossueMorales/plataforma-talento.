@@ -284,7 +284,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
                 if es_critica:
                     r_list.append("⚠️ Riesgo Operativo Moderado: Titular clave en riesgo de fuga medio")
                 else:
-                    r_list.append("⚠️️ Precaución: Riesgo de fuga medio")
+                    r_list.append("⚠️ Precaución: Riesgo de fuga medio")
                 
             if info['es_lider']:
                 eng_area = info['enganche_area']
@@ -1107,9 +1107,6 @@ def main():
                     
                     df_base_jerarquia = df_seguro.copy()
                     
-                    if f_dir:
-                        df_base_jerarquia = df_base_jerarquia[df_base_jerarquia['Dirección'].astype(str).str.strip().isin(f_dir)]
-                        
                     col_f_lid_loc, col_espacio = st.columns([1, 2])
                     with col_f_lid_loc:
                         f_lid_plan = st.selectbox("👤 Líder a revisar (Modo Privado):", ["Todos"] + lideres_totales, key="modo_pres_lider")
@@ -2112,87 +2109,23 @@ def main():
                     
                     with tab_reportes:
                         st.markdown("### 🧠 Inteligencia de Datos y Reportes")
-                        st.info("Esta sección es exclusiva para la Dirección. Aquí puedes consultar resúmenes analíticos instantáneos basados en tus filtros globales o descargar la base de datos limpia.")
+                        st.info("Esta sección es exclusiva para la Dirección. Configura tu reporte, elige el enfoque del análisis y descarga la información limpia.")
                         
                         df_reportes_base = df_seguro.copy()
                         df_reportes_base['id_clean'] = df_reportes_base['id Empleado'].apply(clean_id)
                         nodos_estrictos_ids = kpis.get('nodos_visibles_ids', [])
                         df_reportes_estricto = df_reportes_base[df_reportes_base['id_clean'].isin(nodos_estrictos_ids)].copy()
                         
-                        st.markdown("#### 🤖 Analista Interno (Resumen Automático)")
-                        
-                        total_empleados_filtro = len(df_reportes_estricto)
-                        posiciones_criticas_filtro = df_reportes_estricto[df_reportes_estricto['Posición Crítica'].astype(str).str.strip().str.lower() == 'si'].copy()
-                        total_criticas_rep = len(posiciones_criticas_filtro)
-                        
-                        def eval_status_rep(row):
-                            invalid_sucs = ['pendiente', 'nan', 'none', '', 'no definido', 'sin sucesor identificado']
-                            estados_encontrados = []
-                            for i in range(1, 6):
-                                c_s = f'Sucesor P.{i}' if f'Sucesor P.{i}' in row.index else (f'Sucesor {i}' if f'Sucesor {i}' in row.index else None)
-                                c_r = next((c for c in row.index if f'readiness {i}' in str(c).lower()), None)
-                                suc_val = clean_text(row.get(c_s, '')) if c_s else ''
-                                read_val = clean_text(row.get(c_r, '')).lower() if c_r else ''
-                                if suc_val.lower() not in invalid_sucs:
-                                    if 'inmediato' in read_val: estados_encontrados.append(1)
-                                    elif '1 a 3' in read_val: estados_encontrados.append(2)
-                                    elif 'mas de 3' in read_val or 'más de 3' in read_val: estados_encontrados.append(3)
-                                    else: estados_encontrados.append(4)
-                            if not estados_encontrados: return 'sin_sucesor'
-                            mejor_estado = min(estados_encontrados)
-                            if mejor_estado == 1: return 'inmediato'
-                            if mejor_estado == 2: return '1_3_anos'
-                            if mejor_estado == 3: return 'mas_3_anos'
-                            return 'pendiente'
-
-                        if total_criticas_rep > 0:
-                            posiciones_criticas_filtro['Cat_Sucesion'] = posiciones_criticas_filtro.apply(eval_status_rep, axis=1)
-                            rep_inm = (posiciones_criticas_filtro['Cat_Sucesion'] == 'inmediato').sum()
-                            rep_1_3 = (posiciones_criticas_filtro['Cat_Sucesion'] == '1_3_anos').sum()
-                            rep_mas_3 = (posiciones_criticas_filtro['Cat_Sucesion'] == 'mas_3_anos').sum()
-                            rep_sin = (posiciones_criticas_filtro['Cat_Sucesion'] == 'sin_sucesor').sum()
-                            
-                            sucs_inm_rep = set()
-                            sucs_1_3_rep = set()
-                            sucs_mas_3_rep = set()
-                            invalid_sucs_local = ['pendiente', 'nan', 'none', '', 'no definido', 'sin sucesor identificado']
-                            
-                            for i in range(1, 6):
-                                c_suc = f'Sucesor P.{i}' if f'Sucesor P.{i}' in posiciones_criticas_filtro.columns else (f'Sucesor {i}' if f'Sucesor {i}' in posiciones_criticas_filtro.columns else None)
-                                c_read = next((c for c in posiciones_criticas_filtro.columns if f'readiness {i}' in str(c).lower()), None)
-                                if c_suc and c_read:
-                                    for _, r in posiciones_criticas_filtro.iterrows():
-                                        n_s = clean_text(r.get(c_suc, '')).strip()
-                                        r_s = clean_text(r.get(c_read, '')).strip().lower()
-                                        if n_s and n_s.lower() not in invalid_sucs_local:
-                                            if 'inmediato' in r_s: sucs_inm_rep.add(n_s)
-                                            elif '1 a 3' in r_s: sucs_1_3_rep.add(n_s)
-                                            elif 'mas de 3' in r_s or 'más de 3' in r_s: sucs_mas_3_rep.add(n_s)
-                            
-                            texto_ia = f"""
-                            **💡 Hallazgos en tu selección actual:**
-                            - Has filtrado un total de **{total_empleados_filtro} colaboradores**, de los cuales **{total_criticas_rep} ocupan posiciones críticas**.
-                            - De estas posiciones críticas evaluadas bajo una regla estricta de riesgo:
-                              - **{rep_inm}** tienen cobertura **Inmediata** (respaldadas por un talento neto de {len(sucs_inm_rep)} personas únicas).
-                              - **{rep_1_3}** tienen cobertura a **1-3 años** (respaldadas por {len(sucs_1_3_rep)} personas).
-                              - **{rep_sin}** se encuentran **sin sucesor identificado**, lo que representa tu principal foco de vulnerabilidad.
-                            """
-                            st.success(texto_ia)
-                        else:
-                            st.info("💡 En la selección actual no hay posiciones críticas para analizar la sucesión.")
-                            
-                        st.write("---")
-                        
-                        st.markdown("#### 📥 Generador de Reportes Personalizados")
-                        
+                        st.markdown("#### 1️⃣ Configuración de los Datos")
                         col_rep1, col_rep2 = st.columns([1, 2])
                         with col_rep1:
                             tipo_reporte = st.radio(
-                                "1️⃣ ¿A quiénes deseas incluir en las filas?", 
+                                "¿A quiénes deseas incluir en las filas?", 
                                 ["Solo Posiciones Críticas", "Todos los Colaboradores (Según filtros)"]
                             )
                             enriquecer_reporte = st.checkbox("🔄 Enriquecer reporte con datos de Sucesores (Dirección, 9-Box, EDR, etc.)", value=False)
                         
+                        posiciones_criticas_filtro = df_reportes_estricto[df_reportes_estricto['Posición Crítica'].astype(str).str.strip().str.lower() == 'si'].copy()
                         df_base_export = posiciones_criticas_filtro.copy() if tipo_reporte == "Solo Posiciones Críticas" else df_reportes_estricto.copy()
                         
                         if not df_base_export.empty:
@@ -2250,26 +2183,129 @@ def main():
                             
                             with col_rep2:
                                 columnas_seleccionadas = st.multiselect(
-                                    "2️⃣ Selecciona las columnas a exportar (Quita las confidenciales):", 
+                                    "Selecciona las columnas a exportar (Quita las confidenciales):", 
                                     options=columnas_limpias, 
                                     default=cols_sugeridas
                                 )
-                            
-                            if columnas_seleccionadas:
-                                df_export = df_base_export[columnas_seleccionadas]
-                                csv_data = df_export.to_csv(index=False).encode('utf-8-sig')
-                                
-                                st.download_button(
-                                    label="📊 Descargar Reporte a Excel (CSV)",
-                                    data=csv_data,
-                                    file_name=f'Reporte_Personalizado_{st.session_state["nombre_usuario"].replace(" ", "_")}.csv',
-                                    mime='text/csv',
-                                    use_container_width=True
-                                )
-                            else:
-                                st.warning("⚠️ Selecciona al menos una columna para generar el archivo.")
+                        
+                        st.write("---")
+                        st.markdown("#### 🤖 2️⃣ Analista Interno (Resumen Automático)")
+                        tipo_analisis = st.radio(
+                            "Selecciona el enfoque del análisis de IA:",
+                            ["🏢 Análisis de Estructura (Demografía)", "🔀 Análisis de Sucesión (Riesgo)", "📈 Análisis de Desarrollo (PDI)"],
+                            horizontal=True
+                        )
+                        
+                        if df_base_export.empty:
+                            st.warning("⚠️ No hay datos con los filtros actuales para analizar.")
                         else:
-                            st.info("No hay datos para exportar con los filtros actuales.")
+                            def eval_status_rep(row):
+                                invalid_sucs = ['pendiente', 'nan', 'none', '', 'no definido', 'sin sucesor identificado']
+                                estados_encontrados = []
+                                for i in range(1, 6):
+                                    c_s = f'Sucesor P.{i}' if f'Sucesor P.{i}' in row.index else (f'Sucesor {i}' if f'Sucesor {i}' in row.index else None)
+                                    c_r = next((c for c in row.index if f'readiness {i}' in str(c).lower()), None)
+                                    suc_val = clean_text(row.get(c_s, '')) if c_s else ''
+                                    read_val = clean_text(row.get(c_r, '')).lower() if c_r else ''
+                                    if suc_val.lower() not in invalid_sucs:
+                                        if 'inmediato' in read_val: estados_encontrados.append(1)
+                                        elif '1 a 3' in read_val: estados_encontrados.append(2)
+                                        elif 'mas de 3' in read_val or 'más de 3' in read_val: estados_encontrados.append(3)
+                                        else: estados_encontrados.append(4)
+                                if not estados_encontrados: return 'sin_sucesor'
+                                mejor_estado = min(estados_encontrados)
+                                if mejor_estado == 1: return 'inmediato'
+                                if mejor_estado == 2: return '1_3_anos'
+                                if mejor_estado == 3: return 'mas_3_anos'
+                                return 'pendiente'
+
+                            if "Estructura" in tipo_analisis:
+                                tot = len(df_base_export)
+                                dirs_count = df_base_export['Dirección'].nunique() if 'Dirección' in df_base_export.columns else 0
+                                jer_col = next((c for c in df_base_export.columns if 'jerárquico' in str(c).lower() or 'jerarquico' in str(c).lower()), None)
+                                if jer_col:
+                                    j_counts = df_base_export[jer_col].value_counts().to_dict()
+                                    j_text = ", ".join([f"Nivel {k}: {v}" for k, v in j_counts.items() if str(k).strip() != ''])
+                                else:
+                                    j_text = "N/A"
+                                
+                                texto_ia = f"""
+                                **💡 Hallazgos Estructurales:**
+                                - Vas a exportar un total de **{tot} colaboradores** distribuidos en **{dirs_count} Direcciones/Áreas**.
+                                - **Desglose Jerárquico:** {j_text}.
+                                - **Contexto:** Esta vista te permite auditar la composición de tu plantilla y asegurar que la distribución de talento esté equilibrada.
+                                """
+                                st.success(texto_ia)
+                                
+                            elif "Sucesión" in tipo_analisis:
+                                df_suc_analisis = df_base_export[df_base_export['Posición Crítica'].astype(str).str.strip().str.lower() == 'si'].copy() if tipo_reporte != "Solo Posiciones Críticas" else df_base_export.copy()
+                                
+                                if df_suc_analisis.empty:
+                                    st.info("💡 En la selección actual no hay posiciones críticas para analizar la sucesión.")
+                                else:
+                                    df_suc_analisis['Cat_Sucesion'] = df_suc_analisis.apply(eval_status_rep, axis=1)
+                                    rep_inm = (df_suc_analisis['Cat_Sucesion'] == 'inmediato').sum()
+                                    rep_1_3 = (df_suc_analisis['Cat_Sucesion'] == '1_3_anos').sum()
+                                    rep_mas_3 = (df_suc_analisis['Cat_Sucesion'] == 'mas_3_anos').sum()
+                                    rep_sin = (df_suc_analisis['Cat_Sucesion'] == 'sin_sucesor').sum()
+                                    
+                                    texto_ia = f"""
+                                    **💡 Hallazgos de Sucesión y Riesgo:**
+                                    - Tienes **{len(df_suc_analisis)} posiciones críticas** en esta exportación.
+                                    - **{rep_inm}** tienen cobertura **Inmediata**.
+                                    - **{rep_1_3}** tienen cobertura a **1-3 años**.
+                                    - **{rep_mas_3}** tienen cobertura a **+3 años**.
+                                    - 🚨 **{rep_sin}** se encuentran **sin sucesor identificado**, lo que representa tu foco inmediato de vulnerabilidad operativa.
+                                    """
+                                    st.success(texto_ia)
+                                    
+                            elif "PDI" in tipo_analisis:
+                                nombres_export = df_base_export['Nombre'].astype(str).str.strip().str.lower().tolist() if 'Nombre' in df_base_export.columns else []
+                                
+                                if df_pdi.empty or not nombres_export:
+                                    st.info("💡 No hay información de PDI registrada o no seleccionaste la columna 'Nombre' en la configuración de arriba.")
+                                else:
+                                    df_pdi_exp = df_pdi[df_pdi['Nombre'].astype(str).str.strip().str.lower().isin(nombres_export)].copy()
+                                    if df_pdi_exp.empty:
+                                        st.info("💡 Los colaboradores seleccionados actualmente no tienen un PDI registrado en el sistema.")
+                                    else:
+                                        col_acc = next((c for c in df_pdi_exp.columns if 'Acciones' in c), None)
+                                        if col_acc:
+                                            df_pdi_exp = df_pdi_exp[df_pdi_exp[col_acc].astype(str).str.strip() != ""]
+                                            
+                                        tot_acc = len(df_pdi_exp)
+                                        col_av = next((c for c in df_pdi_exp.columns if 'Avance' in c), None)
+                                        promedio = 0.0
+                                        if col_av and tot_acc > 0:
+                                            avances = df_pdi_exp[col_av].astype(str).str.replace('%', '', regex=False).str.extract(r'(\d+)').astype(float)
+                                            promedio = round(avances[0].mean(), 1) if not avances.isna().all().all() else 0.0
+                                            
+                                        personas_con_pdi = df_pdi_exp['Nombre'].nunique() if 'Nombre' in df_pdi_exp.columns else 0
+                                        
+                                        texto_ia = f"""
+                                        **💡 Hallazgos de Desarrollo (70-20-10):**
+                                        - De los colaboradores a exportar, **{personas_con_pdi}** cuentan con un Plan de Desarrollo activo.
+                                        - Hay un total de **{tot_acc} acciones de desarrollo** registradas para este grupo.
+                                        - El **avance promedio general es del {promedio}%**.
+                                        - **Contexto:** Utiliza el Excel para revisar si las acciones 70% (experiencia) están correctamente alineadas a las brechas de sucesión.
+                                        """
+                                        st.success(texto_ia)
+                                        
+                        st.write("")
+                        if 'columnas_seleccionadas' in locals() and columnas_seleccionadas and not df_base_export.empty:
+                            df_export = df_base_export[columnas_seleccionadas]
+                            csv_data = df_export.to_csv(index=False).encode('utf-8-sig')
+                            
+                            st.download_button(
+                                label="📥 3️⃣ Descargar Reporte a Excel (CSV)",
+                                data=csv_data,
+                                file_name=f'Reporte_Inteligente_{st.session_state["nombre_usuario"].replace(" ", "_")}.csv',
+                                mime='text/csv',
+                                use_container_width=True,
+                                type="primary"
+                            )
+                        elif 'columnas_seleccionadas' in locals() and not columnas_seleccionadas:
+                            st.warning("⚠️ Selecciona al menos una columna en el Paso 1 para habilitar la descarga del archivo.")
 
                     with tab_admin:
                         st.markdown("### ⚙️ Gestión de Usuarios Directivos")
