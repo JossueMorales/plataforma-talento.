@@ -284,7 +284,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
                 if es_critica:
                     r_list.append("⚠️ Riesgo Operativo Moderado: Titular clave en riesgo de fuga medio")
                 else:
-                    r_list.append("⚠️ Precaución: Riesgo de fuga medio")
+                    r_list.append("⚠️️ Precaución: Riesgo de fuga medio")
                 
             if info['es_lider']:
                 eng_area = info['enganche_area']
@@ -692,7 +692,7 @@ def renderizar_mi_pdi(df_completo, df_pdi):
         btn_guardar_pdi = st.form_submit_button("💾 Guardar y Compartir mi PDI con mi Líder", use_container_width=True)
         
         if btn_guardar_pdi:
-            with st.spinner("☁️ Sincronizando con Base de Datos (Múltiples Filas)..."):
+            with st.spinner("☁️️ Sincronizando con Base de Datos (Múltiples Filas)..."):
                 try:
                     secretos = st.secrets["connections"]["gsheets"]
                     credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
@@ -1328,7 +1328,7 @@ def main():
                         elif indice_riesgo_global <= 60:
                             color_riesgo = "#ca8a04" # Amarillo
                             estatus_riesgo = "Estable (Riesgo Moderado)"
-                            icono_riesgo = "⚠️"
+                            icono_riesgo = "⚠️️"
                         else:
                             color_riesgo = "#dc2626" # Rojo
                             estatus_riesgo = "Vulnerabilidad Alta"
@@ -2116,6 +2116,17 @@ def main():
                         nodos_estrictos_ids = kpis.get('nodos_visibles_ids', [])
                         df_reportes_estricto = df_reportes_base[df_reportes_base['id_clean'].isin(nodos_estrictos_ids)].copy()
                         
+                        # --- NUEVO CANDADO FANTASMA (Adiós Andrés) ---
+                        is_admin = st.session_state.get("id_usuario") == "admin"
+                        wants_level_5 = is_admin and (('5' in f_jerarquia) or (f_puesto and any('DIRECTOR GENERAL' in p.upper() for p in f_puesto)))
+                        
+                        if not wants_level_5:
+                            col_jer_rep = next((c for c in df_reportes_estricto.columns if 'jerárquico' in str(c).lower() or 'jerarquico' in str(c).lower()), 'Nivel Jerárquico')
+                            df_reportes_estricto = df_reportes_estricto[
+                                (df_reportes_estricto[col_jer_rep].astype(str).str.strip() != '5') &
+                                (~df_reportes_estricto['Nombre de la Posición'].astype(str).str.upper().str.contains('DIRECTOR GENERAL'))
+                            ]
+                        
                         st.markdown("#### 1️⃣ Configuración de los Datos")
                         col_rep1, col_rep2 = st.columns([1, 2])
                         with col_rep1:
@@ -2238,7 +2249,7 @@ def main():
                                 st.success(texto_ia)
                                 
                             elif "Sucesión" in tipo_analisis:
-                                df_suc_analisis = df_base_export[df_base_export['Posición Crítica'].astype(str).str.strip().str.lower() == 'si'].copy() if tipo_reporte != "Solo Posiciones Críticas" else df_base_export.copy()
+                                df_suc_analisis = posiciones_criticas_filtro.copy() if tipo_reporte == "Solo Posiciones Críticas" else df_reportes_estricto[df_reportes_estricto['Posición Crítica'].astype(str).str.strip().str.lower() == 'si'].copy()
                                 
                                 if df_suc_analisis.empty:
                                     st.info("💡 En la selección actual no hay posiciones críticas para analizar la sucesión.")
@@ -2249,13 +2260,35 @@ def main():
                                     rep_mas_3 = (df_suc_analisis['Cat_Sucesion'] == 'mas_3_anos').sum()
                                     rep_sin = (df_suc_analisis['Cat_Sucesion'] == 'sin_sucesor').sum()
                                     
+                                    sucs_inm_rep = set()
+                                    sucs_1_3_rep = set()
+                                    sucs_mas_3_rep = set()
+                                    sucs_totales = set()
+                                    invalid_sucs_local = ['pendiente', 'nan', 'none', '', 'no definido', 'sin sucesor identificado']
+                                    
+                                    for i in range(1, 6):
+                                        c_suc = f'Sucesor P.{i}' if f'Sucesor P.{i}' in df_suc_analisis.columns else (f'Sucesor {i}' if f'Sucesor {i}' in df_suc_analisis.columns else None)
+                                        c_read = next((c for c in df_suc_analisis.columns if f'readiness {i}' in str(c).lower()), None)
+                                        if c_suc and c_read:
+                                            for _, r in df_suc_analisis.iterrows():
+                                                n_s = clean_text(r.get(c_suc, '')).strip()
+                                                r_s = clean_text(r.get(c_read, '')).strip().lower()
+                                                if n_s and n_s.lower() not in invalid_sucs_local:
+                                                    sucs_totales.add(n_s)
+                                                    if 'inmediato' in r_s: sucs_inm_rep.add(n_s)
+                                                    elif '1 a 3' in r_s: sucs_1_3_rep.add(n_s)
+                                                    elif 'mas de 3' in r_s or 'más de 3' in r_s: sucs_mas_3_rep.add(n_s)
+                                    
                                     texto_ia = f"""
                                     **💡 Hallazgos de Sucesión y Riesgo:**
                                     - Tienes **{len(df_suc_analisis)} posiciones críticas** en esta exportación.
-                                    - **{rep_inm}** tienen cobertura **Inmediata**.
-                                    - **{rep_1_3}** tienen cobertura a **1-3 años**.
-                                    - **{rep_mas_3}** tienen cobertura a **+3 años**.
-                                    - 🚨 **{rep_sin}** se encuentran **sin sucesor identificado**, lo que representa tu foco inmediato de vulnerabilidad operativa.
+                                    - Tu "banca de talento" total cuenta con **{len(sucs_totales)} personas únicas** mapeadas como sucesores en diferentes plazos.
+
+                                    **Salud por Posición:**
+                                    - 🟢 **{rep_inm} posiciones** tienen cobertura **Inmediata** (tienes {len(sucs_inm_rep)} talentos listos para asumir hoy).
+                                    - 🟡 **{rep_1_3} posiciones** tienen cobertura a **1-3 años** (tienes {len(sucs_1_3_rep)} talentos en desarrollo a mediano plazo).
+                                    - 🔵 **{rep_mas_3} posiciones** tienen cobertura a **+3 años** (tienes {len(sucs_mas_3_rep)} talentos a largo plazo).
+                                    - 🚨 **{rep_sin} posiciones** se encuentran **sin sucesor identificado**, lo que representa tu foco inmediato de vulnerabilidad operativa.
                                     """
                                     st.success(texto_ia)
                                     
