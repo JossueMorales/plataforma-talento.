@@ -36,19 +36,6 @@ COLUMNAS_PDI = [
 ]
 
 # ==========================================
-# ESCÁNER UNIVERSAL DE COLUMNAS (ANTIBALAS)
-# ==========================================
-def buscar_columna(columnas, palabra_clave, numero=None):
-    """Busca una columna ignorando espacios, puntos, mayúsculas y símbolos."""
-    palabra_limpia = re.sub(r'[^a-z0-9]', '', str(palabra_clave).lower())
-    for col in columnas:
-        col_limpia = re.sub(r'[^a-z0-9]', '', str(col).lower())
-        if palabra_limpia in col_limpia:
-            if numero is None or str(numero) in col_limpia:
-                return col
-    return None
-
-# ==========================================
 # MOTOR DE ORDENAMIENTO JERÁRQUICO
 # ==========================================
 def ordenar_jerarquia_talento(df, col_puesto='Nombre de la Posición', col_nombre='Nombre'):
@@ -69,6 +56,7 @@ def ordenar_jerarquia_talento(df, col_puesto='Nombre de la Posición', col_nombr
         
     df = df.sort_values(by=cols_sort)
     return df.drop(columns=['_peso_jerarquia'])
+
 
 # ==========================================
 # SISTEMA DE CACHÉ INTELIGENTE Y DESCARGA
@@ -196,11 +184,11 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
             empleados_validos.add(emp)
             G_jerarquia.add_node(emp)
             
-            suc1_limpio = buscar_id_real(row_dict.get(buscar_columna(row_dict.keys(), 'sucesor', 1), ''))
-            suc2_limpio = buscar_id_real(row_dict.get(buscar_columna(row_dict.keys(), 'sucesor', 2), ''))
-            suc3_limpio = buscar_id_real(row_dict.get(buscar_columna(row_dict.keys(), 'sucesor', 3), ''))
-            suc4_limpio = buscar_id_real(row_dict.get(buscar_columna(row_dict.keys(), 'sucesor', 4), ''))
-            suc5_limpio = buscar_id_real(row_dict.get(buscar_columna(row_dict.keys(), 'sucesor', 5), ''))
+            suc1_limpio = buscar_id_real(row_dict.get('Sucesor P.1', row_dict.get('Sucesor 1', '')))
+            suc2_limpio = buscar_id_real(row_dict.get('Sucesor P.2', row_dict.get('Sucesor 2', '')))
+            suc3_limpio = buscar_id_real(row_dict.get('Sucesor P.3', row_dict.get('Sucesor 3', '')))
+            suc4_limpio = buscar_id_real(row_dict.get('Sucesor P.4', row_dict.get('Sucesor 4', '')))
+            suc5_limpio = buscar_id_real(row_dict.get('Sucesor P.5', row_dict.get('Sucesor 5', '')))
             
             info_nodos[emp] = {
                 'jerarquia': clean_text(row_dict.get(jer_key, 'N/A')),
@@ -214,11 +202,11 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
                 'critica': clean_text(row_dict.get('Posición Crítica', row_dict.get('Posicion Critica')), 'No'),
                 'nombre': clean_text(row_dict.get('Nombre')),
                 'interes': clean_text(row_dict.get('Interés del Colaborador'), 'Pendiente'),
-                'suc1_id': suc1_limpio, 'read1': clean_text(row_dict.get(buscar_columna(row_dict.keys(), 'readiness', 1)), 'Pendiente'),
-                'suc2_id': suc2_limpio, 'read2': clean_text(row_dict.get(buscar_columna(row_dict.keys(), 'readiness', 2)), ''),
-                'suc3_id': suc3_limpio, 'read3': clean_text(row_dict.get(buscar_columna(row_dict.keys(), 'readiness', 3)), ''),
-                'suc4_id': suc4_limpio, 'read4': clean_text(row_dict.get(buscar_columna(row_dict.keys(), 'readiness', 4)), ''),
-                'suc5_id': suc5_limpio, 'read5': clean_text(row_dict.get(buscar_columna(row_dict.keys(), 'readiness', 5)), ''),
+                'suc1_id': suc1_limpio, 'read1': clean_text(row_dict.get('Tiempo de Readiness 1'), 'Pendiente'),
+                'suc2_id': suc2_limpio, 'read2': clean_text(row_dict.get('Tiempo de Readiness 2'), ''),
+                'suc3_id': suc3_limpio, 'read3': clean_text(row_dict.get('Tiempo de Readiness 3'), ''),
+                'suc4_id': suc4_limpio, 'read4': clean_text(row_dict.get('Tiempo de Readiness 4'), ''),
+                'suc5_id': suc5_limpio, 'read5': clean_text(row_dict.get('Tiempo de Readiness 5'), ''),
                 'enganche_ind': eng_val, 'enganche_area': 0.0, 'es_lider': False
             }
             if jefe:
@@ -296,7 +284,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
                 if es_critica:
                     r_list.append("⚠️ Riesgo Operativo Moderado: Titular clave en riesgo de fuga medio")
                 else:
-                    r_list.append("⚠️️ Precaución: Riesgo de fuga medio")
+                    r_list.append("⚠️ Precaución: Riesgo de fuga medio")
                 
             if info['es_lider']:
                 eng_area = info['enganche_area']
@@ -1027,7 +1015,7 @@ def main():
             puestos_opciones = sorted(df_temp_puestos['Nombre de la Posición'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
             
             with col_f7:
-                auto_puestos = st.checkbox("☑️️ Auto-seleccionar puestos filtrados", value=False)
+                auto_puestos = st.checkbox("☑️ Auto-seleccionar puestos filtrados", value=False)
                 f_puesto = st.multiselect("Posición / Puesto", options=puestos_opciones, default=puestos_opciones if auto_puestos else None, placeholder="Todos")
             
             col_chk1, col_chk2 = st.columns(2)
@@ -1161,8 +1149,8 @@ def main():
                         estados_encontrados = []
                         
                         for i in range(1, 6):
-                            c_s = buscar_columna(row.index, 'sucesor', i)
-                            c_r = buscar_columna(row.index, 'readiness', i)
+                            c_s = next((c for c in row.index if f'sucesor p.{i}' in str(c).lower() or f'sucesor {i}' in str(c).lower()), None)
+                            c_r = next((c for c in row.index if f'readiness {i}' in str(c).lower()), None)
                             
                             if c_s and c_r:
                                 suc_val = clean_text(row.get(c_s, '')).strip().lower()
@@ -1202,8 +1190,8 @@ def main():
                         sucs_mas_3 = set()
 
                         for i in range(1, 6):
-                            c_suc = buscar_columna(df_posiciones_filtradas.columns, 'sucesor', i)
-                            c_read = buscar_columna(df_posiciones_filtradas.columns, 'readiness', i)
+                            c_suc = next((c for c in df_posiciones_filtradas.columns if f'sucesor p.{i}' in str(c).lower() or f'sucesor {i}' in str(c).lower()), None)
+                            c_read = next((c for c in df_posiciones_filtradas.columns if f'readiness {i}' in str(c).lower()), None)
                             
                             if c_suc and c_read:
                                 for _, r in df_posiciones_filtradas.iterrows():
@@ -1297,7 +1285,7 @@ def main():
                             lider_nombre = dict_nom_global.get(jefe_id, 'Líder Desconocido')
                             
                             # Extraer Readiness
-                            readiness_list = [str(row.get(buscar_columna(row.keys(), 'readiness', i), '')).lower() for i in range(1, 6)]
+                            readiness_list = [str(row.get(f'Tiempo de Readiness {i}', '')).lower() for i in range(1, 6)]
                             tiene_inmediato = any('inmediato' in r for r in readiness_list)
                             tiene_1a3 = any('1 a 3' in r for r in readiness_list)
                             tiene_mas3 = any('más de 3' in r or 'mas de 3' in r for r in readiness_list)
@@ -1471,8 +1459,8 @@ def main():
                                 sucs = []
                                 reads = []
                                 for i in range(1, 6):
-                                    c_suc = buscar_columna(df_posiciones_filtradas.columns, 'sucesor', i)
-                                    c_read = buscar_columna(df_posiciones_filtradas.columns, 'readiness', i)
+                                    c_suc = next((c for c in df_posiciones_filtradas.columns if f'sucesor p.{i}' in str(c).lower() or f'sucesor {i}' in str(c).lower()), None)
+                                    c_read = next((c for c in df_posiciones_filtradas.columns if f'readiness {i}' in str(c).lower()), None)
                                     
                                     sucs.append(clean_text(r.get(c_suc, '')) if c_suc else '')
                                     reads.append(clean_text(r.get(c_read, '')) if c_read else '')
@@ -1705,11 +1693,12 @@ def main():
                             
                         st.markdown(f"**Nivel de Vulnerabilidad:** {nivel_vulnerabilidad}")
                         
-                        def leer_campo(keyword, num=None):
-                            c_name = buscar_columna(info_pos.index, keyword, num)
-                            if c_name:
-                                val = info_pos[c_name]
-                                return clean_text(val) if pd.notna(val) else ""
+                        def leer_campo(keyword1, keyword2=None):
+                            for c in info_pos.index:
+                                cl = str(c).strip().lower()
+                                if keyword1.lower() in cl or (keyword2 and keyword2.lower() in cl):
+                                    val = info_pos[c]
+                                    return clean_text(val) if pd.notna(val) else ""
                             return ""
                             
                         c_riesgo_fuga = leer_campo('riesgo de fuga')
@@ -1757,10 +1746,10 @@ def main():
                             eng_key = next((k for k in row.keys() if k and 'enganche' in str(k).lower()), None)
                             eng = "🔒" if ocultar_metricas else (clean_text(row.get(eng_key, 'N/A')) if eng_key else 'N/A')
                             
-                            c_suc_temp = buscar_columna(row.index, 'sucesor', 1)
+                            c_suc_temp = next((c for c in row.index if 'sucesor p.1' in str(c).lower() or 'sucesor 1' in str(c).lower()), None)
                             suc1 = get_nom(row.get(c_suc_temp, '')) if c_suc_temp else 'Pendiente'
                             
-                            c_read_temp = buscar_columna(row.index, 'readiness', 1)
+                            c_read_temp = next((c for c in row.index if 'readiness 1' in str(c).lower()), None)
                             read1 = clean_text(row.get(c_read_temp, '')) if c_read_temp else ''
                             
                             st.markdown(f"""
@@ -1853,10 +1842,10 @@ def main():
                         c_pos = []
                         c_opos = []
                         for i in range(1, 6):
-                            c_sucs.append(leer_campo('sucesor', i) or "Pendiente")
-                            c_reads.append(leer_campo('readiness', i) or "Pendiente")
-                            c_pos.append(leer_campo('positivo', i))
-                            c_opos.append(leer_campo('oportunidad', i))
+                            c_sucs.append(leer_campo(f'sucesor p.{i}', f'sucesor {i}') or "Pendiente")
+                            c_reads.append(leer_campo(f'readiness {i}') or "Pendiente")
+                            c_pos.append(leer_campo(f'positivo {i}'))
+                            c_opos.append(leer_campo(f'oportunidad {i}'))
                             
                             if c_sucs[-1] not in opciones_sucesores: opciones_sucesores.append(c_sucs[-1])
                             if c_reads[-1] not in opciones_tiempo: opciones_tiempo.append(c_reads[-1])
@@ -1935,7 +1924,7 @@ def main():
                         st.markdown("#### 📋 Plan de Acción / Comentarios Adicionales")
                         st.info("Utiliza este espacio para justificar si no hay sucesores o detallar el plan a seguir.")
                         
-                        c_plan_accion = leer_campo('comentarios de sucesión', 'comentarios de sucesion') 
+                        c_plan_accion = leer_campo('Comentarios de Sucesión') 
                         n_plan_accion = st.text_area("Comentarios del Plan de Acción:", value=c_plan_accion, height=100, key=f"t_plan_accion_{pos_seleccionada}")
                         
                         st.write("")
@@ -1954,20 +1943,21 @@ def main():
                                     
                                     headers_bd = pestana.row_values(1)
                                     
-                                    def idx_col_dinamico(kw, num=None):
-                                        c_name = buscar_columna(headers_bd, kw, num)
-                                        if c_name:
-                                            return headers_bd.index(c_name) + 1
+                                    def idx_col_dinamico(kw1, kw2=None):
+                                        for i, header in enumerate(headers_bd):
+                                            hl = str(header).strip().lower()
+                                            if kw1 in hl or (kw2 and kw2 in hl):
+                                                return i + 1
                                         return None
                                     
                                     idx_emergencia = idx_col_dinamico('emergencia')
-                                    idx_plan_accion = idx_col_dinamico('comentarios de')
+                                    idx_plan_accion = idx_col_dinamico('comentarios de sucesión', 'comentarios de sucesion')
                                     idx_riesgo_fuga = idx_col_dinamico('riesgo de fuga')
                                     
-                                    idxs_sucs = [idx_col_dinamico('sucesor', i) for i in range(1, 6)]
-                                    idxs_reads = [idx_col_dinamico('readiness', i) for i in range(1, 6)]
-                                    idxs_pos = [idx_col_dinamico('positivo', i) for i in range(1, 6)]
-                                    idxs_opos = [idx_col_dinamico('oportunidad', i) for i in range(1, 6)]
+                                    idxs_sucs = [idx_col_dinamico(f'sucesor p.{i}', f'sucesor {i}') for i in range(1, 6)]
+                                    idxs_reads = [idx_col_dinamico(f'readiness {i}') for i in range(1, 6)]
+                                    idxs_pos = [idx_col_dinamico(f'positivo {i}') for i in range(1, 6)]
+                                    idxs_opos = [idx_col_dinamico(f'oportunidad {i}') for i in range(1, 6)]
                                     
                                     for idx_p in df_ocupantes.index:
                                         idx_excel = idx_p + 2 
@@ -2174,9 +2164,9 @@ def main():
                                                 'EDR': clean_text(row_emp.get('EDR', row_emp.get('EDR ', '')))
                                             }
                                     
-                                    for i in range(1, 6):
-                                        col_suc_name = buscar_columna(df_base_export.columns, 'sucesor', i)
-                                        if col_suc_name:
+                                    for i in range(1, 4):
+                                        col_suc_name = next((c for c in df_base_export.columns if f'sucesor p.{i}' in str(c).lower() or f'sucesor {i}' in str(c).lower()), None)
+                                        if col_suc_name in df_base_export.columns:
                                             dir_list, jer_list, box_list, edr_list = [], [], [], []
                                             for _, r in df_base_export.iterrows():
                                                 suc_val = str(r.get(col_suc_name, '')).strip().lower()
@@ -2201,11 +2191,11 @@ def main():
                             columnas_limpias = [c for c in todas_las_columnas if c not in ['id_clean', 'Cat_Sucesion', 'Tiene_Sucesor', '_peso_jerarquia', 'Sucesor_Limpio']]
                             
                             col_jer_limpia = next((c for c in columnas_limpias if 'jerárquico' in str(c).lower() or 'jerarquico' in str(c).lower()), 'Nivel Jerárquico')
-                            col_suc1_limpia = buscar_columna(columnas_limpias, 'sucesor', 1)
+                            col_suc1_limpia = next((c for c in columnas_limpias if 'sucesor p.1' in str(c).lower() or 'sucesor 1' in str(c).lower()), None)
                             
                             cols_default = ['Nombre', 'Nombre de la Posición', 'Dirección', 'Líder', col_jer_limpia, 'Resultado 9 box', 'EDR']
                             if col_suc1_limpia:
-                                col_read1_limpia = buscar_columna(columnas_limpias, 'readiness', 1)
+                                col_read1_limpia = next((c for c in columnas_limpias if 'readiness 1' in str(c).lower()), None)
                                 if col_read1_limpia: cols_default.append(col_read1_limpia)
                                 cols_default.append(col_suc1_limpia)
                             
@@ -2236,8 +2226,8 @@ def main():
                                 invalid_sucs = ['pendiente', 'nan', 'none', '', 'no definido', 'sin sucesor identificado']
                                 estados_encontrados = []
                                 for i in range(1, 6):
-                                    c_s = buscar_columna(row.index, 'sucesor', i)
-                                    c_r = buscar_columna(row.index, 'readiness', i)
+                                    c_s = next((c for c in row.index if f'sucesor p.{i}' in str(c).lower() or f'sucesor {i}' in str(c).lower()), None)
+                                    c_r = next((c for c in row.index if f'readiness {i}' in str(c).lower()), None)
                                     if c_s and c_r:
                                         suc_val = clean_text(row.get(c_s, '')).strip().lower()
                                         read_val = clean_text(row.get(c_r, '')).strip().lower()
@@ -2290,8 +2280,8 @@ def main():
                                     invalid_sucs_local = ['pendiente', 'nan', 'none', '', 'no definido', 'sin sucesor identificado']
                                     
                                     for i in range(1, 6):
-                                        c_suc = buscar_columna(df_suc_analisis.columns, 'sucesor', i)
-                                        c_read = buscar_columna(df_suc_analisis.columns, 'readiness', i)
+                                        c_suc = next((c for c in df_suc_analisis.columns if f'sucesor p.{i}' in str(c).lower() or f'sucesor {i}' in str(c).lower()), None)
+                                        c_read = next((c for c in df_suc_analisis.columns if f'readiness {i}' in str(c).lower()), None)
                                         if c_suc and c_read:
                                             for _, r in df_suc_analisis.iterrows():
                                                 n_s = clean_text(r.get(c_suc, '')).strip()
