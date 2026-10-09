@@ -1909,4 +1909,204 @@ def main():
                                 prom_70, prom_20, prom_10 = get_avg(mask_70), get_avg(mask_20), get_avg(mask_10)
                                 promedio_avance = get_avg(pd.Series(True, index=df_pdi_mostrar.index))
                                 
-                            st.
+                            st.markdown("#### 📊 Análisis Global del Modelo 70-20-10")
+                            pk1, pk2, pk3, pk4, pk5 = st.columns(5)
+                            
+                            with pk1:
+                                if st.button(f"📊 Total Acciones\n\n{total_acciones}", key="b_pdi_todas", use_container_width=True): 
+                                    st.session_state['filtro_pdi_cat'] = 'todas'; st.rerun()
+                            with pk2:
+                                st.button(f"📈 Avance Promedio\n\n{promedio_avance}%", key="b_pdi_prom", use_container_width=True)
+                            with pk3:
+                                if st.button(f"🔵 Experiencia (70%)\n\n{prom_70}%", key="b_pdi_70", use_container_width=True):
+                                    st.session_state['filtro_pdi_cat'] = '70'; st.rerun()
+                            with pk4:
+                                if st.button(f"🟡 Mentoring (20%)\n\n{prom_20}%", key="b_pdi_20", use_container_width=True):
+                                    st.session_state['filtro_pdi_cat'] = '20'; st.rerun()
+                            with pk5:
+                                if st.button(f"🔴 Formación (10%)\n\n{prom_10}%", key="b_pdi_10", use_container_width=True):
+                                    st.session_state['filtro_pdi_cat'] = '10'; st.rerun()
+                                    
+                            st.write("---")
+                            
+                            if 'filtro_pdi_cat' in st.session_state and st.session_state['filtro_pdi_cat'] not in ['todas', None]:
+                                f_cat = st.session_state['filtro_pdi_cat']
+                                if col_pdi_kpi:
+                                    df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar[col_pdi_kpi].astype(str).str.contains(f_cat)]
+                                    c_f1, c_f2 = st.columns([8, 2])
+                                    c_f1.info(f"👆 **Filtro Activo:** Mostrando exclusivamente las acciones de la categoría **{f_cat}%**.")
+                                    if c_f2.button("❌ Quitar filtro", use_container_width=True): st.session_state['filtro_pdi_cat'] = None; st.rerun()
+                            
+                            col_p1, col_p2, col_p3 = st.columns(3)
+                            if "Colaborador" in df_pdi_mostrar.columns:
+                                lista_nombres_pdi = sorted(df_pdi_mostrar['Colaborador'].dropna().astype(str).unique().tolist())
+                                filtro_nombre = col_p1.multiselect("👤 Filtrar por Colaborador:", options=lista_nombres_pdi)
+                                if filtro_nombre: df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Colaborador'].isin(filtro_nombre)]
+                            
+                            col_filtro_cat = col_pdi_kpi if col_pdi_kpi else next((c for c in df_pdi_mostrar.columns if 'Clasificación' in c), None)
+                            if col_filtro_cat:
+                                lista_clasif_pdi = sorted(df_pdi_mostrar[col_filtro_cat].dropna().astype(str).unique().tolist())
+                                filtro_clasif = col_p2.multiselect("🏷️ Filtrar por Categoría / PDI:", options=lista_clasif_pdi)
+                                if filtro_clasif: df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar[col_filtro_cat].isin(filtro_clasif)]
+                            
+                            if "Estatus" in df_pdi_mostrar.columns:
+                                lista_estatus_pdi = sorted(df_pdi_mostrar['Estatus'].dropna().astype(str).unique().tolist())
+                                filtro_estatus = col_p3.multiselect("🚦 Filtrar por Estatus:", options=lista_estatus_pdi)
+                                if filtro_estatus: df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Estatus'].isin(filtro_estatus)]
+                            
+                            st.dataframe(df_pdi_mostrar, use_container_width=True, hide_index=True)
+                        else: st.warning("⚠️ Esperando el primer guardado para construir la tabla de seguimiento.")
+                    else: st.warning("⚠️ No hay planes de desarrollo registrados en el equipo todavía.")
+                
+                with tab_mi_pdi:
+                    renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior)
+                
+                if st.session_state["id_usuario"] == "admin":
+                    with tab_reportes:
+                        st.markdown("### 🧠 Inteligencia de Datos y Reportes")
+                        st.info("Esta sección es exclusiva para la Dirección. Configura tu reporte, elige el enfoque del análisis y descarga la información limpia.")
+                        
+                        df_reportes_base = df_seguro.copy()
+                        df_reportes_base['id_clean'] = df_reportes_base['id Empleado'].apply(clean_id)
+                        nodos_estrictos_ids = kpis.get('nodos_visibles_ids', [])
+                        df_reportes_estricto = df_reportes_base[df_reportes_base['id_clean'].isin(nodos_estrictos_ids)].copy()
+                        
+                        is_admin = st.session_state.get("id_usuario") == "admin"
+                        wants_level_5 = is_admin and (('5' in f_jerarquia) or (f_puesto and any('DIRECTOR GENERAL' in p.upper() for p in f_puesto)))
+                        
+                        if not wants_level_5:
+                            col_jer_rep = next((c for c in df_reportes_estricto.columns if 'jerárquico' in str(c).lower() or 'jerarquico' in str(c).lower()), 'Nivel Jerárquico')
+                            df_reportes_estricto = df_reportes_estricto[
+                                (df_reportes_estricto[col_jer_rep].astype(str).str.strip() != '5') &
+                                (~df_reportes_estricto['Nombre de la Posición'].astype(str).str.upper().str.contains('DIRECTOR GENERAL'))
+                            ]
+                        
+                        st.markdown("#### 1️⃣ Configuración de los Datos")
+                        col_rep1, col_rep2 = st.columns([1, 2])
+                        with col_rep1:
+                            tipo_reporte = st.radio("¿A quiénes deseas incluir en las filas?", ["Solo Posiciones Críticas", "Todos los Colaboradores (Según filtros)"])
+                            enriquecer_reporte = st.checkbox("🔄 Enriquecer reporte con datos de Sucesores (Dirección, 9-Box, EDR, etc.)", value=False)
+                        
+                        posiciones_criticas_filtro = df_reportes_estricto[df_reportes_estricto['Posición Crítica'].astype(str).str.strip().str.lower() == 'si'].copy()
+                        df_base_export = posiciones_criticas_filtro.copy() if tipo_reporte == "Solo Posiciones Críticas" else df_reportes_estricto.copy()
+                        
+                        if not df_base_export.empty:
+                            if enriquecer_reporte:
+                                with st.spinner("Cruzando datos de talento en memoria..."):
+                                    dict_empleados = {}
+                                    jer_key_global = next((k for k in df_completo.columns if 'jerárquico' in str(k).lower() or 'jerarquico' in str(k).lower()), 'Nivel Jerárquico')
+                                    for _, row_emp in df_completo.iterrows():
+                                        nom_key = str(row_emp.get('Nombre', '')).strip().lower()
+                                        if nom_key:
+                                            dict_empleados[nom_key] = {
+                                                'Dirección': clean_text(row_emp.get('Dirección', row_emp.get('Direccion', ''))),
+                                                'Nivel Jerárquico': clean_text(row_emp.get(jer_key_global, '')),
+                                                '9-Box': clean_text(row_emp.get('Resultado 9 box', '')),
+                                                'EDR': clean_text(row_emp.get('EDR', row_emp.get('EDR ', '')))
+                                            }
+                                    
+                                    for i in range(1, 6):
+                                        col_suc_name = buscar_columna(df_base_export.columns, 'sucesor', i)
+                                        if col_suc_name:
+                                            dir_list, jer_list, box_list, edr_list = [], [], [], []
+                                            for _, r in df_base_export.iterrows():
+                                                suc_val = str(r.get(col_suc_name, '')).strip().lower()
+                                                if suc_val and suc_val not in ['pendiente', 'nan', 'none', '', 'no definido', 'sin sucesor identificado']:
+                                                    datos_suc = dict_empleados.get(suc_val, {})
+                                                    dir_list.append(datos_suc.get('Dirección', 'No Encontrado'))
+                                                    jer_list.append(datos_suc.get('Nivel Jerárquico', 'N/A'))
+                                                    box_list.append(datos_suc.get('9-Box', 'Pendiente'))
+                                                    edr_list.append(datos_suc.get('EDR', 'Pendiente'))
+                                                else:
+                                                    dir_list.append(''); jer_list.append(''); box_list.append(''); edr_list.append('')
+                                            
+                                            df_base_export[f'Sucesor {i} - Dirección'] = dir_list
+                                            df_base_export[f'Sucesor {i} - Nivel Jerárquico'] = jer_list
+                                            df_base_export[f'Sucesor {i} - 9 Box'] = box_list
+                                            df_base_export[f'Sucesor {i} - EDR'] = edr_list
+
+                            todas_las_columnas = df_base_export.columns.tolist()
+                            columnas_limpias = [c for c in todas_las_columnas if c not in ['id_clean', 'Cat_Sucesion', 'Tiene_Sucesor', '_peso_jerarquia', 'Sucesor_Limpio']]
+                            
+                            col_jer_limpia = next((c for c in columnas_limpias if 'jerárquico' in str(c).lower() or 'jerarquico' in str(c).lower()), 'Nivel Jerárquico')
+                            col_suc1_limpia = buscar_columna(columnas_limpias, 'sucesor', 1)
+                            
+                            cols_default = ['Nombre', 'Nombre de la Posición', 'Dirección', 'Líder', col_jer_limpia, 'Resultado 9 box', 'EDR']
+                            if col_suc1_limpia:
+                                col_read1_limpia = buscar_columna(columnas_limpias, 'readiness', 1)
+                                if col_read1_limpia: cols_default.append(col_read1_limpia)
+                                cols_default.append(col_suc1_limpia)
+                            
+                            if enriquecer_reporte: cols_default.extend(['Sucesor 1 - Dirección', 'Sucesor 1 - 9 Box', 'Sucesor 1 - EDR'])
+                            cols_sugeridas = [c for c in cols_default if c in columnas_limpias]
+                            
+                            with col_rep2:
+                                columnas_seleccionadas = st.multiselect("Selecciona las columnas a exportar:", options=columnas_limpias, default=cols_sugeridas)
+                        
+                        st.write("---")
+                        st.markdown("#### 🤖 2️⃣ Analista Interno (Resumen Automático)")
+                        tipo_analisis = st.radio("Selecciona el enfoque del análisis de IA:", ["🏢 Análisis de Estructura (Demografía)", "🔀 Análisis de Sucesión (Riesgo)", "📈 Análisis de Desarrollo (PDI)"], horizontal=True)
+                        
+                        if df_base_export.empty: st.warning("⚠️ No hay datos con los filtros actuales para analizar.")
+                        else:
+                            def eval_status_rep(row):
+                                invalid_sucs = ['pendiente', 'nan', 'none', '', 'no definido', 'sin sucesor identificado']
+                                estados_encontrados = []
+                                for i in range(1, 6):
+                                    c_s = buscar_columna(row.index, 'sucesor', i)
+                                    c_r = buscar_columna(row.index, 'readiness', i)
+                                    if c_s and c_r:
+                                        suc_val, read_val = clean_text(row.get(c_s, '')).strip().lower(), clean_text(row.get(c_r, '')).strip().lower()
+                                        if suc_val and suc_val not in invalid_sucs and "vacante" not in suc_val:
+                                            if 'inmediato' in read_val: estados_encontrados.append(1)
+                                            elif '1 a 3' in read_val: estados_encontrados.append(2)
+                                            elif 'mas de 3' in read_val or 'más de 3' in read_val: estados_encontrados.append(3)
+                                            else: estados_encontrados.append(4)
+                                if not estados_encontrados: return 'sin_sucesor'
+                                mejor_estado = min(estados_encontrados)
+                                if mejor_estado == 1: return 'inmediato'
+                                if mejor_estado == 2: return '1_3_anos'
+                                if mejor_estado == 3: return 'mas_3_anos'
+                                return 'pendiente'
+
+                            if "Estructura" in tipo_analisis:
+                                tot = len(df_base_export)
+                                dirs_count = df_base_export['Dirección'].nunique() if 'Dirección' in df_base_export.columns else 0
+                                jer_col = next((c for c in df_base_export.columns if 'jerárquico' in str(c).lower() or 'jerarquico' in str(c).lower()), None)
+                                if jer_col:
+                                    j_counts = df_base_export[jer_col].value_counts().to_dict()
+                                    j_text = ", ".join([f"Nivel {k}: {v}" for k, v in j_counts.items() if str(k).strip() != ''])
+                                else: j_text = "N/A"
+                                
+                                texto_ia = f"**💡 Hallazgos Estructurales:**\n- Vas a exportar un total de **{tot} colaboradores** distribuidos en **{dirs_count} Direcciones/Áreas**.\n- **Desglose Jerárquico:** {j_text}.\n- **Contexto:** Esta vista te permite auditar la composición de tu plantilla y asegurar que la distribución de talento esté equilibrada."
+                                st.success(texto_ia)
+                                
+                            elif "Sucesión" in tipo_analisis:
+                                df_suc_analisis = posiciones_criticas_filtro.copy() if tipo_reporte == "Solo Posiciones Críticas" else df_reportes_estricto[df_reportes_estricto['Posición Crítica'].astype(str).str.strip().str.lower() == 'si'].copy()
+                                
+                                if df_suc_analisis.empty: st.info("💡 En la selección actual no hay posiciones críticas para analizar la sucesión.")
+                                else:
+                                    df_suc_analisis['Cat_Sucesion'] = df_suc_analisis.apply(eval_status_rep, axis=1)
+                                    rep_inm, rep_1_3, rep_mas_3, rep_sin = (df_suc_analisis['Cat_Sucesion'] == 'inmediato').sum(), (df_suc_analisis['Cat_Sucesion'] == '1_3_anos').sum(), (df_suc_analisis['Cat_Sucesion'] == 'mas_3_anos').sum(), (df_suc_analisis['Cat_Sucesion'] == 'sin_sucesor').sum()
+                                    sucs_inm_rep, sucs_1_3_rep, sucs_mas_3_rep, sucs_totales = set(), set(), set(), set()
+                                    invalid_sucs_local = ['pendiente', 'nan', 'none', '', 'no definido', 'sin sucesor identificado']
+                                    
+                                    for i in range(1, 6):
+                                        c_suc, c_read = buscar_columna(df_suc_analisis.columns, 'sucesor', i), buscar_columna(df_suc_analisis.columns, 'readiness', i)
+                                        if c_suc and c_read:
+                                            for _, r in df_suc_analisis.iterrows():
+                                                n_s, r_s = clean_text(r.get(c_suc, '')).strip(), clean_text(r.get(c_read, '')).strip().lower()
+                                                if n_s and n_s.lower() not in invalid_sucs_local and "vacante" not in n_s.lower():
+                                                    sucs_totales.add(n_s)
+                                                    if 'inmediato' in r_s: sucs_inm_rep.add(n_s)
+                                                    elif '1 a 3' in r_s: sucs_1_3_rep.add(n_s)
+                                                    elif 'mas de 3' in r_s or 'más de 3' in r_s: sucs_mas_3_rep.add(n_s)
+                                    
+                                    texto_ia = f"**💡 Hallazgos de Sucesión y Riesgo:**\n- Tienes **{len(df_suc_analisis)} posiciones críticas** en esta exportación.\n- Tu 'banca de talento' total cuenta con **{len(sucs_totales)} personas únicas**.\n\n**Salud por Posición:**\n- 🟢 **{rep_inm} posiciones** con cobertura **Inmediata**.\n- 🟡 **{rep_1_3} posiciones** a **1-3 años**.\n- 🔵 **{rep_mas_3} posiciones** a **+3 años**.\n- 🚨 **{rep_sin} posiciones** **sin sucesor identificado**."
+                                    st.success(texto_ia)
+                                    
+                            elif "PDI" in tipo_analisis:
+                                nombres_export = df_base_export['Nombre'].astype(str).str.strip().str.lower().tolist() if 'Nombre' in df_base_export.columns else []
+                                if df_pdi.empty or not nombres_export: st.info("💡 No hay información de PDI registrada o no seleccionaste la columna 'Nombre'.")
+                                else:
+                                    df_pdi_exp = df_pdi[df_pdi['Nombre'].astype(str).str.strip().str.lower().isin(
