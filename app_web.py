@@ -1,8 +1,4 @@
 import streamlit as st
-
-# CONFIGURACIÓN INICIAL (Debe ser el primer comando de Streamlit)
-st.set_page_config(page_title="Portal de Talento Ayvi", layout="wide")
-
 import pandas as pd
 import networkx as nx
 from pyvis.network import Network
@@ -18,16 +14,18 @@ import hashlib
 # CONSTANTES Y CONFIGURACIÓN GLOBAL
 # ==========================================
 PESTANA_PDI_ACTUAL = "PDI 2026"
-PESTANA_PDI_ANTERIOR = "PDI 2025" # Usado para el Clonado Inteligente
-LINK_ARCHIVO = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit"
-PASSWORD_POR_DEFECTO = "Ayvi2026" 
 
+# IMPORTACIONES DESDE EL ARCHIVO DE CONFIGURACIÓN
 from config_ui import (
     OPCIONES_PYVIS, SCRIPT_ANILLOS, INYECCION_HTML_JS,
     crear_tarjeta_kpi, extraer_contexto, clean_text, clean_id,
     obtener_color_9box, acortar_nombre, acortar_puesto,
     get_readiness_val, get_dispersion_offset
 )
+
+# VARIABLE GLOBAL DE BASE DE DATOS
+LINK_ARCHIVO = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit"
+PASSWORD_POR_DEFECTO = "Ayvi2026" 
 
 COLUMNAS_PDI = [
     "Nómina", "Nombre", "Puesto", "Dirección", "Líder", "Fecha Elaboración", "Departamento",
@@ -41,7 +39,7 @@ COLUMNAS_PDI = [
 # FUNCIONES DE SEGURIDAD Y UTILIDAD
 # ==========================================
 def hash_password(password):
-    """Encripta la contraseña usando SHA-256."""
+    """Encripta la contraseña usando SHA-256 para máxima seguridad."""
     return hashlib.sha256(str(password).encode('utf-8')).hexdigest()
 
 def buscar_columna(columnas, palabra_clave, numero=None):
@@ -54,7 +52,8 @@ def buscar_columna(columnas, palabra_clave, numero=None):
     return None
 
 def ordenar_jerarquia_talento(df, col_puesto='Nombre de la Posición', col_nombre='Nombre'):
-    if col_puesto not in df.columns: return df
+    if col_puesto not in df.columns:
+        return df
     def asignar_peso(puesto):
         p = str(puesto).lower()
         if 'gerente' in p or 'director' in p: return 1
@@ -62,7 +61,8 @@ def ordenar_jerarquia_talento(df, col_puesto='Nombre de la Posición', col_nombr
         return 3
     df['_peso_jerarquia'] = df[col_puesto].apply(asignar_peso)
     cols_sort = ['_peso_jerarquia', col_puesto]
-    if col_nombre in df.columns: cols_sort.append(col_nombre)
+    if col_nombre in df.columns:
+        cols_sort.append(col_nombre)
     df = df.sort_values(by=cols_sort)
     return df.drop(columns=['_peso_jerarquia'])
 
@@ -70,8 +70,7 @@ def ordenar_jerarquia_talento(df, col_puesto='Nombre de la Posición', col_nombr
 # SISTEMA DE CACHÉ INTELIGENTE Y METADATA
 # ==========================================
 @st.cache_data(ttl=300, show_spinner=False)
-def obtener_metadata(url_sheets):
-    """Obtiene el timestamp para el caché y el estado de los periodos de sucesión y PDI."""
+def obtener_timestamp_actualizacion(url_sheets):
     try:
         secretos = st.secrets["connections"]["gsheets"]
         credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets"])
@@ -79,17 +78,12 @@ def obtener_metadata(url_sheets):
         match = re.search(r'/d/([a-zA-Z0-9-_]+)', url_sheets)
         doc_id = match.group(1) if match else url_sheets
         archivo = cliente.open_by_key(doc_id)
-        
         val_a1 = archivo.worksheet("Metadata").acell('A1').value
-        val_c1 = archivo.worksheet("Metadata").acell('C1').value # Estado Sucesión
-        val_d1 = archivo.worksheet("Metadata").acell('D1').value # Estado PDI
-        
+        val_c1 = archivo.worksheet("Metadata").acell('C1').value
         estado_suc = str(val_c1).strip().upper() if val_c1 else "ABIERTO"
-        estado_pdi = str(val_d1).strip().upper() if val_d1 else "ABIERTO"
-        
-        return str(val_a1), estado_suc, estado_pdi
+        return str(val_a1), estado_suc
     except Exception: 
-        return str(int(time.time() // 600)), "ABIERTO", "ABIERTO"
+        return str(int(time.time() // 600)), "ABIERTO"
 
 @st.cache_data(show_spinner=False)
 def cargar_datos_csv(url_sheets, nombre_pestana, _timestamp):
@@ -113,6 +107,8 @@ def cargar_datos_csv(url_sheets, nombre_pestana, _timestamp):
 # SISTEMA DE SEGURIDAD Y LOGIN DINÁMICO
 # ==========================================
 def login():
+    st.set_page_config(page_title="Portal de Talento Ayvi", layout="wide")
+    
     if "usuario_logueado" not in st.session_state: 
         st.session_state["usuario_logueado"] = False
         
@@ -121,9 +117,8 @@ def login():
             "admin": {"nombre": "Administrador Global", "password": hash_password("admin"), "direccion": "TODAS", "lider": "TODOS"}
         }
         
-        current_timestamp, estado_sucesion, estado_pdi = obtener_metadata(LINK_ARCHIVO)
+        current_timestamp, estado_sucesion = obtener_timestamp_actualizacion(LINK_ARCHIVO)
         st.session_state["estado_sucesion"] = estado_sucesion
-        st.session_state["estado_pdi"] = estado_pdi
         
         df_usuarios = cargar_datos_csv(LINK_ARCHIVO, "Usuarios", current_timestamp)
         
@@ -434,14 +429,14 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
         is_hidden_map = emp not in nodos_rescatados
         is_hidden_kpi = emp not in nodos_estrictos
         
-        # INYECCIÓN VISUAL VACANTES
+        # INYECCIÓN VISUAL DE VACANTES
         is_vacante = str(emp).strip().upper().startswith("VAC-")
         
         nom_suc1 = nombres_dict.get(info['suc1_id'], info['suc1_id']) if info['suc1_id'] else ""
         nom_suc2 = nombres_dict.get(info['suc2_id'], info['suc2_id']) if info['suc2_id'] else ""
         nom_suc3 = nombres_dict.get(info['suc3_id'], info['suc3_id']) if info['suc3_id'] else ""
         
-        # Filtro Kpi: Excluir vacantes del Headcount
+        # Filtro Kpi: Excluir las vacantes de métricas de población (Para no inflar Headcount)
         if not is_hidden_kpi and not is_vacante:
             es_andres = info['jerarquia'] == '5' or 'ANDRES EDUARDO VILLARREAL' in info['nombre'].upper()
             nodo_data = {"Nombre": info['nombre'], "Dirección": info['direccion'], "Puesto": info['puesto']}
@@ -544,16 +539,8 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
 # ==========================================
 # FUNCIONES ENCAPSULADAS DE AUTOGESTIÓN (MI PDI - 70/20/10)
 # ==========================================
-def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame()):
+def renderizar_mi_pdi(df_completo, df_pdi):
     st.markdown(f"### 📝 Plan de Desarrollo Individual (PDI)")
-    
-    # CONTROL DE PERIODO PDI
-    estado_pdi = st.session_state.get("estado_pdi", "ABIERTO")
-    if estado_pdi == "CERRADO" and st.session_state.get("id_usuario") != "admin":
-        st.error("🔒 **Periodo de Captura de PDI Cerrado**")
-        st.info("El ciclo de planeación de desarrollo ha concluido. Si requieres hacer ajustes a tu PDI, contacta a Recursos Humanos.")
-        return
-
     st.info("Estructura tu aprendizaje equilibrando experiencias prácticas (70%), interacciones sociales (20%) y formación formal (10%).")
     
     nombre_colab = st.session_state["nombre_usuario"]
@@ -571,29 +558,11 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame()):
         nomina_aut, puesto_aut, dir_aut, lider_aut = "N/A", "N/A", "N/A", "N/A"
         st.warning("⚠️ No pudimos encontrar tus datos exactos en la base principal. Habla con RH.")
 
-    # CLONADO INTELIGENTE DE PDI
     datos_pdi_usuario = pd.DataFrame()
     if not df_pdi.empty and 'Nombre' in df_pdi.columns:
         nombres_pdi_limpios = df_pdi['Nombre'].astype(str).str.strip().str.lower()
         datos_pdi_usuario = df_pdi[nombres_pdi_limpios == nombre_colab.strip().lower()].copy()
         
-    if 'clonar_pdi' not in st.session_state:
-        st.session_state['clonar_pdi'] = False
-
-    if datos_pdi_usuario.empty and not df_pdi_anterior.empty and 'Nombre' in df_pdi_anterior.columns:
-        nombres_ant_limpios = df_pdi_anterior['Nombre'].astype(str).str.strip().str.lower()
-        historial = df_pdi_anterior[nombres_ant_limpios == nombre_colab.strip().lower()].copy()
-        
-        if not historial.empty:
-            if not st.session_state['clonar_pdi']:
-                st.warning("✨ Hemos detectado que tienes un Plan de Desarrollo del ciclo anterior.")
-                if st.button("🔄 Clonar estrategias del año pasado", use_container_width=True):
-                    st.session_state['clonar_pdi'] = True
-                    st.rerun()
-            else:
-                datos_pdi_usuario = historial.copy() 
-                st.success("✅ ¡Datos precargados! Actualiza tus fechas y presiona 'Guardar' al final.")
-
     fecha_elab, depto = "", ""
     rol_1, mot_1, rol_2, mot_2, rol_3, mot_3 = "", "", "", "", "", ""
     objetivo = ""
@@ -774,7 +743,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame()):
                     for f in nuevas_filas:
                         datos_a_insertar.append([str(f.get(col, "")) for col in COLUMNAS_PDI])
 
-                    # Lectura en vivo y borrado selectivo (Race Condition bypass)
                     registros_vivos = pestana_pdi_gs.get_all_values()
                     
                     if len(registros_vivos) > 0:
@@ -895,7 +863,6 @@ def main():
         
         df_completo_raw = cargar_datos_csv(LINK_ARCHIVO, "Base de datos", current_timestamp)
         df_pdi = cargar_datos_csv(LINK_ARCHIVO, PESTANA_PDI_ACTUAL, current_timestamp)
-        df_pdi_anterior = cargar_datos_csv(LINK_ARCHIVO, PESTANA_PDI_ANTERIOR, current_timestamp)
         
         if df_completo_raw.empty:
             st.error("Error al conectar con la base de datos principal.")
@@ -948,7 +915,7 @@ def main():
         col_jer = next((c for c in df_completo.columns if 'jerárquico' in str(c).lower() or 'jerarquico' in str(c).lower()), 'Nivel Jerárquico')
         
         if es_colaborador:
-            renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior)
+            renderizar_mi_pdi(df_completo, df_pdi)
         else:
             if "TODAS" not in direccion_permitida:
                 lista_dirs = [d.strip() for d in direccion_permitida.split(",")]
@@ -1972,6 +1939,9 @@ def main():
                         else: st.warning("⚠️ Esperando el primer guardado para construir la tabla de seguimiento.")
                     else: st.warning("⚠️ No hay planes de desarrollo registrados en el equipo todavía.")
                 
+                with tab_mi_pdi:
+                    renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior)
+                
                 if st.session_state["id_usuario"] == "admin":
                     with tab_reportes:
                         st.markdown("### 🧠 Inteligencia de Datos y Reportes")
@@ -2138,7 +2108,7 @@ def main():
                                         texto_ia = f"**💡 Hallazgos de Desarrollo (70-20-10):**\n- De los exportados, **{personas_con_pdi}** cuentan con PDI.\n- Total de **{tot_acc} acciones** registradas.\n- El **avance promedio general es del {promedio}%**."
                                         st.success(texto_ia)
                                         
-                        st.write("")
+                        st.write("---")
                         if 'columnas_seleccionadas' in locals() and columnas_seleccionadas and not df_base_export.empty:
                             df_export = df_base_export[columnas_seleccionadas]
                             # REGLA CRÍTICA: MATRIZ TRANSPUESTA (df_export.T)
