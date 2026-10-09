@@ -2141,4 +2141,192 @@ def main():
                         st.write("")
                         if 'columnas_seleccionadas' in locals() and columnas_seleccionadas and not df_base_export.empty:
                             df_export = df_base_export[columnas_seleccionadas]
-                            # REGLA CRÍTICA: MATRIZ TRANSPUESTA (df
+                            # REGLA CRÍTICA: MATRIZ TRANSPUESTA (df_export.T)
+                            csv_data = df_export.T.to_csv(header=False).encode('utf-8-sig')
+                            st.download_button(label="📥 3️⃣ Descargar Reporte a Excel (Formato Transpuesto)", data=csv_data, file_name=f'Reporte_Inteligente_{st.session_state["nombre_usuario"].replace(" ", "_")}.csv', mime='text/csv', use_container_width=True, type="primary")
+                        elif 'columnas_seleccionadas' in locals() and not columnas_seleccionadas:
+                            st.warning("⚠️ Selecciona al menos una columna en el Paso 1 para habilitar la descarga del archivo.")
+
+                    with tab_admin:
+                        st.markdown("### ⚙️ Gestión de Plataforma y Usuarios")
+                        
+                        # MÓDULO: Bloqueo de Periodos (Sucesión y PDI)
+                        st.markdown("#### 🔐 Control de Periodos Operativos")
+                        col_candado1, col_candado2 = st.columns(2)
+
+                        with col_candado1:
+                            estado_suc = st.session_state.get("estado_sucesion", "ABIERTO")
+                            st.info("Bloquea la edición de Sucesores.")
+                            n_estado_suc = st.radio("Estado del Módulo de Sucesión", ["ABIERTO", "CERRADO"], index=0 if estado_suc=="ABIERTO" else 1, horizontal=True)
+
+                        with col_candado2:
+                            estado_pdi_val = st.session_state.get("estado_pdi", "ABIERTO")
+                            st.info("Bloquea la captura del PDI.")
+                            n_estado_pdi = st.radio("Estado del Módulo de PDI", ["ABIERTO", "CERRADO"], index=0 if estado_pdi_val=="ABIERTO" else 1, horizontal=True)
+
+                        if st.button("Aplicar Estados de Periodos", use_container_width=True):
+                            with st.spinner("Actualizando seguridad en toda la red..."):
+                                secretos = st.secrets["connections"]["gsheets"]
+                                credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
+                                cliente = gspread.authorize(credenciales)
+                                match = re.search(r'/d/([a-zA-Z0-9-_]+)', LINK_ARCHIVO)
+                                doc_id = match.group(1) if match else LINK_ARCHIVO
+                                archivo = cliente.open_by_key(doc_id)
+                                
+                                # Guardamos en las columnas C y D de Metadata en Lote
+                                archivo.worksheet("Metadata").update(values=[[n_estado_suc, n_estado_pdi]], range_name="C1:D1")
+                                archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
+                                st.cache_data.clear()
+                                st.success(f"✅ ¡Periodos actualizados exitosamente!")
+                                time.sleep(1.5)
+                                st.rerun()
+
+                        st.divider()
+
+                        st.info("Administra los accesos a la plataforma. Estos se sincronizan en vivo con tu pestaña 'Usuarios' de Google Sheets usando encriptación SHA-256.")
+
+                        current_timestamp_u, _, _ = obtener_metadata(LINK_ARCHIVO)
+                        df_u_admin = cargar_datos_csv(LINK_ARCHIVO, "Usuarios", current_timestamp_u)
+
+                        sub_tab_nuevo, sub_tab_editar = st.tabs(["➕ Agregar Nuevo Perfil", "✏️ Editar / Eliminar Perfil"])
+
+                        with sub_tab_nuevo:
+                            with st.form("nuevo_usuario_form", clear_on_submit=True):
+                                st.markdown("#### Crear Alta de Usuario")
+                                lista_empleados_busqueda = []
+                                for _, r in df_completo.iterrows():
+                                    nom, nombre = clean_id(r.get('id Empleado')), clean_text(r.get('Nombre'))
+                                    if nom and nombre: lista_empleados_busqueda.append(f"{nom} - {nombre}")
+                                lista_empleados_busqueda = sorted(list(set(lista_empleados_busqueda)))
+                                
+                                seleccion_empleado = st.selectbox("🔍 Buscar colaborador (Por Número de Nómina o Nombre)", [""] + lista_empleados_busqueda)
+                                n_pass = st.text_input(f"Contraseña temporal (Sugerencia: {PASSWORD_POR_DEFECTO})", value=PASSWORD_POR_DEFECTO)
+                                n_dir_list = st.multiselect("🏢 Direcciones Permitidas (Elige 'TODAS', 'COLABORADOR' o múltiples áreas)", ["TODAS", "COLABORADOR"] + dirs)
+                                
+                                lideres_para_admin = sorted(df_completo['Nombre'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
+                                n_lider_list = st.multiselect("👤 Líder Restringido (Filtro por jerarquía de equipo)", ["TODOS"] + lideres_para_admin, default=["TODOS"])
+                                
+                                submit_btn = st.form_submit_button("Crear Nuevo Usuario")
+                                
+                                if submit_btn:
+                                    if seleccion_empleado and n_pass and n_dir_list:
+                                        n_user, n_nombre = seleccion_empleado.split(" - ")[0].strip(), seleccion_empleado.split(" - ")[1].strip()
+                                        n_dir = ", ".join(n_dir_list)
+                                        n_lider = ", ".join(n_lider_list) if n_lider_list else "TODOS"
+                                        
+                                        with st.spinner("🤖 Guardando y encriptando usuario..."):
+                                            try:
+                                                secretos = st.secrets["connections"]["gsheets"]
+                                                credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
+                                                cliente = gspread.authorize(credenciales)
+                                                match = re.search(r'/d/([a-zA-Z0-9-_]+)', LINK_ARCHIVO)
+                                                doc_id = match.group(1) if match else LINK_ARCHIVO
+                                                archivo = cliente.open_by_key(doc_id)
+                                                
+                                                pestana_users = archivo.worksheet("Usuarios")
+                                                pestana_users.append_row([n_user, n_nombre, hash_password(n_pass), n_dir, n_lider])
+                                                archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
+                                                
+                                                st.success(f"✅ ¡Usuario '{n_nombre}' ({n_user}) creado exitosamente! Ya puede iniciar sesión.")
+                                                st.cache_data.clear()
+                                                time.sleep(1.5)
+                                                st.rerun()
+                                            except Exception as e: st.error(f"❌ Error al crear el usuario. Detalles: {e}")
+                                    else: st.warning("⚠️ Debes seleccionar un colaborador y al menos una Dirección Permitida para crear el usuario.")
+                        
+                        with sub_tab_editar:
+                            if not df_u_admin.empty:
+                                lista_usuarios_edit = []
+                                for _, r in df_u_admin.iterrows():
+                                    u_id_val, u_nom_val = str(r.get("Usuario", "")).strip(), str(r.get("Nombre", "")).strip()
+                                    if u_id_val: lista_usuarios_edit.append(f"{u_id_val} - {u_nom_val}")
+                                
+                                usuario_a_editar = st.selectbox("🔍 Selecciona el usuario a modificar", [""] + sorted(lista_usuarios_edit))
+                                
+                                if usuario_a_editar:
+                                    u_id_sel = usuario_a_editar.split(" - ")[0].strip()
+                                    datos_u = df_u_admin[df_u_admin['Usuario'].astype(str).str.strip() == u_id_sel].iloc[0]
+                                    
+                                    c_pass = str(datos_u.get("Password", ""))
+                                    c_dir, c_lid = str(datos_u.get("Direccion", ""))
+                                    
+                                    c_dir_list = [d.strip() for d in c_dir.split(",")] if c_dir else []
+                                    opciones_dir = ["TODAS", "COLABORADOR"] + dirs
+                                    c_dir_list_valid = [d for d in c_dir_list if d in opciones_dir]
+                                    
+                                    c_lid_list = [l.strip() for l in c_lid.split(",")] if c_lid else ["TODOS"]
+                                    lideres_para_admin = sorted(df_completo['Nombre'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
+                                    opciones_lid = ["TODOS"] + lideres_para_admin
+                                    c_lid_list_valid = [l for l in c_lid_list if l in opciones_lid]
+                                    if not c_lid_list_valid: c_lid_list_valid = ["TODOS"]
+                                    
+                                    with st.form("editar_usuario_form"):
+                                        st.markdown(f"#### Editando a: {usuario_a_editar.split(' - ')[1]}")
+                                        e_pass = st.text_input("Contraseña (Dejar igual si no deseas cambiarla)", value=c_pass)
+                                        e_dir_list = st.multiselect("🏢 Direcciones Permitidas", opciones_dir, default=c_dir_list_valid)
+                                        e_lider_list = st.multiselect("👤 Líder Restringido (Filtro por jerarquía de equipo)", opciones_lid, default=c_lid_list_valid)
+                                        
+                                        col_b1, col_b2 = st.columns(2)
+                                        btn_actualizar = col_b1.form_submit_button("💾 Actualizar Permisos", type="primary", use_container_width=True)
+                                        btn_eliminar = col_b2.form_submit_button("🗑️ Eliminar Usuario", use_container_width=True)
+                                        
+                                        if btn_actualizar:
+                                            if e_dir_list:
+                                                e_dir_str = ", ".join(e_dir_list)
+                                                e_lider_str = ", ".join(e_lider_list) if e_lider_list else "TODOS"
+                                                
+                                                pass_to_save = hash_password(e_pass) if e_pass != c_pass else c_pass
+
+                                                with st.spinner("🤖 Actualizando usuario por lotes (Batch Update)..."):
+                                                    try:
+                                                        secretos = st.secrets["connections"]["gsheets"]
+                                                        credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
+                                                        cliente = gspread.authorize(credenciales)
+                                                        match = re.search(r'/d/([a-zA-Z0-9-_]+)', LINK_ARCHIVO)
+                                                        doc_id = match.group(1) if match else LINK_ARCHIVO
+                                                        archivo = cliente.open_by_key(doc_id)
+                                                        
+                                                        pestana_users = archivo.worksheet("Usuarios")
+                                                        usuarios_col = pestana_users.col_values(1)
+                                                        
+                                                        try:
+                                                            fila_usuario = usuarios_col.index(u_id_sel) + 1
+                                                            
+                                                            pestana_users.update(values=[[pass_to_save, e_dir_str, e_lider_str]], range_name=f"C{fila_usuario}:E{fila_usuario}")
+                                                            
+                                                            archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
+                                                            st.cache_data.clear()
+                                                            st.success(f"✅ ¡Usuario actualizado exitosamente!")
+                                                            time.sleep(1.5)
+                                                            st.rerun()
+                                                        except ValueError: st.error("❌ El usuario no fue encontrado en la hoja de Excel.")
+                                                    except Exception as e: st.error(f"❌ Error de conexión: {e}")
+                                            else: st.warning("⚠️ Debes seleccionar al menos una Dirección Permitida.")
+                                                
+                                        if btn_eliminar:
+                                            with st.spinner("🗑️ Eliminando usuario de Google Sheets..."):
+                                                try:
+                                                    secretos = st.secrets["connections"]["gsheets"]
+                                                    credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
+                                                    cliente = gspread.authorize(credenciales)
+                                                    match = re.search(r'/d/([a-zA-Z0-9-_]+)', LINK_ARCHIVO)
+                                                    doc_id = match.group(1) if match else LINK_ARCHIVO
+                                                    archivo = cliente.open_by_key(doc_id)
+                                                    
+                                                    pestana_users = archivo.worksheet("Usuarios")
+                                                    usuarios_col = pestana_users.col_values(1)
+                                                    
+                                                    try:
+                                                        fila_usuario = usuarios_col.index(u_id_sel) + 1
+                                                        pestana_users.delete_rows(fila_usuario)
+                                                        archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
+                                                        st.cache_data.clear()
+                                                        st.success(f"✅ ¡Usuario eliminado exitosamente!")
+                                                        time.sleep(1.5)
+                                                        st.rerun()
+                                                    except ValueError: st.error("❌ El usuario no fue encontrado en la hoja de Excel.")
+                                                except Exception as e: st.error(f"❌ Error de conexión: {e}")
+                            else: st.info("No hay usuarios registrados en la base de datos.")
+                                    
+if __name__ == "__main__":
+    main()
