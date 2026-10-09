@@ -273,7 +273,9 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
         for s_id in [info['suc1_id'], info['suc2_id'], info['suc3_id'], info['suc4_id'], info['suc5_id']]:
             if s_id in sucesores_oficiales_de: sucesores_oficiales_de[s_id] += 1
                 
-    nombres_con_pdi = set(df_pdi['Nombre'].dropna().astype(str).str.strip().str.lower()) if not df_pdi.empty and 'Nombre' in df_pdi.columns else set()
+    nombres_con_pdi = set()
+    if not df_pdi.empty and 'Nombre' in df_pdi.columns:
+        nombres_con_pdi = set(df_pdi['Nombre'].dropna().astype(str).str.strip().str.lower())
         
     for emp, info in info_nodos.items():
         r_list = []
@@ -429,7 +431,7 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
     for emp, info in info_nodos.items():
         is_hidden_map = emp not in nodos_rescatados
         is_hidden_kpi = emp not in nodos_estrictos
-        # LÓGICA DE VACANTES
+        # LÓGICA DE VACANTES (Exclusión de KPI e inyección visual)
         is_vacante = str(emp).strip().upper().startswith("VAC-")
         
         nom_suc1 = nombres_dict.get(info['suc1_id'], info['suc1_id']) if info['suc1_id'] else ""
@@ -569,12 +571,12 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame()):
     # CLONADO INTELIGENTE
     datos_pdi_usuario = pd.DataFrame()
     if not df_pdi.empty and 'Nombre' in df_pdi.columns:
-        df_pdi['Nombre_Cruce'] = df_pdi['Nombre'].astype(str).str.strip().str.lower()
-        datos_pdi_usuario = df_pdi[df_pdi['Nombre_Cruce'] == nombre_colab.strip().lower()]
+        nombres_pdi_limpios = df_pdi['Nombre'].astype(str).str.strip().str.lower()
+        datos_pdi_usuario = df_pdi[nombres_pdi_limpios == nombre_colab.strip().lower()].copy()
         
     if datos_pdi_usuario.empty and not df_pdi_anterior.empty and 'Nombre' in df_pdi_anterior.columns:
-        df_pdi_anterior['Nombre_Cruce'] = df_pdi_anterior['Nombre'].astype(str).str.strip().str.lower()
-        historial = df_pdi_anterior[df_pdi_anterior['Nombre_Cruce'] == nombre_colab.strip().lower()]
+        nombres_ant_limpios = df_pdi_anterior['Nombre'].astype(str).str.strip().str.lower()
+        historial = df_pdi_anterior[nombres_ant_limpios == nombre_colab.strip().lower()].copy()
         
         if not historial.empty:
             st.warning("✨ Hemos detectado que tienes un Plan de Desarrollo del ciclo anterior.")
@@ -883,7 +885,7 @@ def main():
         
         df_completo_raw = cargar_datos_csv(LINK_ARCHIVO, "Base de datos", current_timestamp)
         df_pdi = cargar_datos_csv(LINK_ARCHIVO, PESTANA_PDI_ACTUAL, current_timestamp)
-        df_pdi_anterior = cargar_datos_csv(LINK_ARCHIVO, PESTANA_PDI_ANTERIOR, current_timestamp) # Para clonado
+        df_pdi_anterior = cargar_datos_csv(LINK_ARCHIVO, PESTANA_PDI_ANTERIOR, current_timestamp)
         
         if df_completo_raw.empty:
             st.error("Error al conectar con la base de datos principal.")
@@ -1861,9 +1863,11 @@ def main():
                         df_pdi_filtrado = df_pdi.copy()
                         
                         if f_lid_plan != "Todos":
-                            df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower().isin(subordinados_nombres_limpios)]
+                            nombres_cruce_lid = df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower()
+                            df_pdi_filtrado = df_pdi_filtrado[nombres_cruce_lid.isin(subordinados_nombres_limpios)]
                         else:
-                            df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower().isin(nombres_visibles_limpios)]
+                            nombres_cruce_vis = df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower()
+                            df_pdi_filtrado = df_pdi_filtrado[nombres_cruce_vis.isin(nombres_visibles_limpios)]
                         
                         columnas_busqueda = [
                             ("nómina", "Nómina"), ("nombre", "Colaborador"), ("roles", "Roles / Áreas de Interés"),
@@ -2088,25 +2092,4 @@ def main():
                                 else:
                                     df_suc_analisis['Cat_Sucesion'] = df_suc_analisis.apply(eval_status_rep, axis=1)
                                     rep_inm, rep_1_3, rep_mas_3, rep_sin = (df_suc_analisis['Cat_Sucesion'] == 'inmediato').sum(), (df_suc_analisis['Cat_Sucesion'] == '1_3_anos').sum(), (df_suc_analisis['Cat_Sucesion'] == 'mas_3_anos').sum(), (df_suc_analisis['Cat_Sucesion'] == 'sin_sucesor').sum()
-                                    sucs_inm_rep, sucs_1_3_rep, sucs_mas_3_rep, sucs_totales = set(), set(), set(), set()
-                                    invalid_sucs_local = ['pendiente', 'nan', 'none', '', 'no definido', 'sin sucesor identificado']
-                                    
-                                    for i in range(1, 6):
-                                        c_suc, c_read = buscar_columna(df_suc_analisis.columns, 'sucesor', i), buscar_columna(df_suc_analisis.columns, 'readiness', i)
-                                        if c_suc and c_read:
-                                            for _, r in df_suc_analisis.iterrows():
-                                                n_s, r_s = clean_text(r.get(c_suc, '')).strip(), clean_text(r.get(c_read, '')).strip().lower()
-                                                if n_s and n_s.lower() not in invalid_sucs_local and "vacante" not in n_s.lower():
-                                                    sucs_totales.add(n_s)
-                                                    if 'inmediato' in r_s: sucs_inm_rep.add(n_s)
-                                                    elif '1 a 3' in r_s: sucs_1_3_rep.add(n_s)
-                                                    elif 'mas de 3' in r_s or 'más de 3' in r_s: sucs_mas_3_rep.add(n_s)
-                                    
-                                    texto_ia = f"**💡 Hallazgos de Sucesión y Riesgo:**\n- Tienes **{len(df_suc_analisis)} posiciones críticas** en esta exportación.\n- Tu 'banca de talento' total cuenta con **{len(sucs_totales)} personas únicas**.\n\n**Salud por Posición:**\n- 🟢 **{rep_inm} posiciones** con cobertura **Inmediata**.\n- 🟡 **{rep_1_3} posiciones** a **1-3 años**.\n- 🔵 **{rep_mas_3} posiciones** a **+3 años**.\n- 🚨 **{rep_sin} posiciones** **sin sucesor identificado**."
-                                    st.success(texto_ia)
-                                    
-                            elif "PDI" in tipo_analisis:
-                                nombres_export = df_base_export['Nombre'].astype(str).str.strip().str.lower().tolist() if 'Nombre' in df_base_export.columns else []
-                                if df_pdi.empty or not nombres_export: st.info("💡 No hay información de PDI registrada o no seleccionaste la columna 'Nombre'.")
-                                else:
-                                    df_pdi_exp = df_pdi[df_pdi['Nombre'].astype(str).str.strip().str.lower().isin(
+                                    sucs_inm_
