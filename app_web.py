@@ -1,4 +1,8 @@
 import streamlit as st
+
+# CONFIGURACIÓN INICIAL (Debe ser el primer comando de Streamlit)
+st.set_page_config(page_title="Portal de Talento Ayvi", layout="wide")
+
 import pandas as pd
 import networkx as nx
 from pyvis.network import Network
@@ -14,7 +18,7 @@ import hashlib
 # CONSTANTES Y CONFIGURACIÓN GLOBAL
 # ==========================================
 PESTANA_PDI_ACTUAL = "PDI 2026"
-PESTANA_PDI_ANTERIOR = "PDI 2025" # Para el Clonado Inteligente
+PESTANA_PDI_ANTERIOR = "PDI 2025" # Usado para el Clonado Inteligente
 LINK_ARCHIVO = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit"
 PASSWORD_POR_DEFECTO = "Ayvi2026" 
 
@@ -37,7 +41,7 @@ COLUMNAS_PDI = [
 # FUNCIONES DE SEGURIDAD Y UTILIDAD
 # ==========================================
 def hash_password(password):
-    """Encripta la contraseña usando SHA-256 para máxima seguridad."""
+    """Encripta la contraseña usando SHA-256."""
     return hashlib.sha256(str(password).encode('utf-8')).hexdigest()
 
 def buscar_columna(columnas, palabra_clave, numero=None):
@@ -109,8 +113,6 @@ def cargar_datos_csv(url_sheets, nombre_pestana, _timestamp):
 # SISTEMA DE SEGURIDAD Y LOGIN DINÁMICO
 # ==========================================
 def login():
-    st.set_page_config(page_title="Portal de Talento Ayvi", layout="wide")
-    
     if "usuario_logueado" not in st.session_state: 
         st.session_state["usuario_logueado"] = False
         
@@ -431,14 +433,15 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
     for emp, info in info_nodos.items():
         is_hidden_map = emp not in nodos_rescatados
         is_hidden_kpi = emp not in nodos_estrictos
-        # LÓGICA DE VACANTES (Exclusión de KPI e inyección visual)
+        
+        # INYECCIÓN VISUAL VACANTES
         is_vacante = str(emp).strip().upper().startswith("VAC-")
         
         nom_suc1 = nombres_dict.get(info['suc1_id'], info['suc1_id']) if info['suc1_id'] else ""
         nom_suc2 = nombres_dict.get(info['suc2_id'], info['suc2_id']) if info['suc2_id'] else ""
         nom_suc3 = nombres_dict.get(info['suc3_id'], info['suc3_id']) if info['suc3_id'] else ""
         
-        # Filtro Kpi: Excluir las vacantes de métricas de población (Para no inflar Headcount)
+        # Filtro Kpi: Excluir vacantes del Headcount
         if not is_hidden_kpi and not is_vacante:
             es_andres = info['jerarquia'] == '5' or 'ANDRES EDUARDO VILLARREAL' in info['nombre'].upper()
             nodo_data = {"Nombre": info['nombre'], "Dirección": info['direccion'], "Puesto": info['puesto']}
@@ -568,19 +571,26 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame()):
         nomina_aut, puesto_aut, dir_aut, lider_aut = "N/A", "N/A", "N/A", "N/A"
         st.warning("⚠️ No pudimos encontrar tus datos exactos en la base principal. Habla con RH.")
 
-    # CLONADO INTELIGENTE
+    # CLONADO INTELIGENTE DE PDI
     datos_pdi_usuario = pd.DataFrame()
     if not df_pdi.empty and 'Nombre' in df_pdi.columns:
         nombres_pdi_limpios = df_pdi['Nombre'].astype(str).str.strip().str.lower()
         datos_pdi_usuario = df_pdi[nombres_pdi_limpios == nombre_colab.strip().lower()].copy()
         
+    if 'clonar_pdi' not in st.session_state:
+        st.session_state['clonar_pdi'] = False
+
     if datos_pdi_usuario.empty and not df_pdi_anterior.empty and 'Nombre' in df_pdi_anterior.columns:
         nombres_ant_limpios = df_pdi_anterior['Nombre'].astype(str).str.strip().str.lower()
         historial = df_pdi_anterior[nombres_ant_limpios == nombre_colab.strip().lower()].copy()
         
         if not historial.empty:
-            st.warning("✨ Hemos detectado que tienes un Plan de Desarrollo del ciclo anterior.")
-            if st.button("🔄 Clonar estrategias del año pasado", use_container_width=True):
+            if not st.session_state['clonar_pdi']:
+                st.warning("✨ Hemos detectado que tienes un Plan de Desarrollo del ciclo anterior.")
+                if st.button("🔄 Clonar estrategias del año pasado", use_container_width=True):
+                    st.session_state['clonar_pdi'] = True
+                    st.rerun()
+            else:
                 datos_pdi_usuario = historial.copy() 
                 st.success("✅ ¡Datos precargados! Actualiza tus fechas y presiona 'Guardar' al final.")
 
@@ -1114,7 +1124,7 @@ def main():
                 
                 with tab_sucesiones:
                     estado_suc = st.session_state.get("estado_sucesion", "ABIERTO")
-                    es_admin = st.session_state["id_usuario"] == "admin"
+                    es_admin = st.session_state.get("id_usuario") == "admin"
                     es_director = False
                     
                     if not match_nomina.empty:
@@ -1962,9 +1972,6 @@ def main():
                         else: st.warning("⚠️ Esperando el primer guardado para construir la tabla de seguimiento.")
                     else: st.warning("⚠️ No hay planes de desarrollo registrados en el equipo todavía.")
                 
-                with tab_mi_pdi:
-                    renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior)
-                
                 if st.session_state["id_usuario"] == "admin":
                     with tab_reportes:
                         st.markdown("### 🧠 Inteligencia de Datos y Reportes")
@@ -2092,4 +2099,46 @@ def main():
                                 else:
                                     df_suc_analisis['Cat_Sucesion'] = df_suc_analisis.apply(eval_status_rep, axis=1)
                                     rep_inm, rep_1_3, rep_mas_3, rep_sin = (df_suc_analisis['Cat_Sucesion'] == 'inmediato').sum(), (df_suc_analisis['Cat_Sucesion'] == '1_3_anos').sum(), (df_suc_analisis['Cat_Sucesion'] == 'mas_3_anos').sum(), (df_suc_analisis['Cat_Sucesion'] == 'sin_sucesor').sum()
-                                    sucs_inm_
+                                    sucs_inm_rep, sucs_1_3_rep, sucs_mas_3_rep, sucs_totales = set(), set(), set(), set()
+                                    invalid_sucs_local = ['pendiente', 'nan', 'none', '', 'no definido', 'sin sucesor identificado']
+                                    
+                                    for i in range(1, 6):
+                                        c_suc, c_read = buscar_columna(df_suc_analisis.columns, 'sucesor', i), buscar_columna(df_suc_analisis.columns, 'readiness', i)
+                                        if c_suc and c_read:
+                                            for _, r in df_suc_analisis.iterrows():
+                                                n_s, r_s = clean_text(r.get(c_suc, '')).strip(), clean_text(r.get(c_read, '')).strip().lower()
+                                                if n_s and n_s.lower() not in invalid_sucs_local and "vacante" not in n_s.lower():
+                                                    sucs_totales.add(n_s)
+                                                    if 'inmediato' in r_s: sucs_inm_rep.add(n_s)
+                                                    elif '1 a 3' in r_s: sucs_1_3_rep.add(n_s)
+                                                    elif 'mas de 3' in r_s or 'más de 3' in r_s: sucs_mas_3_rep.add(n_s)
+                                    
+                                    texto_ia = f"**💡 Hallazgos de Sucesión y Riesgo:**\n- Tienes **{len(df_suc_analisis)} posiciones críticas** en esta exportación.\n- Tu 'banca de talento' total cuenta con **{len(sucs_totales)} personas únicas**.\n\n**Salud por Posición:**\n- 🟢 **{rep_inm} posiciones** con cobertura **Inmediata**.\n- 🟡 **{rep_1_3} posiciones** a **1-3 años**.\n- 🔵 **{rep_mas_3} posiciones** a **+3 años**.\n- 🚨 **{rep_sin} posiciones** **sin sucesor identificado**."
+                                    st.success(texto_ia)
+                                    
+                            elif "PDI" in tipo_analisis:
+                                nombres_export = df_base_export['Nombre'].astype(str).str.strip().str.lower().tolist() if 'Nombre' in df_base_export.columns else []
+                                if df_pdi.empty or not nombres_export: st.info("💡 No hay información de PDI registrada o no seleccionaste la columna 'Nombre'.")
+                                else:
+                                    nombres_base_busqueda = df_pdi['Nombre'].astype(str).str.strip().str.lower()
+                                    df_pdi_exp = df_pdi[nombres_base_busqueda.isin(nombres_export)].copy()
+                                    
+                                    if df_pdi_exp.empty: st.info("💡 Los colaboradores seleccionados no tienen un PDI registrado.")
+                                    else:
+                                        col_acc = next((c for c in df_pdi_exp.columns if 'Acciones' in c), None)
+                                        if col_acc: df_pdi_exp = df_pdi_exp[df_pdi_exp[col_acc].astype(str).str.strip() != ""]
+                                        tot_acc = len(df_pdi_exp)
+                                        col_av = next((c for c in df_pdi_exp.columns if 'Avance' in c), None)
+                                        promedio = 0.0
+                                        if col_av and tot_acc > 0:
+                                            avances = df_pdi_exp[col_av].astype(str).str.replace('%', '', regex=False).str.extract(r'(\d+)').astype(float)
+                                            promedio = round(avances[0].mean(), 1) if not avances.isna().all().all() else 0.0
+                                        personas_con_pdi = df_pdi_exp['Nombre'].nunique() if 'Nombre' in df_pdi_exp.columns else 0
+                                        
+                                        texto_ia = f"**💡 Hallazgos de Desarrollo (70-20-10):**\n- De los exportados, **{personas_con_pdi}** cuentan con PDI.\n- Total de **{tot_acc} acciones** registradas.\n- El **avance promedio general es del {promedio}%**."
+                                        st.success(texto_ia)
+                                        
+                        st.write("")
+                        if 'columnas_seleccionadas' in locals() and columnas_seleccionadas and not df_base_export.empty:
+                            df_export = df_base_export[columnas_seleccionadas]
+                            # REGLA CRÍTICA: MATRIZ TRANSPUESTA (df
