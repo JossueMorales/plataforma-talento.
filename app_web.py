@@ -1851,4 +1851,62 @@ def main():
                                         
                                         st.success("✅ ¡Guardado exitosamente! El mapa se está actualizando...")
                                         st.cache_data.clear(); st.rerun()
-                                    except Exception
+                                    except Exception as e: st.error(f"❌ Error técnico al intentar escribir en el Excel: {e}")
+                
+                with tab_pdi_equipo:
+                    st.markdown("### 📈 Seguimiento de PDI de mi Equipo")
+                    st.info("Gracias a la nueva arquitectura multifila, ahora puedes ver el estatus granular de cada acción del plan 70-20-10 de tus colaboradores.")
+                    if not df_pdi.empty and 'Nombre' in df_pdi.columns:
+                        nombres_visibles_limpios = [str(d['Nombre']).strip().lower() for d in kpis['data_total']]
+                        df_pdi_filtrado = df_pdi.copy()
+                        
+                        if f_lid_plan != "Todos":
+                            df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower().isin(subordinados_nombres_limpios)]
+                        else:
+                            df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower().isin(nombres_visibles_limpios)]
+                        
+                        columnas_busqueda = [
+                            ("nómina", "Nómina"), ("nombre", "Colaborador"), ("roles", "Roles / Áreas de Interés"),
+                            ("objetivo", "Objetivo PDI"), ("pdi", "PDI (70/20/10)"), ("clasificacion", "Clasificación de Competencia"),
+                            ("qué", "Qué? / Acciones"), ("para qué", "¿Para qué? / Competencia"), ("quién", "¿Quién? / Recursos"),
+                            ("cuándo", "¿Cuándo? / Fechas"), ("cómo", "Métricas"), ("avance", "% de Avance"), ("estatus", "Estatus")
+                        ]
+                        cols_reales = []; nombres_finales = []
+                        for clave, nombre_nuevo in columnas_busqueda:
+                            col_match = None
+                            if clave == "pdi":
+                                col_match = next((c for c in df_pdi_filtrado.columns if clean_text(str(c)).lower() == "pdi"), None)
+                                if not col_match: col_match = next((c for c in df_pdi_filtrado.columns if 'pdi' in clean_text(str(c)).lower() and 'objetivo' not in clean_text(str(c)).lower()), None)
+                            else:
+                                col_match = next((c for c in df_pdi_filtrado.columns if clean_text(clave).lower() in clean_text(str(c)).lower() and c not in cols_reales), None)
+                            
+                            if col_match and col_match not in cols_reales: 
+                                cols_reales.append(col_match); nombres_finales.append(nombre_nuevo)
+                        
+                        if cols_reales:
+                            df_pdi_mostrar = df_pdi_filtrado[cols_reales].copy()
+                            df_pdi_mostrar.columns = nombres_finales
+                            
+                            col_acc_tabla = next((c for c in df_pdi_mostrar.columns if 'Acciones' in c), None)
+                            if col_acc_tabla: df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar[col_acc_tabla].astype(str).str.strip() != ""]
+                                
+                            total_acciones = len(df_pdi_mostrar)
+                            col_pdi_kpi = next((c for c in df_pdi_mostrar.columns if 'PDI (70/20/10)' == c), None)
+                            col_av_tabla = next((c for c in df_pdi_mostrar.columns if 'Avance' in c), None)
+                            
+                            prom_70 = prom_20 = prom_10 = promedio_avance = 0.0
+                            
+                            def get_avg(mask):
+                                if col_av_tabla and mask.sum() > 0:
+                                    avances_limpios = df_pdi_mostrar.loc[mask, col_av_tabla].astype(str).str.replace('%', '', regex=False).str.extract(r'(\d+)').astype(float)
+                                    return round(avances_limpios[0].mean(), 1) if not avances_limpios.isna().all().all() else 0.0
+                                return 0.0
+                            
+                            if total_acciones > 0 and col_pdi_kpi:
+                                mask_70 = df_pdi_mostrar[col_pdi_kpi].astype(str).str.contains('70')
+                                mask_20 = df_pdi_mostrar[col_pdi_kpi].astype(str).str.contains('20')
+                                mask_10 = df_pdi_mostrar[col_pdi_kpi].astype(str).str.contains('10')
+                                prom_70, prom_20, prom_10 = get_avg(mask_70), get_avg(mask_20), get_avg(mask_10)
+                                promedio_avance = get_avg(pd.Series(True, index=df_pdi_mostrar.index))
+                                
+                            st.
