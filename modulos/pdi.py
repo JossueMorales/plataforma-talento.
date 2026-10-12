@@ -45,7 +45,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame()):
         nomina_aut, puesto_aut, dir_aut, lider_aut = "N/A", "N/A", "N/A", "N/A"
         st.warning("⚠️ No pudimos encontrar tus datos exactos en la base principal. Habla con RH.")
 
-    # Crear las dos pestañas principales
     tab_evaluacion, tab_planeacion = st.tabs([f"📊 Evaluación ({pdi_cierre_str})", f"🚀 Planeación ({pdi_planeacion_str})"])
 
     opciones_avance = ["0%", "25%", "50%", "75%", "100%"]
@@ -61,9 +60,14 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame()):
         st.info(f"Aquí puedes evaluar el avance de los objetivos que te propusiste para el ciclo **{pdi_cierre_str}**. Solo puedes editar el % de Avance y el Estatus.")
         
         datos_pdi_cierre = pd.DataFrame()
-        if not df_pdi_anterior.empty and 'Nombre' in df_pdi_anterior.columns:
-            nombres_ant_limpios = df_pdi_anterior['Nombre'].astype(str).str.strip().str.lower()
-            datos_pdi_cierre = df_pdi_anterior[nombres_ant_limpios == nombre_colab.strip().lower()].copy()
+        if not df_pdi_anterior.empty:
+            col_nom_ant = buscar_columna(df_pdi_anterior.columns, 'nómina')
+            if col_nom_ant and nomina_aut != "N/A":
+                ids_ant_limpios = df_pdi_anterior[col_nom_ant].apply(clean_id)
+                datos_pdi_cierre = df_pdi_anterior[ids_ant_limpios == nomina_aut].copy()
+            elif 'Nombre' in df_pdi_anterior.columns:
+                nombres_ant_limpios = df_pdi_anterior['Nombre'].astype(str).str.strip().str.lower()
+                datos_pdi_cierre = df_pdi_anterior[nombres_ant_limpios == nombre_colab.strip().lower()].copy()
             
         if datos_pdi_cierre.empty:
             st.warning(f"No tienes un PDI registrado para el ciclo {pdi_cierre_str}.")
@@ -115,7 +119,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame()):
                     n_est = a4.selectbox("Estatus", opciones_estatus, index=index_seguro(opciones_estatus, accion['est']), key=f"eval_est_{i}")
                     st.write("")
                     
-                    # Conservar todos los datos, solo actualizar avance y estatus
                     accion_actualizada = {
                         "PDI": accion['cat'], "Qué? / Acciones de Desarrollo": accion['acc'], 
                         "¿Para qué? / Competencia": accion['comp'], "¿Quién? / Recursos": accion['rec'], 
@@ -184,28 +187,47 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame()):
         st.info(f"Diseña tu estrategia de desarrollo para el ciclo **{pdi_planeacion_str}**.")
         
         datos_pdi_usuario = pd.DataFrame()
-        if not df_pdi.empty and 'Nombre' in df_pdi.columns:
-            nombres_pdi_limpios = df_pdi['Nombre'].astype(str).str.strip().str.lower()
-            datos_pdi_usuario = df_pdi[nombres_pdi_limpios == nombre_colab.strip().lower()].copy()
+        if not df_pdi.empty:
+            col_nom_act = buscar_columna(df_pdi.columns, 'nómina')
+            if col_nom_act and nomina_aut != "N/A":
+                ids_act = df_pdi[col_nom_act].apply(clean_id)
+                datos_pdi_usuario = df_pdi[ids_act == nomina_aut].copy()
+            elif 'Nombre' in df_pdi.columns:
+                nombres_act = df_pdi['Nombre'].astype(str).str.strip().str.lower()
+                datos_pdi_usuario = df_pdi[nombres_act == nombre_colab.strip().lower()].copy()
             
         if 'clonar_pdi' not in st.session_state:
             st.session_state['clonar_pdi'] = False
 
-        if datos_pdi_usuario.empty and not df_pdi_anterior.empty and 'Nombre' in df_pdi_anterior.columns:
-            nombres_ant_limpios = df_pdi_anterior['Nombre'].astype(str).str.strip().str.lower()
-            historial = df_pdi_anterior[nombres_ant_limpios == nombre_colab.strip().lower()].copy()
-            if not historial.empty:
-                if not st.session_state['clonar_pdi']:
+        historial = pd.DataFrame()
+        if not df_pdi_anterior.empty:
+            col_nom_ant = buscar_columna(df_pdi_anterior.columns, 'nómina')
+            if col_nom_ant and nomina_aut != "N/A":
+                ids_ant = df_pdi_anterior[col_nom_ant].apply(clean_id)
+                historial = df_pdi_anterior[ids_ant == nomina_aut].copy()
+            elif 'Nombre' in df_pdi_anterior.columns:
+                nombres_ant = df_pdi_anterior['Nombre'].astype(str).str.strip().str.lower()
+                historial = df_pdi_anterior[nombres_ant == nombre_colab.strip().lower()].copy()
+
+        if not historial.empty:
+            if not st.session_state['clonar_pdi']:
+                if datos_pdi_usuario.empty:
                     st.warning(f"✨ Tienes un PDI del ciclo anterior ({pdi_cierre_str}).")
                     if st.button("🔄 Clonar estrategias no completadas", use_container_width=True):
                         st.session_state['clonar_pdi'] = True
                         st.rerun()
                 else:
-                    col_est = next((c for c in historial.columns if 'estatus' in clean_text(str(c)).lower()), None)
-                    if col_est:
-                        historial = historial[~historial[col_est].astype(str).str.lower().isin(['completado', 'cancelado'])]
-                    datos_pdi_usuario = historial.copy() 
-                    st.success("✅ ¡Acciones pendientes precargadas! Actualiza tus fechas y presiona 'Guardar'.")
+                    with st.expander(f"✨ Detectamos un historial en {pdi_cierre_str}. ¿Deseas sobreescribir este plan?"):
+                        st.info("Ya tienes datos guardados en este nuevo ciclo. Si haces clic aquí, reemplazaremos lo que está abajo con tus pendientes del año pasado.")
+                        if st.button("🔄 Sobreescribir trayendo mis pendientes del año pasado", use_container_width=True):
+                            st.session_state['clonar_pdi'] = True
+                            st.rerun()
+            else:
+                col_est = next((c for c in historial.columns if 'estatus' in clean_text(str(c)).lower()), None)
+                if col_est:
+                    historial = historial[~historial[col_est].astype(str).str.lower().isin(['completado', 'cancelado', 'terminado', 'concluido'])]
+                datos_pdi_usuario = historial.copy() 
+                st.success("✅ ¡Acciones pendientes precargadas! Actualiza tus fechas y presiona 'Guardar'.")
 
         fecha_elab, depto = "", ""
         rol_1, mot_1, rol_2, mot_2, rol_3, mot_3 = "", "", "", "", "", ""
