@@ -1,7 +1,7 @@
 import streamlit as st
 import gspread.utils
 
-# CONFIGURACIÓN INICIAL (Debe ser el primer comando de Streamlit)
+# CONFIGURACIÓN INICIAL
 st.set_page_config(page_title="Portal de Talento Ayvi", layout="wide")
 
 import pandas as pd
@@ -1726,7 +1726,6 @@ def main():
                                             if c_name: return headers_bd.index(c_name) + 1
                                             return None
                                         
-                                        # 1. Identificar índices de columnas
                                         idx_id_empleado = idx_col_dinamico('id empleado')
                                         if not idx_id_empleado:
                                             raise ValueError("No se encontró la columna 'id Empleado' en la base de datos.")
@@ -1740,16 +1739,14 @@ def main():
                                         idxs_pos = [idx_col_dinamico('positivo', i) for i in range(1, 6)]
                                         idxs_opos = [idx_col_dinamico('oportunidad', i) for i in range(1, 6)]
                                         
-                                        # 2. BLINDAJE REGLA DE ORO: Extraer todos los IDs actuales del Excel en vivo
+                                        # BLINDAJE REGLA DE ORO: Extraer todos los IDs actuales
                                         columna_ids_excel = pestana.col_values(idx_id_empleado)
                                         
-                                        # 3. Preparar el Batch Update (Actualización en Bloque)
                                         celdas_a_actualizar = []
                                         
                                         for _, row_ocupante in df_ocupantes.iterrows():
                                             id_buscado = clean_id(row_ocupante.get('id Empleado', ''))
                                             
-                                            # Buscar en qué fila REAL está este ID hoy, en este momento
                                             if id_buscado in columna_ids_excel:
                                                 fila_real = columna_ids_excel.index(id_buscado) + 1
                                             else:
@@ -1761,7 +1758,6 @@ def main():
                                                     letra_col = gspread.utils.rowcol_to_a1(fila_real, col_idx)
                                                     celdas_a_actualizar.append({'range': letra_col, 'values': [[str(valor)]]})
                                     
-                                            # Añadir al paquete de actualizaciones
                                             agregar_al_batch(idx_emergencia, "Pendiente" if n_suc_emergencia == "Pendiente" else n_suc_emergencia)
                                             agregar_al_batch(idx_plan_accion, n_plan_accion)
                                             agregar_al_batch(idx_riesgo_fuga, n_riesgo_fuga)
@@ -1772,11 +1768,9 @@ def main():
                                                 agregar_al_batch(idxs_pos[i], n_pos_inputs[i])
                                                 agregar_al_batch(idxs_opos[i], n_opo_inputs[i])
                                                 
-                                        # 4. Enviar 1 sola petición gigante a Google Sheets
                                         if celdas_a_actualizar:
                                             pestana.batch_update(celdas_a_actualizar)
                                         
-                                        # 5. Forzar actualización de Caché
                                         try: archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
                                         except Exception: pass 
                                         
@@ -1784,7 +1778,6 @@ def main():
                                         st.cache_data.clear(); st.rerun()
                                         
                                     except Exception as e: st.error(f"❌ Error técnico al intentar escribir en el Excel: {e}")
-                
                 with tab_pdi_equipo:
                     st.markdown("### 📈 Seguimiento de PDI de mi Equipo")
                     st.info("Gracias a la nueva arquitectura multifila, ahora puedes ver el estatus granular de cada acción del plan 70-20-10 de tus colaboradores.")
