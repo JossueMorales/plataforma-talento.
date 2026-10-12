@@ -1128,7 +1128,7 @@ def main():
                                 horizontal=True, key=f"r_fuga_{pos_seleccionada}"
                             )
                             
-                            def mostrar_ficha_mini(nombre_cand, df_db):
+                           def mostrar_ficha_mini(nombre_cand, df_db):
                                 if not nombre_cand or nombre_cand in ["Pendiente", "Vacante / Sin asignar", "No definido", "Sin sucesor identificado"]: st.info("Sin información de ocupante"); return
                                 match = df_db[df_db['Nombre_Cruce'] == nombre_cand.strip().lower()]
                                 if match.empty: st.warning("Colaborador no encontrado en la base."); return
@@ -1153,12 +1153,12 @@ def main():
 
                                 if ocultar_metricas: box_c = edr_c = eng_c = mla_c = jer_c = "🔒 Confidencial"
                                 else:
-                                    box_c = clean_text(row_c.get('Resultado 9 box'), 'Pendiente')
-                                    edr_c = clean_text(row_c.get('EDR', row_c.get('EDR ')), 'Pendiente')
+                                    box_c = clean_text(row.get('Resultado 9 box'), 'Pendiente')
+                                    edr_c = clean_text(row.get('EDR', row.get('EDR ')), 'Pendiente')
                                     eng_key = next((k for k in row.keys() if k and 'enganche' in str(k).lower()), None)
-                                    eng_c = clean_text(row_c.get(eng_key), 'N/A') if eng_key else 'N/A'
-                                    mla_c = clean_text(row_c.get(mla_key_c, 'N/A'))
-                                    jer_c = clean_text(row_c.get(jer_key_c, 'N/A'))
+                                    eng_c = clean_text(row.get(eng_key), 'N/A') if eng_key else 'N/A'
+                                    mla_c = clean_text(row.get(mla_key_c, 'N/A'))
+                                    jer_c = clean_text(row.get(jer_key_c, 'N/A'))
                                 
                                 c_suc_temp = buscar_columna(row.index, 'sucesor', 1)
                                 suc1 = get_nom(row.get(c_suc_temp, '')) if c_suc_temp else 'Pendiente'
@@ -1175,10 +1175,10 @@ def main():
                                     <div style='display: flex; gap: 8px; margin-bottom: 10px;'>
                                         <span style='background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>Jerarquía: {jer_c}</span>
                                         <span style='background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>MLA: {mla_c}</span>
-                                        <span style='background: #f1f5f9; color: #334155; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>9-BOX: {box}</span>
-                                        <span style='background: #f1f5f9; color: #334155; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>EDR: {edr}</span>
+                                        <span style='background: #f1f5f9; color: #334155; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>9-BOX: {box_c}</span>
+                                        <span style='background: #f1f5f9; color: #334155; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>EDR: {edr_c}</span>
                                     </div>
-                                    <p style='margin: 0; font-size: 13px; color: #b91c1c;'><b>🔥 Enganche Individual:</b> {eng}</p>
+                                    <p style='margin: 0; font-size: 13px; color: #b91c1c;'><b>🔥 Enganche Individual:</b> {eng_c}</p>
                                     <p style='margin: 6px 0 0 0; font-size: 13px; color: #4338ca;'><b>🥇 Sucesor 1:</b> {suc1 if suc1 else 'Pendiente'} <span style='font-size:11px; color:#64748b;'>{read1}</span></p>
                                 </div>
                                 """, unsafe_allow_html=True)
