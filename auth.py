@@ -18,9 +18,13 @@ def login():
             "admin": {"nombre": "Administrador Global", "password": hash_password("admin"), "direccion": "TODAS", "lider": "TODOS"}
         }
         
-        current_timestamp, estado_sucesion, estado_pdi = obtener_metadata()
+        # Capturamos los 5 valores dinámicos de la Metadata
+        current_timestamp, estado_sucesion, estado_pdi, pdi_planeacion, pdi_cierre = obtener_metadata()
+        
         st.session_state["estado_sucesion"] = estado_sucesion
         st.session_state["estado_pdi"] = estado_pdi
+        st.session_state["pdi_planeacion"] = pdi_planeacion
+        st.session_state["pdi_cierre"] = pdi_cierre
         
         df_usuarios = cargar_datos_csv("Usuarios", current_timestamp)
         
