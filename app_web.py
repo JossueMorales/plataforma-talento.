@@ -1,5 +1,5 @@
 import streamlit as st
-import gspread.utils # Importación nueva requerida para el Batch Update
+import gspread.utils
 
 # CONFIGURACIÓN INICIAL (Debe ser el primer comando de Streamlit)
 st.set_page_config(page_title="Portal de Talento Ayvi", layout="wide")
@@ -13,23 +13,20 @@ import re
 import gspread
 from google.oauth2.service_account import Credentials
 import time
-import hashlib
 
-# ==========================================
-# CONSTANTES Y CONFIGURACIÓN GLOBAL
-# ==========================================
-PESTANA_PDI_ACTUAL = "PDI 2026"
-PESTANA_PDI_ANTERIOR = "PDI 2025" # Para el Clonado Inteligente
-LINK_ARCHIVO = "https://docs.google.com/spreadsheets/d/125WBSXsBceU3kDTX-ZY6OXlVr2Dgza8xnPMusw6OU7k/edit"
-PASSWORD_POR_DEFECTO = "Ayvi2026" 
-
+# --- IMPORTACIONES DE NUESTROS NUEVOS MÓDULOS ---
 from config_ui import (
     OPCIONES_PYVIS, SCRIPT_ANILLOS, INYECCION_HTML_JS,
     crear_tarjeta_kpi, extraer_contexto, clean_text, clean_id,
     obtener_color_9box, acortar_nombre, acortar_puesto,
     get_readiness_val, get_dispersion_offset
 )
+from database import LINK_ARCHIVO, PESTANA_PDI_ACTUAL, PESTANA_PDI_ANTERIOR, obtener_metadata, cargar_datos_csv
+from auth import login, hash_password, PASSWORD_POR_DEFECTO
 
+# ==========================================
+# CONSTANTES GLOBALES
+# ==========================================
 COLUMNAS_PDI = [
     "Nómina", "Nombre", "Puesto", "Dirección", "Líder", "Fecha Elaboración", "Departamento",
     "Rol Interés 1", "Motivo 1", "Rol Interés 2", "Motivo 2", "Rol Interés 3", "Motivo 3",
@@ -39,12 +36,8 @@ COLUMNAS_PDI = [
 ]
 
 # ==========================================
-# FUNCIONES DE SEGURIDAD Y UTILIDAD
+# FUNCIONES DE UTILIDAD
 # ==========================================
-def hash_password(password):
-    """Encripta la contraseña usando SHA-256."""
-    return hashlib.sha256(str(password).encode('utf-8')).hexdigest()
-
 def buscar_columna(columnas, palabra_clave, numero=None):
     palabra_limpia = re.sub(r'[^a-z0-9]', '', str(palabra_clave).lower())
     for col in columnas:
@@ -66,104 +59,6 @@ def ordenar_jerarquia_talento(df, col_puesto='Nombre de la Posición', col_nombr
     if col_nombre in df.columns: cols_sort.append(col_nombre)
     df = df.sort_values(by=cols_sort)
     return df.drop(columns=['_peso_jerarquia'])
-
-# ==========================================
-# SISTEMA DE CACHÉ INTELIGENTE Y METADATA
-# ==========================================
-@st.cache_data(ttl=300, show_spinner=False)
-def obtener_metadata(url_sheets):
-    """Obtiene el timestamp para el caché y el estado de los periodos de sucesión y PDI."""
-    try:
-        secretos = st.secrets["connections"]["gsheets"]
-        credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets"])
-        cliente = gspread.authorize(credenciales)
-        match = re.search(r'/d/([a-zA-Z0-9-_]+)', url_sheets)
-        doc_id = match.group(1) if match else url_sheets
-        archivo = cliente.open_by_key(doc_id)
-        
-        val_a1 = archivo.worksheet("Metadata").acell('A1').value
-        val_c1 = archivo.worksheet("Metadata").acell('C1').value # Estado Sucesión
-        val_d1 = archivo.worksheet("Metadata").acell('D1').value # Estado PDI
-        
-        estado_suc = str(val_c1).strip().upper() if val_c1 else "ABIERTO"
-        estado_pdi = str(val_d1).strip().upper() if val_d1 else "ABIERTO"
-        
-        return str(val_a1), estado_suc, estado_pdi
-    except Exception: 
-        return str(int(time.time() // 600)), "ABIERTO", "ABIERTO"
-
-@st.cache_data(show_spinner=False)
-def cargar_datos_csv(url_sheets, nombre_pestana, _timestamp):
-    try:
-        secretos = st.secrets["connections"]["gsheets"]
-        credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
-        cliente = gspread.authorize(credenciales)
-        match = re.search(r'/d/([a-zA-Z0-9-_]+)', url_sheets)
-        doc_id = match.group(1) if match else url_sheets
-        archivo = cliente.open_by_key(doc_id)
-        datos = archivo.worksheet(nombre_pestana).get_all_values()
-        if datos:
-            df = pd.DataFrame(datos[1:], columns=datos[0])
-            df.columns = [str(col).strip() for col in df.columns]
-            return df
-        return pd.DataFrame()
-    except Exception as e:
-        return pd.DataFrame()
-
-# ==========================================
-# SISTEMA DE SEGURIDAD Y LOGIN DINÁMICO
-# ==========================================
-def login():
-    if "usuario_logueado" not in st.session_state: 
-        st.session_state["usuario_logueado"] = False
-        
-    if not st.session_state["usuario_logueado"]:
-        usuarios_autorizados = {
-            "admin": {"nombre": "Administrador Global", "password": hash_password("admin"), "direccion": "TODAS", "lider": "TODOS"}
-        }
-        
-        current_timestamp, estado_sucesion, estado_pdi = obtener_metadata(LINK_ARCHIVO)
-        st.session_state["estado_sucesion"] = estado_sucesion
-        st.session_state["estado_pdi"] = estado_pdi
-        
-        df_usuarios = cargar_datos_csv(LINK_ARCHIVO, "Usuarios", current_timestamp)
-        
-        if not df_usuarios.empty:
-            for _, row in df_usuarios.iterrows():
-                u = str(row.get("Usuario", "")).strip()
-                if u:
-                    usuarios_autorizados[u] = {
-                        "nombre": str(row.get("Nombre", "")).strip(),
-                        "password": str(row.get("Password", "")).strip(),
-                        "direccion": str(row.get("Direccion", "")).strip(),
-                        "lider": str(row.get("Lider Restringido", "TODOS")).strip()
-                    }
-        
-        st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento Ayvi</h1>", unsafe_allow_html=True)
-        col1, col2, col3 = st.columns([1, 1, 1])
-        with col2:
-            st.write("")
-            usuario = st.text_input("Usuario (Número de Nómina)")
-            password = st.text_input("Contraseña", type="password")
-            if st.button("Iniciar Sesión", use_container_width=True):
-                if usuario in usuarios_autorizados:
-                    db_pass = usuarios_autorizados[usuario]["password"]
-                    if db_pass == hash_password(password) or db_pass == password:
-                        st.session_state["usuario_logueado"] = True
-                        st.session_state["nombre_usuario"] = usuarios_autorizados[usuario]["nombre"]
-                        st.session_state["id_usuario"] = usuario
-                        st.session_state["direccion_permitida"] = usuarios_autorizados[usuario]["direccion"]
-                        st.session_state["lider_permitido"] = usuarios_autorizados[usuario].get("lider", "TODOS")
-                        st.session_state["password_actual"] = password 
-                        
-                        if st.session_state["lider_permitido"] == "": st.session_state["lider_permitido"] = "TODOS"
-                        st.rerun()
-                    else:
-                        st.error("Usuario o contraseña incorrectos")
-                else: 
-                    st.error("Usuario o contraseña incorrectos")
-        return False
-    return True
 
 # ==========================================
 # MOTOR PRINCIPAL (GRAFO CON CACHÉ Y LAZY LOADING)
@@ -896,13 +791,13 @@ def main():
             
     st.divider()
     with st.spinner("Cargando base de datos y validando seguridad dinámica..."):
-        current_timestamp, estado_sucesion, estado_pdi = obtener_metadata(LINK_ARCHIVO)
+        current_timestamp, estado_sucesion, estado_pdi = obtener_metadata()
         st.session_state["estado_sucesion"] = estado_sucesion
         st.session_state["estado_pdi"] = estado_pdi
         
-        df_completo_raw = cargar_datos_csv(LINK_ARCHIVO, "Base de datos", current_timestamp)
-        df_pdi = cargar_datos_csv(LINK_ARCHIVO, PESTANA_PDI_ACTUAL, current_timestamp)
-        df_pdi_anterior = cargar_datos_csv(LINK_ARCHIVO, PESTANA_PDI_ANTERIOR, current_timestamp)
+        df_completo_raw = cargar_datos_csv("Base de datos", current_timestamp)
+        df_pdi = cargar_datos_csv(PESTANA_PDI_ACTUAL, current_timestamp)
+        df_pdi_anterior = cargar_datos_csv(PESTANA_PDI_ANTERIOR, current_timestamp)
         
         if df_completo_raw.empty:
             st.error("Error al conectar con la base de datos principal.")
@@ -1490,7 +1385,7 @@ def main():
                             ocultar_metricas = es_lider_presentado or es_propia_colab
                             
                             jer_key_c = next((k for k in row_c.keys() if k and ('jerárquico' in str(k).lower() or 'jerarquico' in str(k).lower())), 'Nivel Jerárquico')
-                            mla_key_c = next((k for k in row_c.keys() if k and 'nivel mla' in str(k).lower()), 'Nivel MLA')
+                            mla_key_c = next((k for k in row.keys() if k and 'nivel mla' in str(k).lower()), 'Nivel MLA')
 
                             if ocultar_metricas: box_c = edr_c = eng_c = mla_c = jer_c = "🔒 Confidencial"
                             else:
@@ -2228,7 +2123,7 @@ def main():
                         st.info("Administra los accesos a la plataforma. Estos se sincronizan en vivo con tu pestaña 'Usuarios' de Google Sheets usando encriptación SHA-256.")
 
                         current_timestamp_u, _, _ = obtener_metadata(LINK_ARCHIVO)
-                        df_u_admin = cargar_datos_csv(LINK_ARCHIVO, "Usuarios", current_timestamp_u)
+                        df_u_admin = cargar_datos_csv("Usuarios", current_timestamp_u)
 
                         sub_tab_nuevo, sub_tab_editar = st.tabs(["➕ Agregar Nuevo Perfil", "✏️ Editar / Eliminar Perfil"])
 
