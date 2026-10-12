@@ -1,25 +1,29 @@
 import streamlit as st
 import hashlib
+from database import cargar_datos_csv, obtener_metadata, LINK_ARCHIVO
+
+PASSWORD_POR_DEFECTO = "Ayvi2026"
 
 def hash_password(password):
     """Encripta la contraseña usando SHA-256."""
     return hashlib.sha256(str(password).encode('utf-8')).hexdigest()
 
-def login(df_usuarios, estado_sucesion, estado_pdi):
-    """Maneja la interfaz de inicio de sesión y validación de usuarios."""
+def login():
+    """Maneja la interfaz y validación de inicio de sesión."""
     if "usuario_logueado" not in st.session_state: 
         st.session_state["usuario_logueado"] = False
         
     if not st.session_state["usuario_logueado"]:
-        # Usuario administrador por defecto en caso de emergencia
         usuarios_autorizados = {
             "admin": {"nombre": "Administrador Global", "password": hash_password("admin"), "direccion": "TODAS", "lider": "TODOS"}
         }
         
+        current_timestamp, estado_sucesion, estado_pdi = obtener_metadata()
         st.session_state["estado_sucesion"] = estado_sucesion
         st.session_state["estado_pdi"] = estado_pdi
         
-        # Cargar usuarios desde la base de datos (Google Sheets)
+        df_usuarios = cargar_datos_csv("Usuarios", current_timestamp)
+        
         if not df_usuarios.empty:
             for _, row in df_usuarios.iterrows():
                 u = str(row.get("Usuario", "")).strip()
@@ -31,7 +35,6 @@ def login(df_usuarios, estado_sucesion, estado_pdi):
                         "lider": str(row.get("Lider Restringido", "TODOS")).strip()
                     }
         
-        # Renderizar la interfaz de Login
         st.markdown("<h1 style='text-align: center; color: #1976d2;'>🔐 Portal de Talento Ayvi</h1>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1, 1, 1])
         with col2:
@@ -49,8 +52,7 @@ def login(df_usuarios, estado_sucesion, estado_pdi):
                         st.session_state["lider_permitido"] = usuarios_autorizados[usuario].get("lider", "TODOS")
                         st.session_state["password_actual"] = password 
                         
-                        if st.session_state["lider_permitido"] == "": 
-                            st.session_state["lider_permitido"] = "TODOS"
+                        if st.session_state["lider_permitido"] == "": st.session_state["lider_permitido"] = "TODOS"
                         st.rerun()
                     else:
                         st.error("Usuario o contraseña incorrectos")
