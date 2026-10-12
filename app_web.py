@@ -740,7 +740,7 @@ def main():
 
                         st.info("Administra los accesos a la plataforma. Estos se sincronizan en vivo con tu pestaña 'Usuarios' de Google Sheets usando encriptación SHA-256.")
 
-                        current_timestamp_u, _, _ = obtener_metadata(LINK_ARCHIVO)
+                        current_timestamp_u, _, _, _, _ = obtener_metadata(LINK_ARCHIVO)
                         df_u_admin = cargar_datos_csv("Usuarios", current_timestamp_u, LINK_ARCHIVO)
 
                         sub_tab_nuevo, sub_tab_editar = st.tabs(["➕ Agregar Nuevo Perfil", "✏️ Editar / Eliminar Perfil"])
