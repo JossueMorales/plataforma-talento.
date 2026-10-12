@@ -6,7 +6,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 from config_ui import clean_text, clean_id
-from database import LINK_ARCHIVO, PESTANA_PDI_ACTUAL
+from database import LINK_ARCHIVO
 from modulos.mapa_org import buscar_columna
 
 COLUMNAS_PDI = [
@@ -18,7 +18,9 @@ COLUMNAS_PDI = [
 ]
 
 def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame()):
-    st.markdown(f"### 📝 Plan de Desarrollo Individual (PDI)")
+    pdi_planeacion_str = st.session_state.get("pdi_planeacion", "PDI 2027")
+    
+    st.markdown(f"### 📝 Plan de Desarrollo Individual ({pdi_planeacion_str})")
     
     estado_pdi = st.session_state.get("estado_pdi", "ABIERTO")
     if estado_pdi == "CERRADO" and st.session_state.get("id_usuario") != "admin":
@@ -217,7 +219,9 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame()):
                     match = re.search(r'/d/([a-zA-Z0-9-_]+)', LINK_ARCHIVO)
                     doc_id = match.group(1) if match else LINK_ARCHIVO
                     archivo = cliente.open_by_key(doc_id)
-                    pestana_pdi_gs = archivo.worksheet(PESTANA_PDI_ACTUAL)
+                    
+                    # AQUÍ SE USA LA VARIABLE DINÁMICA DE LA SESIÓN PARA SABER DÓNDE GUARDAR
+                    pestana_pdi_gs = archivo.worksheet(pdi_planeacion_str)
                     
                     todas_las_acciones = acciones_70_nuevas + acciones_20_nuevas + acciones_10_nuevas
                     nuevas_filas = []
