@@ -803,7 +803,8 @@ def main():
                                     datos_u = df_u_admin[df_u_admin['Usuario'].astype(str).str.strip() == u_id_sel].iloc[0]
                                     
                                     c_pass = str(datos_u.get("Password", ""))
-                                    c_dir, c_lid = str(datos_u.get("Direccion", ""))
+                                    c_dir = str(datos_u.get("Direccion", ""))
+                                    c_lid = str(datos_u.get("Lider Restringido", "TODOS"))
                                     
                                     c_dir_list = [d.strip() for d in c_dir.split(",")] if c_dir else []
                                     opciones_dir = ["TODAS", "COLABORADOR"] + dirs
