@@ -1,4 +1,5 @@
 import streamlit as st
+import gspread.utils # Importación nueva requerida para el Batch Update
 
 # CONFIGURACIÓN INICIAL (Debe ser el primer comando de Streamlit)
 st.set_page_config(page_title="Portal de Talento Ayvi", layout="wide")
@@ -1841,6 +1842,11 @@ def main():
                                             if c_name: return headers_bd.index(c_name) + 1
                                             return None
                                         
+                                        # 1. Identificar índices de columnas
+                                        idx_id_empleado = idx_col_dinamico('id empleado')
+                                        if not idx_id_empleado:
+                                            raise ValueError("No se encontró la columna 'id Empleado' en la base de datos.")
+                                            
                                         idx_emergencia = idx_col_dinamico('emergencia')
                                         idx_plan_accion = idx_col_dinamico('comentarios de')
                                         idx_riesgo_fuga = idx_col_dinamico('riesgo de fuga')
@@ -1850,26 +1856,49 @@ def main():
                                         idxs_pos = [idx_col_dinamico('positivo', i) for i in range(1, 6)]
                                         idxs_opos = [idx_col_dinamico('oportunidad', i) for i in range(1, 6)]
                                         
-                                        for idx_p in df_ocupantes.index:
-                                            idx_excel = idx_p + 2 
+                                        # 2. BLINDAJE REGLA DE ORO: Extraer todos los IDs actuales del Excel en vivo
+                                        columna_ids_excel = pestana.col_values(idx_id_empleado)
+                                        
+                                        # 3. Preparar el Batch Update (Actualización en Bloque)
+                                        celdas_a_actualizar = []
+                                        
+                                        for _, row_ocupante in df_ocupantes.iterrows():
+                                            id_buscado = clean_id(row_ocupante.get('id Empleado', ''))
                                             
-                                            if idx_emergencia: pestana.update_cell(idx_excel, idx_emergencia, "Pendiente" if n_suc_emergencia == "Pendiente" else n_suc_emergencia)
-                                            if idx_plan_accion: pestana.update_cell(idx_excel, idx_plan_accion, n_plan_accion)
-                                            if idx_riesgo_fuga: pestana.update_cell(idx_excel, idx_riesgo_fuga, n_riesgo_fuga)
+                                            # Buscar en qué fila REAL está este ID hoy, en este momento
+                                            if id_buscado in columna_ids_excel:
+                                                fila_real = columna_ids_excel.index(id_buscado) + 1
+                                            else:
+                                                st.warning(f"⚠️ El empleado {id_buscado} ya no existe en el Excel. Se omitirá.")
+                                                continue
+                                                
+                                            def agregar_al_batch(col_idx, valor):
+                                                if col_idx:
+                                                    letra_col = gspread.utils.rowcol_to_a1(fila_real, col_idx)
+                                                    celdas_a_actualizar.append({'range': letra_col, 'values': [[str(valor)]]})
+                                    
+                                            # Añadir al paquete de actualizaciones
+                                            agregar_al_batch(idx_emergencia, "Pendiente" if n_suc_emergencia == "Pendiente" else n_suc_emergencia)
+                                            agregar_al_batch(idx_plan_accion, n_plan_accion)
+                                            agregar_al_batch(idx_riesgo_fuga, n_riesgo_fuga)
                                             
                                             for i in range(5):
-                                                if idxs_sucs[i]: pestana.update_cell(idx_excel, idxs_sucs[i], "Pendiente" if n_sucs[i] == "Pendiente" else n_sucs[i])
-                                                if idxs_reads[i]: pestana.update_cell(idx_excel, idxs_reads[i], "Pendiente" if n_reads[i] == "Pendiente" else n_reads[i])
-                                                if idxs_pos[i]: pestana.update_cell(idx_excel, idxs_pos[i], n_pos_inputs[i])
-                                                if idxs_opos[i]: pestana.update_cell(idx_excel, idxs_opos[i], n_opo_inputs[i])
-                                            
-                                            time.sleep(0.5) 
+                                                agregar_al_batch(idxs_sucs[i], "Pendiente" if n_sucs[i] == "Pendiente" else n_sucs[i])
+                                                agregar_al_batch(idxs_reads[i], "Pendiente" if n_reads[i] == "Pendiente" else n_reads[i])
+                                                agregar_al_batch(idxs_pos[i], n_pos_inputs[i])
+                                                agregar_al_batch(idxs_opos[i], n_opo_inputs[i])
+                                                
+                                        # 4. Enviar 1 sola petición gigante a Google Sheets
+                                        if celdas_a_actualizar:
+                                            pestana.batch_update(celdas_a_actualizar)
                                         
+                                        # 5. Forzar actualización de Caché
                                         try: archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
                                         except Exception: pass 
                                         
-                                        st.success("✅ ¡Guardado exitosamente! El mapa se está actualizando...")
+                                        st.success("✅ ¡Guardado exitosamente y de forma segura! El mapa se está actualizando...")
                                         st.cache_data.clear(); st.rerun()
+                                        
                                     except Exception as e: st.error(f"❌ Error técnico al intentar escribir en el Excel: {e}")
                 
                 with tab_pdi_equipo:
