@@ -1004,7 +1004,7 @@ def main():
                             ocultar_metricas = es_lider_presentado or es_propia_colab
                             
                             jer_key_c = next((k for k in row_c.keys() if k and ('jerárquico' in str(k).lower() or 'jerarquico' in str(k).lower())), 'Nivel Jerárquico')
-                            mla_key_c = next((k for k in row_c.keys() if k and 'nivel mla' in str(k).lower()), 'Nivel MLA')
+                            mla_key_c = next((k for k in row.keys() if k and 'nivel mla' in str(k).lower()), 'Nivel MLA')
 
                             if ocultar_metricas: box_c = edr_c = eng_c = mla_c = jer_c = "🔒 Confidencial"
                             else:
@@ -1097,6 +1097,61 @@ def main():
                             if len(coincidencias) > 0: return {"estatus": "ALINEADO", "icono": "✅", "titulo_estatus": "PDI Alineado", "color_borde": "#16a34a", "bg_color": "#f0fdf4", "puesto_origen": puesto_origen, "objetivo": obj_pdi, "avance": "Variado", "acciones": "Múltiples acciones registradas", "recomendacion": f"El PDI actual cubre competencias afines a *{puesto_destino}*."}
                             else: return {"estatus": "REQUIERE_AJUSTE", "icono": "🟡", "titulo_estatus": "Ajuste Recomendado", "color_borde": "#ca8a04", "bg_color": "#fefce8", "puesto_origen": puesto_origen, "objetivo": obj_pdi, "avance": "Variado", "acciones": "Falta especificidad técnica", "recomendacion": f"💡 **Recomendación IA:** Se requiere actualizar las Acciones (70/20/10) agregando competencias técnicas específicas hacia el nuevo puesto."}
 
+                        def mostrar_ficha_mini(nombre_cand, df_db):
+                            if not nombre_cand or nombre_cand in ["Pendiente", "Vacante / Sin asignar", "No definido", "Sin sucesor identificado"]: st.info("Sin información de ocupante"); return
+                            match = df_db[df_db['Nombre_Cruce'] == nombre_cand.strip().lower()]
+                            if match.empty: st.warning("Colaborador no encontrado en la base."); return
+                            row = match.iloc[0]
+                            def get_nom(val): return dict_nom_global.get(clean_id(val), val)
+                            
+                            puesto = clean_text(row.get('Nombre de la Posición', 'N/A'))
+                            lider = get_nom(row.get('ID Del Jefe', ''))
+                            dir_c = clean_text(row.get('Dirección', row.get('Direccion', 'N/A')))
+                            
+                            nom_cand_limpio = ' '.join(str(nombre_cand).strip().lower().split())
+                            nom_usr_limpio = ' '.join(str(st.session_state.get("nombre_usuario", "")).strip().lower().split())
+                            nom_lid_plan_limpio = ' '.join(str(f_lid_plan).strip().lower().split())
+                            es_admin = (st.session_state.get("id_usuario") == "admin")
+                            
+                            es_lider_presentado = (nom_lid_plan_limpio != "todos") and (nom_cand_limpio == nom_lid_plan_limpio)
+                            es_propia_colab = (not es_admin) and (nom_cand_limpio == nom_usr_limpio)
+                            ocultar_metricas = es_lider_presentado or es_propia_colab
+                            
+                            jer_key_c = next((k for k in row.keys() if k and ('jerárquico' in str(k).lower() or 'jerarquico' in str(k).lower())), 'Nivel Jerárquico')
+                            mla_key_c = next((k for k in row.keys() if k and 'nivel mla' in str(k).lower()), 'Nivel MLA')
+
+                            if ocultar_metricas: box_c = edr_c = eng_c = mla_c = jer_c = "🔒 Confidencial"
+                            else:
+                                box_c = clean_text(row.get('Resultado 9 box'), 'Pendiente')
+                                edr_c = clean_text(row.get('EDR', row.get('EDR ')), 'Pendiente')
+                                eng_key = next((k for k in row.keys() if k and 'enganche' in str(k).lower()), None)
+                                eng_c = clean_text(row.get(eng_key), 'N/A') if eng_key else 'N/A'
+                                mla_c = clean_text(row.get(mla_key_c, 'N/A'))
+                                jer_c = clean_text(row.get(jer_key_c, 'N/A'))
+                            
+                            c_suc_temp = buscar_columna(row.index, 'sucesor', 1)
+                            suc1 = get_nom(row.get(c_suc_temp, '')) if c_suc_temp else 'Pendiente'
+                            c_read_temp = buscar_columna(row.index, 'readiness', 1)
+                            read1 = clean_text(row.get(c_read_temp, '')) if c_read_temp else ''
+                            
+                            st.markdown(f"""
+                            <div style='padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; font-family: sans-serif; background: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-bottom: 10px;'>
+                                <h4 style='margin-top: 0; color: #1e3a8a; font-size: 18px;'>{nombre_cand}</h4>
+                                <p style='margin: 2px 0; font-size: 13px; color: #475569;'><b>Puesto:</b> {puesto}</p>
+                                <p style='margin: 2px 0; font-size: 13px; color: #475569;'><b>Líder:</b> {lider}</p>
+                                <p style='margin: 2px 0; font-size: 13px; color: #475569;'><b>Dirección:</b> {dir_c}</p>
+                                <hr style='margin: 10px 0; border: 0; border-top: 1px dashed #cbd5e1;'>
+                                <div style='display: flex; gap: 8px; margin-bottom: 10px;'>
+                                    <span style='background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>Jerarquía: {jer_c}</span>
+                                    <span style='background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>MLA: {mla_c}</span>
+                                    <span style='background: #f1f5f9; color: #334155; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>9-BOX: {box_c}</span>
+                                    <span style='background: #f1f5f9; color: #334155; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>EDR: {edr_c}</span>
+                                </div>
+                                <p style='margin: 0; font-size: 13px; color: #b91c1c;'><b>🔥 Enganche Individual:</b> {eng_c}</p>
+                                <p style='margin: 6px 0 0 0; font-size: 13px; color: #4338ca;'><b>🥇 Sucesor 1:</b> {suc1 if suc1 else 'Pendiente'} <span style='font-size:11px; color:#64748b;'>{read1}</span></p>
+                            </div>
+                            """, unsafe_allow_html=True)
+
                         if pos_seleccionada:
                             df_ocupantes = df_posiciones_filtradas[df_posiciones_filtradas['Nombre de la Posición'].apply(clean_text) == pos_seleccionada]
                             info_pos = df_ocupantes.iloc[0] 
@@ -1128,61 +1183,6 @@ def main():
                                 horizontal=True, key=f"r_fuga_{pos_seleccionada}"
                             )
                             
-                           def mostrar_ficha_mini(nombre_cand, df_db):
-                                if not nombre_cand or nombre_cand in ["Pendiente", "Vacante / Sin asignar", "No definido", "Sin sucesor identificado"]: st.info("Sin información de ocupante"); return
-                                match = df_db[df_db['Nombre_Cruce'] == nombre_cand.strip().lower()]
-                                if match.empty: st.warning("Colaborador no encontrado en la base."); return
-                                row = match.iloc[0]
-                                def get_nom(val): return dict_nom_global.get(clean_id(val), val)
-                                
-                                puesto = clean_text(row.get('Nombre de la Posición', 'N/A'))
-                                lider = get_nom(row.get('ID Del Jefe', ''))
-                                dir_c = clean_text(row.get('Dirección', row.get('Direccion', 'N/A')))
-                                
-                                nom_cand_limpio = ' '.join(str(nombre_cand).strip().lower().split())
-                                nom_usr_limpio = ' '.join(str(st.session_state.get("nombre_usuario", "")).strip().lower().split())
-                                nom_lid_plan_limpio = ' '.join(str(f_lid_plan).strip().lower().split())
-                                es_admin = (st.session_state.get("id_usuario") == "admin")
-                                
-                                es_lider_presentado = (nom_lid_plan_limpio != "todos") and (nom_cand_limpio == nom_lid_plan_limpio)
-                                es_propia_colab = (not es_admin) and (nom_cand_limpio == nom_usr_limpio)
-                                ocultar_metricas = es_lider_presentado or es_propia_colab
-                                
-                                jer_key_c = next((k for k in row.keys() if k and ('jerárquico' in str(k).lower() or 'jerarquico' in str(k).lower())), 'Nivel Jerárquico')
-                                mla_key_c = next((k for k in row.keys() if k and 'nivel mla' in str(k).lower()), 'Nivel MLA')
-
-                                if ocultar_metricas: box_c = edr_c = eng_c = mla_c = jer_c = "🔒 Confidencial"
-                                else:
-                                    box_c = clean_text(row.get('Resultado 9 box'), 'Pendiente')
-                                    edr_c = clean_text(row.get('EDR', row.get('EDR ')), 'Pendiente')
-                                    eng_key = next((k for k in row.keys() if k and 'enganche' in str(k).lower()), None)
-                                    eng_c = clean_text(row.get(eng_key), 'N/A') if eng_key else 'N/A'
-                                    mla_c = clean_text(row.get(mla_key_c, 'N/A'))
-                                    jer_c = clean_text(row.get(jer_key_c, 'N/A'))
-                                
-                                c_suc_temp = buscar_columna(row.index, 'sucesor', 1)
-                                suc1 = get_nom(row.get(c_suc_temp, '')) if c_suc_temp else 'Pendiente'
-                                c_read_temp = buscar_columna(row.index, 'readiness', 1)
-                                read1 = clean_text(row.get(c_read_temp, '')) if c_read_temp else ''
-                                
-                                st.markdown(f"""
-                                <div style='padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; font-family: sans-serif; background: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); margin-bottom: 10px;'>
-                                    <h4 style='margin-top: 0; color: #1e3a8a; font-size: 18px;'>{nombre_cand}</h4>
-                                    <p style='margin: 2px 0; font-size: 13px; color: #475569;'><b>Puesto:</b> {puesto}</p>
-                                    <p style='margin: 2px 0; font-size: 13px; color: #475569;'><b>Líder:</b> {lider}</p>
-                                    <p style='margin: 2px 0; font-size: 13px; color: #475569;'><b>Dirección:</b> {dir_c}</p>
-                                    <hr style='margin: 10px 0; border: 0; border-top: 1px dashed #cbd5e1;'>
-                                    <div style='display: flex; gap: 8px; margin-bottom: 10px;'>
-                                        <span style='background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>Jerarquía: {jer_c}</span>
-                                        <span style='background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>MLA: {mla_c}</span>
-                                        <span style='background: #f1f5f9; color: #334155; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>9-BOX: {box_c}</span>
-                                        <span style='background: #f1f5f9; color: #334155; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;'>EDR: {edr_c}</span>
-                                    </div>
-                                    <p style='margin: 0; font-size: 13px; color: #b91c1c;'><b>🔥 Enganche Individual:</b> {eng_c}</p>
-                                    <p style='margin: 6px 0 0 0; font-size: 13px; color: #4338ca;'><b>🥇 Sucesor 1:</b> {suc1 if suc1 else 'Pendiente'} <span style='font-size:11px; color:#64748b;'>{read1}</span></p>
-                                </div>
-                                """, unsafe_allow_html=True)
-                                
                             col_info1, col_info2 = st.columns(2)
                             with col_info1:
                                 titulo_ocupantes = f"👥 Ocupantes Actuales ({len(nombres_ocupantes)})"
