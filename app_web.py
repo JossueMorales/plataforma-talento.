@@ -330,14 +330,12 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
         is_hidden_map = emp not in nodos_rescatados
         is_hidden_kpi = emp not in nodos_estrictos
         
-        # INYECCIÓN VISUAL VACANTES
         is_vacante = str(emp).strip().upper().startswith("VAC-")
         
         nom_suc1 = nombres_dict.get(info['suc1_id'], info['suc1_id']) if info['suc1_id'] else ""
         nom_suc2 = nombres_dict.get(info['suc2_id'], info['suc2_id']) if info['suc2_id'] else ""
         nom_suc3 = nombres_dict.get(info['suc3_id'], info['suc3_id']) if info['suc3_id'] else ""
         
-        # Filtro Kpi: Excluir las vacantes de métricas de población (Para no inflar Headcount)
         if not is_hidden_kpi and not is_vacante:
             es_andres = info['jerarquia'] == '5' or 'ANDRES EDUARDO VILLARREAL' in info['nombre'].upper()
             nodo_data = {"Nombre": info['nombre'], "Dirección": info['direccion'], "Puesto": info['puesto']}
@@ -347,15 +345,10 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
                 data_edr.append({"Nombre": info['nombre'], "Puesto": info['puesto'], "Dirección": info['direccion'], "Resultado EDR": info['edr']})
                 if info['critica'].lower() == 'si':
                     data_sucesores.append({
-                        "Ocupante Actual": info['nombre'], 
-                        "Posición Crítica": info['puesto'], 
-                        "Dirección": info['direccion'], 
-                        "Sucesor 1": nom_suc1 if nom_suc1 else "Pendiente", 
-                        "Readiness 1": info['read1'] if info['read1'] else "Pendiente",
-                        "Sucesor 2": nom_suc2 if nom_suc2 else "Pendiente", 
-                        "Readiness 2": info['read2'] if info['read2'] else "Pendiente",
-                        "Sucesor 3": nom_suc3 if nom_suc3 else "Pendiente", 
-                        "Readiness 3": info['read3'] if info['read3'] else "Pendiente"
+                        "Ocupante Actual": info['nombre'], "Posición Crítica": info['puesto'], "Dirección": info['direccion'], 
+                        "Sucesor 1": nom_suc1 if nom_suc1 else "Pendiente", "Readiness 1": info['read1'] if info['read1'] else "Pendiente",
+                        "Sucesor 2": nom_suc2 if nom_suc2 else "Pendiente", "Readiness 2": info['read2'] if info['read2'] else "Pendiente",
+                        "Sucesor 3": nom_suc3 if nom_suc3 else "Pendiente", "Readiness 3": info['read3'] if info['read3'] else "Pendiente"
                     })
                 if info['es_lider']: data_enganche.append({"Líder": info['nombre'], "Puesto": info['puesto'], "Dirección": info['direccion'], "Enganche Individual": info['enganche_ind'] if info['enganche_ind'] > 0 else "N/A", "Enganche del Área": info['enganche_area'] if info['enganche_area'] > 0 else "N/A"})
                 for r in info['riesgos_lista']: alertas_tabla.append({"Colaborador": info['nombre'], "Líder Directo": info['lider'], "Puesto": info['puesto'], "Dirección": info['direccion'], "Alerta Detectada por IA": r})
@@ -370,7 +363,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
         color_sombreado = 'rgba(22, 163, 74, 0.8)' if eng >= 4 else ('rgba(234, 179, 8, 0.8)' if eng >= 3 else ('rgba(249, 115, 22, 0.8)' if eng >= 2 else ('rgba(220, 38, 38, 0.8)' if eng > 0 else 'rgba(0, 0, 0, 0.2)')))
         dispersion_offset = (((sum(ord(ch) for ch in str(emp)) % 9) / 8.0) * 0.4) - 0.2 
         
-        # INYECCIÓN VISUAL DE VACANTE (VAC-01 bypass estético)
         shape_nodo = 'square' if is_vacante else 'dot'
         color_nodo = '#94a3b8' if is_vacante else obtener_color_9box(info['box'])
         
@@ -443,7 +435,6 @@ def generar_mapa_html(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_bo
 def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame()):
     st.markdown(f"### 📝 Plan de Desarrollo Individual (PDI)")
     
-    # CONTROL DE PERIODO PDI
     estado_pdi = st.session_state.get("estado_pdi", "ABIERTO")
     if estado_pdi == "CERRADO" and st.session_state.get("id_usuario") != "admin":
         st.error("🔒 **Periodo de Captura de PDI Cerrado**")
@@ -467,7 +458,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame()):
         nomina_aut, puesto_aut, dir_aut, lider_aut = "N/A", "N/A", "N/A", "N/A"
         st.warning("⚠️ No pudimos encontrar tus datos exactos en la base principal. Habla con RH.")
 
-    # CLONADO INTELIGENTE
     datos_pdi_usuario = pd.DataFrame()
     if not df_pdi.empty and 'Nombre' in df_pdi.columns:
         nombres_pdi_limpios = df_pdi['Nombre'].astype(str).str.strip().str.lower()
@@ -525,7 +515,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame()):
         col_comp = fc('para qué') or fc('competencia') or '¿Para qué? / Competencia'
         col_rec = fc('quién') or fc('recursos') or '¿Quién? / Recursos'
         col_met = fc('cómo') or fc('métricas') or '¿Cómo sabremos que se logró? / Métricas'
-        col_fec = fc('cuándo') or fc('cumplimiento') or '¿Cuándo? / Fechas'
+        col_fec = fc('cuándo') or fc('cuándo') or '¿Cuándo? / Fechas'
         col_av = fc('avance') or '% de Avance'
         col_est = fc('estatus') or 'Estatus'
         
@@ -771,7 +761,6 @@ def main():
         footer { visibility: hidden !important; }
         .block-container { padding-top: 2rem !important; padding-bottom: 0rem !important; }
         div[data-testid="stButton"] > button { padding: 2px 10px; font-size: 12px; height: auto; min-height: 28px; }
-        /* Carrusel de Columnas Horizontal Sucesores */
         div[data-testid="stHorizontalBlock"] {
             flex-wrap: nowrap !important;
             overflow-x: auto !important;
@@ -1385,7 +1374,7 @@ def main():
                             ocultar_metricas = es_lider_presentado or es_propia_colab
                             
                             jer_key_c = next((k for k in row_c.keys() if k and ('jerárquico' in str(k).lower() or 'jerarquico' in str(k).lower())), 'Nivel Jerárquico')
-                            mla_key_c = next((k for k in row.keys() if k and 'nivel mla' in str(k).lower()), 'Nivel MLA')
+                            mla_key_c = next((k for k in row_c.keys() if k and 'nivel mla' in str(k).lower()), 'Nivel MLA')
 
                             if ocultar_metricas: box_c = edr_c = eng_c = mla_c = jer_c = "🔒 Confidencial"
                             else:
@@ -2075,7 +2064,6 @@ def main():
                         if 'columnas_seleccionadas' in locals() and columnas_seleccionadas and not df_base_export.empty:
                             df_export = df_base_export[columnas_seleccionadas]
                             
-                            # (MEJORA 3) REGLA CRÍTICA: MATRIZ TRANSPUESTA (df_export.T)
                             csv_data = df_export.T.to_csv(header=False).encode('utf-8-sig')
                             st.download_button(label="📥 3️⃣ Descargar Reporte a Excel (Formato Transpuesto)", data=csv_data, file_name=f'Reporte_Inteligente_{st.session_state["nombre_usuario"].replace(" ", "_")}.csv', mime='text/csv', use_container_width=True, type="primary")
                         elif 'columnas_seleccionadas' in locals() and not columnas_seleccionadas:
@@ -2084,7 +2072,6 @@ def main():
                     with tab_admin:
                         st.markdown("### ⚙️ Gestión de Plataforma y Usuarios")
                         
-                        # (MEJORA 1) MÓDULO: Bloqueo de Periodos (Sucesión y PDI)
                         st.markdown("#### 🔐 Control de Periodos Operativos")
                         col_candado1, col_candado2 = st.columns(2)
 
@@ -2107,7 +2094,6 @@ def main():
                                 doc_id = match.group(1) if match else LINK_ARCHIVO
                                 archivo = cliente.open_by_key(doc_id)
                                 
-                                # Guardamos en las columnas C y D de Metadata
                                 ws_meta = archivo.worksheet("Metadata")
                                 ws_meta.update_acell('C1', n_estado_suc)
                                 ws_meta.update_acell('D1', n_estado_pdi)
@@ -2123,7 +2109,7 @@ def main():
                         st.info("Administra los accesos a la plataforma. Estos se sincronizan en vivo con tu pestaña 'Usuarios' de Google Sheets usando encriptación SHA-256.")
 
                         current_timestamp_u, _, _ = obtener_metadata(LINK_ARCHIVO)
-                        df_u_admin = cargar_datos_csv("Usuarios", current_timestamp_u)
+                        df_u_admin = cargar_datos_csv("Usuarios", current_timestamp_u, LINK_ARCHIVO)
 
                         sub_tab_nuevo, sub_tab_editar = st.tabs(["➕ Agregar Nuevo Perfil", "✏️ Editar / Eliminar Perfil"])
 
@@ -2229,7 +2215,6 @@ def main():
                                                         try:
                                                             fila_usuario = usuarios_col.index(u_id_sel) + 1
                                                             
-                                                            # Batch API Update en lugar de peticiones simples
                                                             pestana_users.update(values=[[pass_to_save, e_dir_str, e_lider_str]], range_name=f"C{fila_usuario}:E{fila_usuario}")
                                                             
                                                             archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
