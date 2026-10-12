@@ -21,13 +21,13 @@ from config_ui import (
     obtener_color_9box, acortar_nombre, acortar_puesto,
     get_readiness_val, get_dispersion_offset
 )
-from database import LINK_ARCHIVO, PESTANA_PDI_ACTUAL, PESTANA_PDI_ANTERIOR, obtener_metadata, cargar_datos_csv
+# Eliminamos los nombres estáticos y agregamos las columnas desde nuestro módulo
+from database import LINK_ARCHIVO, obtener_metadata, cargar_datos_csv
 from auth import login, hash_password, PASSWORD_POR_DEFECTO
 
-# Importamos nuestros nuevos módulos especializados
 from modulos.mapa_org import generar_mapa_html, buscar_columna
 from modulos.sucesion import renderizar_tab_sucesiones
-from modulos.pdi import renderizar_mi_pdi
+from modulos.pdi import renderizar_mi_pdi, COLUMNAS_PDI
 
 # ==========================================
 # FUNCIONES DE UTILIDAD Y CACHÉ
@@ -129,13 +129,18 @@ def main():
             
     st.divider()
     with st.spinner("Cargando base de datos y validando seguridad dinámica..."):
-        current_timestamp, estado_sucesion, estado_pdi = obtener_metadata()
+        
+        # Leemos las 5 variables de metadata generadas de forma dinámica
+        current_timestamp, estado_sucesion, estado_pdi, pdi_planeacion, pdi_cierre = obtener_metadata()
+        
         st.session_state["estado_sucesion"] = estado_sucesion
         st.session_state["estado_pdi"] = estado_pdi
+        st.session_state["pdi_planeacion"] = pdi_planeacion
+        st.session_state["pdi_cierre"] = pdi_cierre
         
         df_completo_raw = cargar_datos_csv("Base de datos", current_timestamp)
-        df_pdi = cargar_datos_csv(PESTANA_PDI_ACTUAL, current_timestamp)
-        df_pdi_anterior = cargar_datos_csv(PESTANA_PDI_ANTERIOR, current_timestamp)
+        df_pdi = cargar_datos_csv(pdi_planeacion, current_timestamp)
+        df_pdi_anterior = cargar_datos_csv(pdi_cierre, current_timestamp)
         
         if df_completo_raw.empty:
             st.error("Error al conectar con la base de datos principal.")
@@ -307,7 +312,6 @@ def main():
                     if forzar_mapa: renderizar_mapa = True
             st.write("") 
             
-            # --- LLAMADA AL MAPA ---
             html_mapa, df_alertas, kpis = generar_mapa_html_cacheado(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_box, f_edr, f_puesto, f_riesgos, renderizar_mapa, st.session_state["id_usuario"])
             
             if kpis is not None:
@@ -363,7 +367,6 @@ def main():
                         else:
                             st.info("👆 Selecciona cualquier KPI superior para desplegar la información a detalle en esta área.")
                 
-                # --- LLAMADA AL NUEVO MÓDULO DE SUCESIONES ---
                 with tab_sucesiones:
                     f_lid_plan, subordinados_nombres_limpios = renderizar_tab_sucesiones(
                         df_seguro, df_completo, df_pdi, dict_nom_global, jerarquia_global, 
@@ -477,9 +480,8 @@ def main():
                         else: st.warning("⚠️ Esperando el primer guardado para construir la tabla de seguimiento.")
                     else: st.warning("⚠️ No hay planes de desarrollo registrados en el equipo todavía.")
                 
-                # --- LLAMADA AL NUEVO MÓDULO DE PDI ---
                 with tab_mi_pdi:
-                    renderizar_mi_pdi(df_completo, df_pdi)
+                    renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior)
                 
                 if st.session_state["id_usuario"] == "admin":
                     with tab_reportes:
@@ -658,6 +660,50 @@ def main():
                     with tab_admin:
                         st.markdown("### ⚙️ Gestión de Plataforma y Usuarios")
                         
+                        # --- NUEVO: BOTÓN MÁGICO DE CICLOS PDI ---
+                        st.markdown("#### 🔄 Gestión de Ciclos PDI (Nivel Enterprise)")
+                        st.info(f"**Ciclo de Planeación Actual:** {st.session_state.get('pdi_planeacion')} | **Ciclo de Cierre (Evaluación):** {st.session_state.get('pdi_cierre')}")
+                        
+                        nuevo_anio = st.number_input("Año del próximo ciclo de PDI", min_value=2025, max_value=2050, value=2028, step=1)
+                        
+                        if st.button(f"✨ Abrir Nuevo Ciclo: PDI {nuevo_anio}", use_container_width=True):
+                            with st.spinner(f"Creando la infraestructura para PDI {nuevo_anio}..."):
+                                try:
+                                    secretos = st.secrets["connections"]["gsheets"]
+                                    credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
+                                    cliente = gspread.authorize(credenciales)
+                                    match = re.search(r'/d/([a-zA-Z0-9-_]+)', LINK_ARCHIVO)
+                                    doc_id = match.group(1) if match else LINK_ARCHIVO
+                                    archivo = cliente.open_by_key(doc_id)
+                                    
+                                    nuevo_nombre_hoja = f"PDI {nuevo_anio}"
+                                    hojas_existentes = [ws.title for ws in archivo.worksheets()]
+                                    
+                                    if nuevo_nombre_hoja in hojas_existentes:
+                                        st.warning(f"⚠️ La pestaña '{nuevo_nombre_hoja}' ya existe en tu Google Sheets.")
+                                    else:
+                                        # Crea la hoja nueva
+                                        nueva_hoja = archivo.add_worksheet(title=nuevo_nombre_hoja, rows="1000", cols="26")
+                                        # Le inyecta los headers oficiales
+                                        nueva_hoja.append_row(COLUMNAS_PDI)
+                                        
+                                        # Actualiza la metadata
+                                        ws_meta = archivo.worksheet("Metadata")
+                                        viejo_planeacion = st.session_state.get('pdi_planeacion', 'PDI 2027')
+                                        ws_meta.update_acell('E1', nuevo_nombre_hoja)
+                                        ws_meta.update_acell('F1', viejo_planeacion)
+                                        ws_meta.update_acell('A1', str(time.time()))
+                                        
+                                        st.cache_data.clear()
+                                        st.success(f"✅ ¡Ciclo {nuevo_anio} creado! La plataforma entera se ha actualizado automáticamente.")
+                                        time.sleep(2)
+                                        st.rerun()
+                                except Exception as e:
+                                    st.error(f"❌ Error al crear el nuevo ciclo: {e}")
+                                    
+                        st.divider()
+                        # --- FIN DEL BOTÓN MÁGICO ---
+
                         st.markdown("#### 🔐 Control de Periodos Operativos")
                         col_candado1, col_candado2 = st.columns(2)
 
