@@ -316,6 +316,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
             with st.expander("🤖 Coach Inteligente Ayvi (Sugerencias con Gemini)", expanded=False):
                 st.markdown("¿No sabes por dónde empezar tu PDI? La Inteligencia Artificial de Google Gemini puede analizar tu perfil y sugerirte acciones prácticas de desarrollo.")
                 
+                # Contexto MLA
                 contexto_mla = ""
                 if not df_mla.empty:
                     col_id_mla = buscar_columna(df_mla.columns, 'id de usuario') or buscar_columna(df_mla.columns, 'nómina') or buscar_columna(df_mla.columns, 'nomina')
@@ -329,33 +330,53 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                                 datos_mla_usr['_num_lid'] = pd.to_numeric(datos_mla_usr[col_lid], errors='coerce')
                                 peor_comp = datos_mla_usr.nsmallest(2, '_num_lid')[col_comp].tolist()
                                 if peor_comp:
-                                    contexto_mla = f"Además, en su evaluación reciente obtuvo calificaciones bajas en estas competencias que debe fortalecer: {', '.join(peor_comp)}."
+                                    contexto_mla = f"Además, en su evaluación de liderazgo obtuvo calificaciones bajas en estas competencias que debe fortalecer urgentemente: {', '.join(peor_comp)}."
                             except:
                                 pass
+                                
+                # Contexto de Carrera y Sucesión
+                contexto_carrera = ""
+                if rol_1:
+                    contexto_carrera += f"- Rol que le interesa a futuro (Declarado por él mismo): {rol_1}\n"
+                
+                # Buscamos en la base general si es sucesor
+                col_sucesor = buscar_columna(df_completo.columns, 'sucesor') or buscar_columna(df_completo.columns, 'readiness')
+                col_puesto_suc = buscar_columna(df_completo.columns, 'posición a suceder') or buscar_columna(df_completo.columns, 'puesto clave') or buscar_columna(df_completo.columns, 'sucesion')
+                
+                if not datos_bd.empty:
+                    val_suc = str(datos_bd.iloc[0].get(col_sucesor, '')).strip() if col_sucesor else ""
+                    val_puesto_suc = str(datos_bd.iloc[0].get(col_puesto_suc, '')).strip() if col_puesto_suc else ""
+                    
+                    if val_suc and val_suc.lower() not in ['nan', 'none', 'n/a', '', 'no', 'falso']:
+                        contexto_carrera += f"- Estatus en Mapa de Talento: Es considerado Sucesor con nivel de readiness '{val_suc}'.\n"
+                    if val_puesto_suc and val_puesto_suc.lower() not in ['nan', 'none', 'n/a', '', 'no', 'falso']:
+                        contexto_carrera += f"- Posición proyectada a la que sucederá: {val_puesto_suc}.\n"
 
                 if st.button("✨ Generar Sugerencias con Gemini", type="primary"):
-                    with st.spinner("🧠 Analizando perfil y redactando plan... (Esto puede tomar 5-10 segundos)"):
+                    with st.spinner("🧠 Analizando perfil, plan de carrera y redactando plan..."):
                         try:
                             genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-                            
-                            # Usamos exactamente la versión que pide Google en el error
                             modelo_gemini = genai.GenerativeModel('gemini-3.8-flash')
                             
                             prompt_sistema = f"""
                             Eres un Coach Ejecutivo Experto en Recursos Humanos y la Metodología 70-20-10.
-                            Tu objetivo es sugerir acciones de desarrollo concretas para un empleado.
+                            Tu objetivo es sugerir acciones de desarrollo altamente estratégicas y concretas para un empleado.
                             
                             Perfil del Empleado:
                             - Puesto actual: {puesto_aut}
                             - Dirección: {dir_aut}
+                            {contexto_carrera}
                             {contexto_mla}
                             
-                            Por favor, redacta 3 sugerencias prácticas (una para cada porcentaje del modelo 70-20-10):
-                            1. Acción 70% (Aprendizaje en el trabajo / Nuevos retos).
-                            2. Acción 20% (Mentoring / Exposición con líderes).
+                            Instrucciones Críticas:
+                            Si el perfil indica que es "Sucesor" o tiene un "Rol de Interés", enfoca FUERTEMENTE las acciones para prepararlo para ese siguiente nivel jerárquico, no solo para que mejore en su puesto actual.
+                            
+                            Por favor, redacta 3 sugerencias prácticas y retadoras (una para cada porcentaje del modelo 70-20-10):
+                            1. Acción 70% (Aprendizaje en el trabajo / Proyectos reto).
+                            2. Acción 20% (Mentoring / Exposición con líderes / Trabajo colaborativo).
                             3. Acción 10% (Cursos / Lecturas / Formación formal).
                             
-                            Responde directo, con viñetas y un tono profesional y motivador. No uses introducciones largas.
+                            Responde directo, con viñetas claras y un tono profesional pero muy motivador. No uses introducciones largas.
                             """
                             
                             respuesta = modelo_gemini.generate_content(prompt_sistema)
