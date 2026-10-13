@@ -4,3 +4,4 @@ pandas
 networkx
 pyvis
 st-gsheets-connection
+google-generativeai
