@@ -338,15 +338,8 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         try:
                             genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
                             
-                            # --- TRUCO: Buscar automáticamente el modelo compatible ---
-                            nombre_modelo = "gemini-1.5-flash" # Valor por defecto
-                            for m in genai.list_models():
-                                if 'generateContent' in m.supported_generation_methods and 'gemini' in m.name:
-                                    nombre_modelo = m.name.replace("models/", "")
-                                    break # Toma el primero que tu llave tenga permitido usar
-                                    
-                            modelo_gemini = genai.GenerativeModel(nombre_modelo)
-                            # --------------------------------------------------------
+                            # Usamos exactamente la versión que pide Google en el error
+                            modelo_gemini = genai.GenerativeModel('gemini-3.8-flash')
                             
                             prompt_sistema = f"""
                             Eres un Coach Ejecutivo Experto en Recursos Humanos y la Metodología 70-20-10.
