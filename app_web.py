@@ -133,10 +133,10 @@ def main():
         # Leemos las 5 variables de metadata generadas de forma dinámica
         current_timestamp, estado_sucesion, estado_pdi, pdi_planeacion, pdi_cierre = obtener_metadata()
         
-        st.session_state["estado_sucesion"] = estado_sucesion
-        st.session_state["estado_pdi"] = estado_pdi
-        st.session_state["pdi_planeacion"] = pdi_planeacion
-        st.session_state["pdi_cierre"] = pdi_cierre
+        df_completo_raw = cargar_datos_csv("Base de datos", current_timestamp)
+        df_pdi = cargar_datos_csv(pdi_planeacion, current_timestamp)
+        df_pdi_anterior = cargar_datos_csv(pdi_cierre, current_timestamp)
+        df_mla = cargar_datos_csv("Resultados MLA", current_timestamp) # ✨ NUEVA LÍNEA
         
         df_completo_raw = cargar_datos_csv("Base de datos", current_timestamp)
         df_pdi = cargar_datos_csv(pdi_planeacion, current_timestamp)
@@ -193,7 +193,7 @@ def main():
         col_jer = next((c for c in df_completo.columns if 'jerárquico' in str(c).lower() or 'jerarquico' in str(c).lower()), 'Nivel Jerárquico')
         
         if es_colaborador:
-            renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior)
+            renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior, df_mla) # Le pasamos df_mla al final
         else:
             if "TODAS" not in direccion_permitida:
                 lista_dirs = [d.strip() for d in direccion_permitida.split(",")]
@@ -481,7 +481,7 @@ def main():
                     else: st.warning("⚠️ No hay planes de desarrollo registrados en el equipo todavía.")
                 
                 with tab_mi_pdi:
-                    renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior)
+                    renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior, df_mla) # Le pasamos df_mla al final
                 
                 if st.session_state["id_usuario"] == "admin":
                     with tab_reportes:
