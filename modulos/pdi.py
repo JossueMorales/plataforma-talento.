@@ -338,7 +338,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         try:
                             # Configuración de Gemini
                             genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-                            modelo_gemini = genai.GenerativeModel('gemini-1.5-flash')
+                            modelo_gemini = genai.GenerativeModel('gemini-pro')
                             
                             prompt_sistema = f"""
                             Eres un Coach Ejecutivo Experto en Recursos Humanos y la Metodología 70-20-10.
