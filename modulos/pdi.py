@@ -52,6 +52,12 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame()):
     roles_disponibles = [""] + df_completo['Nombre de la Posición'].dropna().astype(str).drop_duplicates().tolist()
     
     def index_seguro(lista, valor): return lista.index(valor) if valor in lista else 0
+    
+    # FUNCION ANTI-MEMORIA TRAMPOSA DE STREAMLIT
+    def limpiar_memoria_formularios():
+        for k in list(st.session_state.keys()):
+            if k.startswith(("70_", "20_", "10_", "mot")):
+                del st.session_state[k]
 
     # ==========================================
     # PESTAÑA 1: EVALUACIÓN (CIERRE)
@@ -215,12 +221,14 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame()):
                     st.warning(f"✨ Tienes un PDI del ciclo anterior ({pdi_cierre_str}).")
                     if st.button("🔄 Clonar estrategias no completadas", use_container_width=True):
                         st.session_state['clonar_pdi'] = True
+                        limpiar_memoria_formularios()
                         st.rerun()
                 else:
                     with st.expander(f"✨ Detectamos un historial en {pdi_cierre_str}. ¿Deseas sobreescribir este plan?"):
                         st.info("Ya tienes datos guardados en este nuevo ciclo. Si haces clic aquí, reemplazaremos lo que está abajo con tus pendientes del año pasado.")
                         if st.button("🔄 Sobreescribir trayendo mis pendientes del año pasado", use_container_width=True):
                             st.session_state['clonar_pdi'] = True
+                            limpiar_memoria_formularios()
                             st.rerun()
             else:
                 col_est = next((c for c in historial.columns if 'estatus' in clean_text(str(c)).lower()), None)
@@ -228,7 +236,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame()):
                     historial = historial[~historial[col_est].astype(str).str.lower().isin(['completado', 'cancelado', 'terminado', 'concluido'])]
                 datos_pdi_usuario = historial.copy() 
                 
-                # --- MEJORA VISUAL UX: ALERTA CLARA DE ÉXITO ---
                 num_acciones = 0
                 col_acc_clon = next((c for c in historial.columns if 'qué' in clean_text(str(c)).lower() or 'acci' in clean_text(str(c)).lower()), None)
                 if col_acc_clon:
@@ -237,7 +244,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame()):
                 st.markdown(f"""
                     <div style='background-color: #dcfce7; padding: 15px; border-radius: 8px; border-left: 5px solid #22c55e; margin-bottom: 15px;'>
                         <h4 style='color: #166534; margin-top: 0;'>✅ ¡Magia completada! Se clonaron {num_acciones} acciones pendientes.</h4>
-                        <p style='color: #15803d; margin-bottom: 0; font-size: 14px;'><b>Siguiente paso:</b> Desplázate hacia abajo hasta la sección azul oscuro de <b>"Plan de Desarrollo"</b>. Verás que las cajas de texto de los apartados 70%, 20% y 10% ya contienen tu información. Solo ajusta las fechas objetivo y presiona Guardar.</p>
+                        <p style='color: #15803d; margin-bottom: 0; font-size: 14px;'><b>Siguiente paso:</b> Desplázate hacia abajo hasta la sección azul oscuro de <b>"Plan de Desarrollo"</b>. Verás que las cajas de texto de los apartados 70%, 20% y 10% <b>ya contienen tu información</b>. Solo ajusta las fechas objetivo y presiona Guardar.</p>
                     </div>
                 """, unsafe_allow_html=True)
 
@@ -307,16 +314,16 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame()):
             st.write("")
             
             r1, m1 = st.columns([1, 2])
-            rol_int_1 = r1.selectbox("Rol / Área de Interés 1", roles_disponibles, index=index_seguro(roles_disponibles, rol_1))
-            mot_int_1 = m1.text_input("Motivo 1", value=mot_1, key="mot1", placeholder="¿Por qué te interesa este rol?")
+            rol_int_1 = r1.selectbox("Rol / Área de Interés 1", roles_disponibles, index=index_seguro(roles_disponibles, rol_1), key="mot_r1")
+            mot_int_1 = m1.text_input("Motivo 1", value=mot_1, key="mot_m1", placeholder="¿Por qué te interesa este rol?")
             
             r2, m2 = st.columns([1, 2])
-            rol_int_2 = r2.selectbox("Rol / Área de Interés 2", roles_disponibles, index=index_seguro(roles_disponibles, rol_2))
-            mot_int_2 = m2.text_input("Motivo 2", value=mot_2, key="mot2")
+            rol_int_2 = r2.selectbox("Rol / Área de Interés 2", roles_disponibles, index=index_seguro(roles_disponibles, rol_2), key="mot_r2")
+            mot_int_2 = m2.text_input("Motivo 2", value=mot_2, key="mot_m2")
             
             r3, m3 = st.columns([1, 2])
-            rol_int_3 = r3.selectbox("Rol / Área de Interés 3", roles_disponibles, index=index_seguro(roles_disponibles, rol_3))
-            mot_int_3 = m3.text_input("Motivo 3", value=mot_3, key="mot3")
+            rol_int_3 = r3.selectbox("Rol / Área de Interés 3", roles_disponibles, index=index_seguro(roles_disponibles, rol_3), key="mot_r3")
+            mot_int_3 = m3.text_input("Motivo 3", value=mot_3, key="mot_m3")
             
             st.write("")
             st.markdown("<div style='background-color:#fef08a; padding:6px; color:#854d0e; font-weight:bold; text-align:center; border-radius:4px;'>Objetivo de Desarrollo (Colaborador y Líder)</div>", unsafe_allow_html=True)
