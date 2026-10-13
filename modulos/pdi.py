@@ -227,7 +227,19 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame()):
                 if col_est:
                     historial = historial[~historial[col_est].astype(str).str.lower().isin(['completado', 'cancelado', 'terminado', 'concluido'])]
                 datos_pdi_usuario = historial.copy() 
-                st.success("✅ ¡Acciones pendientes precargadas! Actualiza tus fechas y presiona 'Guardar'.")
+                
+                # --- MEJORA VISUAL UX: ALERTA CLARA DE ÉXITO ---
+                num_acciones = 0
+                col_acc_clon = next((c for c in historial.columns if 'qué' in clean_text(str(c)).lower() or 'acci' in clean_text(str(c)).lower()), None)
+                if col_acc_clon:
+                    num_acciones = len(historial[historial[col_acc_clon].astype(str).str.strip() != ""])
+                
+                st.markdown(f"""
+                    <div style='background-color: #dcfce7; padding: 15px; border-radius: 8px; border-left: 5px solid #22c55e; margin-bottom: 15px;'>
+                        <h4 style='color: #166534; margin-top: 0;'>✅ ¡Magia completada! Se clonaron {num_acciones} acciones pendientes.</h4>
+                        <p style='color: #15803d; margin-bottom: 0; font-size: 14px;'><b>Siguiente paso:</b> Desplázate hacia abajo hasta la sección azul oscuro de <b>"Plan de Desarrollo"</b>. Verás que las cajas de texto de los apartados 70%, 20% y 10% ya contienen tu información. Solo ajusta las fechas objetivo y presiona Guardar.</p>
+                    </div>
+                """, unsafe_allow_html=True)
 
         fecha_elab, depto = "", ""
         rol_1, mot_1, rol_2, mot_2, rol_3, mot_3 = "", "", "", "", "", ""
