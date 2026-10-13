@@ -4,6 +4,7 @@ import re
 import time
 import gspread
 from google.oauth2.service_account import Credentials
+import google.generativeai as genai # ✨ LIBRERÍA DE GOOGLE GEMINI
 
 from config_ui import clean_text, clean_id
 from database import LINK_ARCHIVO
@@ -308,6 +309,65 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
             
         st.write("")
         
+        # ==========================================
+        # SECCIÓN NUEVA: COACH IA (CON GOOGLE GEMINI)
+        # ==========================================
+        if "GEMINI_API_KEY" in st.secrets:
+            with st.expander("🤖 Coach Inteligente Ayvi (Sugerencias con Gemini)", expanded=False):
+                st.markdown("¿No sabes por dónde empezar tu PDI? La Inteligencia Artificial de Google Gemini puede analizar tu perfil y sugerirte acciones prácticas de desarrollo.")
+                
+                contexto_mla = ""
+                if not df_mla.empty:
+                    col_id_mla = buscar_columna(df_mla.columns, 'id de usuario') or buscar_columna(df_mla.columns, 'nómina') or buscar_columna(df_mla.columns, 'nomina')
+                    col_comp = buscar_columna(df_mla.columns, 'nombre de competencia') or buscar_columna(df_mla.columns, 'competencia')
+                    col_lid = buscar_columna(df_mla.columns, 'lider') or buscar_columna(df_mla.columns, 'líder')
+                    
+                    if col_id_mla and col_comp and col_lid:
+                        datos_mla_usr = df_mla[df_mla[col_id_mla].apply(clean_id) == nomina_aut]
+                        if not datos_mla_usr.empty:
+                            try:
+                                datos_mla_usr['_num_lid'] = pd.to_numeric(datos_mla_usr[col_lid], errors='coerce')
+                                peor_comp = datos_mla_usr.nsmallest(2, '_num_lid')[col_comp].tolist()
+                                if peor_comp:
+                                    contexto_mla = f"Además, en su evaluación reciente obtuvo calificaciones bajas en estas competencias que debe fortalecer: {', '.join(peor_comp)}."
+                            except:
+                                pass
+
+                if st.button("✨ Generar Sugerencias con Gemini", type="primary"):
+                    with st.spinner("🧠 Analizando perfil y redactando plan... (Esto puede tomar 5-10 segundos)"):
+                        try:
+                            # Configuración de Gemini
+                            genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+                            modelo_gemini = genai.GenerativeModel('gemini-1.5-flash')
+                            
+                            prompt_sistema = f"""
+                            Eres un Coach Ejecutivo Experto en Recursos Humanos y la Metodología 70-20-10.
+                            Tu objetivo es sugerir acciones de desarrollo concretas para un empleado.
+                            
+                            Perfil del Empleado:
+                            - Puesto actual: {puesto_aut}
+                            - Dirección: {dir_aut}
+                            {contexto_mla}
+                            
+                            Por favor, redacta 3 sugerencias prácticas (una para cada porcentaje del modelo 70-20-10):
+                            1. Acción 70% (Aprendizaje en el trabajo / Nuevos retos).
+                            2. Acción 20% (Mentoring / Exposición con líderes).
+                            3. Acción 10% (Cursos / Lecturas / Formación formal).
+                            
+                            Responde directo, con viñetas y un tono profesional y motivador. No uses introducciones largas.
+                            """
+                            
+                            respuesta = modelo_gemini.generate_content(prompt_sistema)
+                            st.session_state['sugerencia_ia'] = respuesta.text
+                            
+                        except Exception as e:
+                            st.error(f"❌ Ocurrió un error al conectar con Gemini: {e}")
+                
+                if 'sugerencia_ia' in st.session_state:
+                    st.success("💡 **Sugerencias del Coach Ayvi:**")
+                    st.markdown(st.session_state['sugerencia_ia'])
+                    st.info("Puedes copiar y pegar las sugerencias que más te gusten en los cuadros de texto de abajo.")
+
         with st.form("form_edicion_pdi_planeacion", clear_on_submit=False):
             st.markdown("<div style='background-color:#fef08a; padding:6px; color:#854d0e; font-weight:bold; text-align:center; border-radius:4px;'>Expectativas de Desarrollo (Colaborador)</div>", unsafe_allow_html=True)
             st.write("")
@@ -327,7 +387,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
             st.write("")
             
             # ==========================================
-            # SECCIÓN NUEVA: RESULTADOS MLA
+            # RESULTADOS MLA
             # ==========================================
             if not df_mla.empty:
                 col_id_mla = buscar_columna(df_mla.columns, 'id de usuario') or buscar_columna(df_mla.columns, 'nómina') or buscar_columna(df_mla.columns, 'nomina')
@@ -350,7 +410,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         df_tabla_mla.columns = ['Competencia MLA', 'Colaborador', 'Líder']
                         st.dataframe(df_tabla_mla, use_container_width=True, hide_index=True)
                     st.write("")
-            # ==========================================
             
             st.markdown("<div style='background-color:#fef08a; padding:6px; color:#854d0e; font-weight:bold; text-align:center; border-radius:4px;'>Objetivo de Desarrollo (Colaborador y Líder)</div>", unsafe_allow_html=True)
             st.write("")
