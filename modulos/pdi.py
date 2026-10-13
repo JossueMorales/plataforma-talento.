@@ -17,7 +17,7 @@ COLUMNAS_PDI = [
     "¿Cuándo? / Fechas", "% de Avance", "Estatus"
 ]
 
-def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame()):
+def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_mla=pd.DataFrame()):
     pdi_planeacion_str = st.session_state.get("pdi_planeacion", "PDI 2027")
     pdi_cierre_str = st.session_state.get("pdi_cierre", "PDI 2026")
     
@@ -53,7 +53,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame()):
     
     def index_seguro(lista, valor): return lista.index(valor) if valor in lista else 0
     
-    # FUNCION ANTI-MEMORIA TRAMPOSA DE STREAMLIT
     def limpiar_memoria_formularios():
         for k in list(st.session_state.keys()):
             if k.startswith(("70_", "20_", "10_", "mot")):
@@ -326,6 +325,33 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame()):
             mot_int_3 = m3.text_input("Motivo 3", value=mot_3, key="mot_m3")
             
             st.write("")
+            
+            # ==========================================
+            # SECCIÓN NUEVA: RESULTADOS MLA
+            # ==========================================
+            if not df_mla.empty:
+                col_id_mla = buscar_columna(df_mla.columns, 'id de usuario') or buscar_columna(df_mla.columns, 'nómina') or buscar_columna(df_mla.columns, 'nomina')
+                if col_id_mla:
+                    datos_mla_usr = df_mla[df_mla[col_id_mla].apply(clean_id) == nomina_aut]
+                else:
+                    col_nom_mla = buscar_columna(df_mla.columns, 'nombre')
+                    datos_mla_usr = df_mla[df_mla[col_nom_mla].astype(str).str.strip().str.lower() == nombre_colab.strip().lower()] if col_nom_mla else pd.DataFrame()
+                
+                if not datos_mla_usr.empty:
+                    st.markdown("<div style='background-color:#e0f2fe; padding:6px; color:#0369a1; font-weight:bold; text-align:center; border-radius:4px;'>📊 Evaluación de Modelo de Liderazgo Ayvi (MLA)</div>", unsafe_allow_html=True)
+                    st.info("Revisa tus resultados recientes del MLA. Utiliza estas calificaciones para definir tu Objetivo de Desarrollo enfocado en tus áreas de oportunidad.")
+                    
+                    col_comp = buscar_columna(datos_mla_usr.columns, 'nombre de competencia') or buscar_columna(datos_mla_usr.columns, 'competencia')
+                    col_lid = buscar_columna(datos_mla_usr.columns, 'lider') or buscar_columna(datos_mla_usr.columns, 'líder')
+                    col_colab = buscar_columna(datos_mla_usr.columns, 'colaborador')
+                    
+                    if col_comp and col_lid and col_colab:
+                        df_tabla_mla = datos_mla_usr[[col_comp, col_colab, col_lid]].copy()
+                        df_tabla_mla.columns = ['Competencia MLA', 'Colaborador', 'Líder']
+                        st.dataframe(df_tabla_mla, use_container_width=True, hide_index=True)
+                    st.write("")
+            # ==========================================
+            
             st.markdown("<div style='background-color:#fef08a; padding:6px; color:#854d0e; font-weight:bold; text-align:center; border-radius:4px;'>Objetivo de Desarrollo (Colaborador y Líder)</div>", unsafe_allow_html=True)
             st.write("")
             
