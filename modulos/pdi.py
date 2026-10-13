@@ -4,7 +4,7 @@ import re
 import time
 import gspread
 from google.oauth2.service_account import Credentials
-import google.generativeai as genai # ✨ LIBRERÍA DE GOOGLE GEMINI
+import google.generativeai as genai
 
 from config_ui import clean_text, clean_id
 from database import LINK_ARCHIVO
@@ -336,9 +336,17 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                 if st.button("✨ Generar Sugerencias con Gemini", type="primary"):
                     with st.spinner("🧠 Analizando perfil y redactando plan... (Esto puede tomar 5-10 segundos)"):
                         try:
-                            # Configuración de Gemini
                             genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-                            modelo_gemini = genai.GenerativeModel('gemini-pro')
+                            
+                            # --- TRUCO: Buscar automáticamente el modelo compatible ---
+                            nombre_modelo = "gemini-1.5-flash" # Valor por defecto
+                            for m in genai.list_models():
+                                if 'generateContent' in m.supported_generation_methods and 'gemini' in m.name:
+                                    nombre_modelo = m.name.replace("models/", "")
+                                    break # Toma el primero que tu llave tenga permitido usar
+                                    
+                            modelo_gemini = genai.GenerativeModel(nombre_modelo)
+                            # --------------------------------------------------------
                             
                             prompt_sistema = f"""
                             Eres un Coach Ejecutivo Experto en Recursos Humanos y la Metodología 70-20-10.
@@ -503,8 +511,8 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                                 for i, row in enumerate(registros_vivos):
                                     if i > 0 and len(row) > idx_num and str(row[idx_num]).strip().lower() == valor_buscar:
                                         filas_a_borrar.append(i + 1)
-                                for num_fila in reversed(filas_a_borrar):
-                                    pestana_pdi_gs.delete_rows(num_fila)
+                                    for num_fila in reversed(filas_a_borrar):
+                                        pestana_pdi_gs.delete_rows(num_fila)
 
                         if datos_a_insertar:
                             pestana_pdi_gs.append_rows(datos_a_insertar)
