@@ -28,7 +28,7 @@ from auth import login, hash_password, PASSWORD_POR_DEFECTO
 from modulos.mapa_org import generar_mapa_html, buscar_columna
 from modulos.sucesion import renderizar_tab_sucesiones
 from modulos.pdi import renderizar_mi_pdi, COLUMNAS_PDI
-from modulos.reportes import renderizar_reportes  # ✨ NUEVA IMPORTACIÓN
+from modulos.reportes import renderizar_reportes
 
 # ==========================================
 # FUNCIONES DE UTILIDAD Y CACHÉ
@@ -478,12 +478,10 @@ def main():
                 with tab_mi_pdi:
                     renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior, df_mla)
                 
-                # ✨ AQUÍ REEMPLAZAMOS EL BLOQUE GIGANTE DE REPORTES POR LA FUNCIÓN
                 if st.session_state["id_usuario"] == "admin":
                     with tab_reportes:
-                        # Pasamos todas las variables necesarias para los filtros y la IA
                         renderizar_reportes(df_seguro, df_completo, df_pdi, df_mla, kpis, f_jerarquia, f_puesto)
-                        
+
                     with tab_admin:
                         st.markdown("### ⚙️ Gestión de Plataforma y Usuarios")
                         
