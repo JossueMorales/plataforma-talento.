@@ -481,8 +481,9 @@ def main():
                 # ✨ AQUÍ REEMPLAZAMOS EL BLOQUE GIGANTE DE REPORTES POR LA FUNCIÓN
                 if st.session_state["id_usuario"] == "admin":
                     with tab_reportes:
-                        renderizar_reportes(df_completo, df_pdi, df_mla)
-
+                        # Pasamos todas las variables necesarias para los filtros y la IA
+                        renderizar_reportes(df_seguro, df_completo, df_pdi, df_mla, kpis, f_jerarquia, f_puesto)
+                        
                     with tab_admin:
                         st.markdown("### ⚙️ Gestión de Plataforma y Usuarios")
                         
