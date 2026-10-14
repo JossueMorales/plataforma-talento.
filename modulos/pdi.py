@@ -4,6 +4,7 @@ import re
 import time
 import gspread
 from google.oauth2.service_account import Credentials
+import streamlit.components.v1 as components
 
 from config_ui import clean_text, clean_id
 from database import LINK_ARCHIVO
@@ -23,7 +24,19 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
     
     estado_pdi = st.session_state.get("estado_pdi", "ABIERTO")
     
-    st.markdown(f"### 📝 Plan de Desarrollo Individual")
+    col_tit, col_btn = st.columns([4, 1])
+    with col_tit:
+        st.markdown(f"### 📝 Plan de Desarrollo Individual")
+    with col_btn:
+        st.markdown("<br>", unsafe_allow_html=True) 
+        components.html(
+            """
+            <button onclick="window.parent.print()" style="background-color: #ffffff; border: 1px solid #cbd5e1; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-family: sans-serif; font-size: 14px; font-weight: bold; color: #1e40af; width: 100%; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#f1f5f9'" onmouseout="this.style.backgroundColor='#ffffff'">
+                🖨️ Imprimir / PDF
+            </button>
+            """,
+            height=50
+        )
     
     if estado_pdi == "CERRADO" and st.session_state.get("id_usuario") != "admin":
         st.error("🔒 **Periodo de Captura de PDI Cerrado**")
@@ -58,9 +71,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
             if k.startswith(("70_", "20_", "10_", "mot")):
                 del st.session_state[k]
 
-    # ==========================================
-    # PESTAÑA 1: EVALUACIÓN (CIERRE)
-    # ==========================================
     with tab_evaluacion:
         st.info(f"Aquí puedes evaluar el avance de los objetivos que te propusiste para el ciclo **{pdi_cierre_str}**. Solo puedes editar el % de Avance y el Estatus.")
         
@@ -185,9 +195,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         except Exception as e:
                             st.error(f"❌ Error al guardar en Google Sheets: {e}")
 
-    # ==========================================
-    # PESTAÑA 2: PLANEACIÓN (NUEVO CICLO)
-    # ==========================================
     with tab_planeacion:
         st.info(f"Diseña tu estrategia de desarrollo para el ciclo **{pdi_planeacion_str}**.")
         
@@ -308,9 +315,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
             
         st.write("")
         
-        # ==========================================
-        # SISTEMA EXPERTO (ORIENTACION MLA)
-        # ==========================================
         with st.expander("📚 Sugerencias de Desarrollo (Catálogo MLA)", expanded=False):
             st.markdown("¿No sabes por dónde empezar tu PDI? El sistema analizará tus áreas de oportunidad del MLA y te mostrará los comportamientos esperados y sugerencias clave para desarrollarlas.")
             
@@ -422,7 +426,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
             st.markdown("<div style='background-color:#fef08a; padding:6px; color:#854d0e; font-weight:bold; text-align:center; border-radius:4px;'>Objetivo de Desarrollo (Colaborador y Líder)</div>", unsafe_allow_html=True)
             st.write("")
             
-            # Texto libre para el objetivo (Asegurado como st.text_area)
             obj_desarrollo = st.text_area("Objetivo a Desarrollar:", value=objetivo, placeholder="Ej. Desarrollar Conocimientos Técnicos, Creación de Equipos eficientes y Valentía Gerencial...", height=68)
             
             st.write("")
