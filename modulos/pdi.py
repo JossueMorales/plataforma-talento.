@@ -4,7 +4,6 @@ import re
 import time
 import gspread
 from google.oauth2.service_account import Credentials
-import google.generativeai as genai
 
 from config_ui import clean_text, clean_id
 from database import LINK_ARCHIVO
@@ -310,7 +309,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
         st.write("")
         
         # ==========================================
-        # SECCIÓN NUEVA: SISTEMA EXPERTO (ORIENTACION MLA)
+        # SISTEMA EXPERTO (ORIENTACION MLA)
         # ==========================================
         with st.expander("📚 Sugerencias de Desarrollo (Catálogo MLA)", expanded=False):
             st.markdown("¿No sabes por dónde empezar tu PDI? El sistema analizará tus áreas de oportunidad del MLA y te mostrará los comportamientos esperados y sugerencias clave para desarrollarlas.")
@@ -336,7 +335,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                 else:
                     with st.spinner("Buscando en la matriz de Orientación MLA..."):
                         try:
-                            # Conectarse a Google Sheets para extraer la Orientacion MLA
                             secretos = st.secrets["connections"]["gsheets"]
                             credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
                             cliente = gspread.authorize(credenciales)
@@ -344,7 +342,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                             doc_id = match.group(1) if match else LINK_ARCHIVO
                             archivo = cliente.open_by_key(doc_id)
                             
-                            # Leer la pestaña "Orientacion MLA"
                             pestana_orientacion = archivo.worksheet("Orientacion MLA")
                             datos_orientacion = pestana_orientacion.get_all_records()
                             df_orientacion = pd.DataFrame(datos_orientacion)
@@ -352,8 +349,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                             st.success(f"💡 **Resultados encontrados para tus áreas de oportunidad:**")
                             
                             encontro_alguna = False
-                            
-                            # Buscar las columnas exactas (ignorando mayúsculas y acentos)
                             col_o_comp = buscar_columna(df_orientacion.columns, 'competencia')
                             col_o_alineado = buscar_columna(df_orientacion.columns, 'comportamiento alineado')
                             col_o_desalineado = buscar_columna(df_orientacion.columns, 'comportamiento desalineado')
@@ -362,16 +357,12 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                             if col_o_comp and col_o_alineado and col_o_desalineado and col_o_sug:
                                 for comp in competencias_bajas:
                                     comp_limpia = clean_text(comp).lower()
-                                    
-                                    # Buscar coincidencia de competencia
                                     match_fyi = df_orientacion[df_orientacion[col_o_comp].apply(lambda x: clean_text(str(x)).lower()) == comp_limpia]
                                     
                                     if not match_fyi.empty:
                                         encontro_alguna = True
                                         fila = match_fyi.iloc[0]
-                                        
                                         st.markdown(f"### 🎯 Competencia a Desarrollar: **{str(fila[col_o_comp]).title()}**")
-                                        
                                         c1, c2 = st.columns(2)
                                         with c1:
                                             st.markdown("✔️ **Comportamiento Alineado (Lo esperado)**")
@@ -379,16 +370,14 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                                         with c2:
                                             st.markdown("⚠️ **Comportamiento Desalineado (A evitar)**")
                                             st.warning(str(fila[col_o_desalineado]))
-                                            
                                         st.markdown("🚀 **Sugerencias para mejorar (Acciones PDI):**")
                                         st.success(str(fila[col_o_sug]))
                                         st.divider()
                                         
                             if not encontro_alguna:
                                 st.info(f"Las competencias '{', '.join(competencias_bajas)}' aún no tienen sus detalles cargados en la base de datos de Orientación MLA.")
-                                
                         except Exception as e:
-                            st.error(f"❌ Ocurrió un error al buscar en el archivo (Asegúrate de que la pestaña se llama 'Orientacion MLA' y tiene las columnas correctas): {e}")
+                            st.error(f"❌ Ocurrió un error al buscar en el archivo (Asegúrate de que la pestaña se llama 'Orientacion MLA'): {e}")
 
         with st.form("form_edicion_pdi_planeacion", clear_on_submit=False):
             st.markdown("<div style='background-color:#fef08a; padding:6px; color:#854d0e; font-weight:bold; text-align:center; border-radius:4px;'>Expectativas de Desarrollo (Colaborador)</div>", unsafe_allow_html=True)
@@ -408,9 +397,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
             
             st.write("")
             
-            # ==========================================
-            # RESULTADOS MLA
-            # ==========================================
             if not df_mla.empty:
                 col_id_mla = buscar_columna(df_mla.columns, 'id de usuario') or buscar_columna(df_mla.columns, 'nómina') or buscar_columna(df_mla.columns, 'nomina')
                 if col_id_mla:
@@ -436,7 +422,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
             st.markdown("<div style='background-color:#fef08a; padding:6px; color:#854d0e; font-weight:bold; text-align:center; border-radius:4px;'>Objetivo de Desarrollo (Colaborador y Líder)</div>", unsafe_allow_html=True)
             st.write("")
             
-            # CAMBIO: Objetivo ahora es texto libre
+            # Texto libre para el objetivo
             obj_desarrollo = st.text_area("Objetivo a Desarrollar:", value=objetivo, placeholder="Ej. Desarrollar Conocimientos Técnicos, Creación de Equipos eficientes y Valentía Gerencial...", height=68)
             
             st.write("")
@@ -539,63 +525,3 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Error al guardar en Google Sheets: {e}")
-
-    # ==========================================
-    # SECCIÓN EXCLUSIVA PARA EL ADMINISTRADOR: ANALISTA DE DATOS IA
-    # ==========================================
-    if str(st.session_state.get("id_usuario")).strip().lower() == "admin" and "GEMINI_API_KEY" in st.secrets:
-        st.markdown("<br><hr>", unsafe_allow_html=True)
-        st.markdown("### 👑 Panel de Inteligencia de RH (Solo Admin)")
-        
-        with st.expander("🤖 Pregúntale a Gemini sobre la Base de Datos de la plataforma", expanded=False):
-            st.info("El motor de Gemini puede leer, cruzar y analizar todos los datos de los colaboradores (Mapa de talento, PDI y Evaluaciones MLA) en segundos.")
-            
-            pregunta_admin = st.text_area(
-                "¿Qué quieres saber sobre los datos?", 
-                placeholder="Ej. ¿Qué porcentaje de colaboradores tiene su PDI en estatus 'En proceso'? o ¿Cuáles son las competencias peor evaluadas?"
-            )
-            
-            if st.button("📊 Analizar Base de Datos", type="primary"):
-                if pregunta_admin.strip() == "":
-                    st.warning("Por favor, escribe una pregunta primero.")
-                else:
-                    with st.spinner("🧠 Extrayendo Excel, cruzando datos y calculando métricas... (Puede tomar unos segundos)"):
-                        try:
-                            genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-                            modelo_analista = genai.GenerativeModel('gemini-1.5-flash')
-                            
-                            # Limitamos las columnas si es muy grande, pero pandas a csv es bastante eficiente
-                            csv_completo = df_completo.to_csv(index=False) if not df_completo.empty else "Sin datos"
-                            csv_pdi = df_pdi.to_csv(index=False) if not df_pdi.empty else "Sin datos"
-                            csv_mla = df_mla.to_csv(index=False) if not df_mla.empty else "Sin datos"
-                            
-                            prompt_analista = f"""
-                            Eres el Director de Inteligencia de Recursos Humanos (HR Analytics) de la empresa Ayvi.
-                            Se te proporcionan las bases de datos en vivo de la empresa en formato CSV (Plantilla, PDI y Evaluaciones de Liderazgo).
-                            
-                            Tus instrucciones estrictas:
-                            1. Analiza los datos proporcionados para responder.
-                            2. Responde a la siguiente pregunta del Administrador de la plataforma basándote ÚNICAMENTE en estos datos.
-                            3. Si te piden estadísticas, cruza los datos y calcula los porcentajes o conteos de forma precisa.
-                            4. Da tu respuesta en un formato claro, ejecutivo y profesional.
-                            
-                            Pregunta del Administrador: {pregunta_admin}
-                            
-                            Bases de Datos:
-                            === DATOS GENERALES Y MAPA DE TALENTO ===
-                            {csv_completo[:15000]} # Limitado para no exceder contexto si es muy grande
-                            
-                            === DATOS DE PDI ACTUAL ===
-                            {csv_pdi[:15000]}
-                            
-                            === RESULTADOS EVALUACIÓN MLA ===
-                            {csv_mla[:15000]}
-                            """
-                            
-                            respuesta_analista = modelo_analista.generate_content(prompt_analista)
-                            
-                            st.success("✅ Análisis completado:")
-                            st.markdown(respuesta_analista.text)
-                            
-                        except Exception as e:
-                            st.error(f"❌ Ocurrió un error en el análisis de datos: {e}")
