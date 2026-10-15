@@ -18,7 +18,7 @@ COLUMNAS_PDI = [
     "¿Cuándo? / Fechas", "% de Avance", "Estatus"
 ]
 
-def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_mla=pd.DataFrame()):
+def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_mla=pd.DataFrame(), df_comp_funcionales=pd.DataFrame(), df_comp_tecnicas=pd.DataFrame(), df_evaluaciones=pd.DataFrame(), es_lider_evaluando=False, empleado_a_evaluar=None):
     pdi_planeacion_str = st.session_state.get("pdi_planeacion", "PDI 2027")
     pdi_cierre_str = st.session_state.get("pdi_cierre", "PDI 2026")
     
@@ -43,7 +43,8 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
         st.info("El ciclo de planeación y evaluación ha concluido. Si requieres hacer ajustes, contacta a Recursos Humanos.")
         return
 
-    nombre_colab = st.session_state["nombre_usuario"]
+    # ✨ Lógica de usuario evaluado: Si el líder evalúa, toma el seleccionado. Si no, toma la sesión.
+    nombre_colab = empleado_a_evaluar if es_lider_evaluando and empleado_a_evaluar else st.session_state["nombre_usuario"]
     datos_bd = df_completo[df_completo['Nombre_Cruce'] == nombre_colab.strip().lower()]
     
     if not datos_bd.empty:
@@ -56,7 +57,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
         lider_aut = dict_nom_global.get(jefe_id, 'No asignado')
     else:
         nomina_aut, puesto_aut, dir_aut, lider_aut = "N/A", "N/A", "N/A", "N/A"
-        st.warning("⚠️ No pudimos encontrar tus datos exactos en la base principal. Habla con RH.")
+        st.warning("⚠️ No pudimos encontrar los datos exactos en la base principal.")
 
     tab_evaluacion, tab_planeacion = st.tabs([f"📊 Evaluación ({pdi_cierre_str})", f"🚀 Planeación ({pdi_planeacion_str})"])
 
@@ -85,7 +86,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                 datos_pdi_cierre = df_pdi_anterior[nombres_ant_limpios == nombre_colab.strip().lower()].copy()
             
         if datos_pdi_cierre.empty:
-            st.warning(f"No tienes un PDI registrado para el ciclo {pdi_cierre_str}.")
+            st.warning(f"No hay un PDI registrado para el ciclo {pdi_cierre_str}.")
         else:
             with st.form("form_evaluacion_pdi", clear_on_submit=False):
                 primer_row_c = datos_pdi_cierre.iloc[0]
@@ -401,27 +402,92 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
             
             st.write("")
             
-            if not df_mla.empty:
-                col_id_mla = buscar_columna(df_mla.columns, 'id de usuario') or buscar_columna(df_mla.columns, 'nómina') or buscar_columna(df_mla.columns, 'nomina')
-                if col_id_mla:
-                    datos_mla_usr = df_mla[df_mla[col_id_mla].apply(clean_id) == nomina_aut]
+            # --- INICIO DE SECCIÓN DE COMPETENCIAS DIVIDIDA EN 2 COLUMNAS ---
+            st.markdown("<div style='background-color:#e0f2fe; padding:6px; color:#0369a1; font-weight:bold; text-align:center; border-radius:4px;'>📊 Evaluación de Competencias</div>", unsafe_allow_html=True)
+            st.write("")
+            
+            col_izq, col_der = st.columns(2)
+            
+            # --- COLUMNA IZQUIERDA: MLA ---
+            with col_izq:
+                st.markdown("##### 🧭 Modelo de Liderazgo Ayvi (MLA)")
+                if not df_mla.empty:
+                    col_id_mla = buscar_columna(df_mla.columns, 'id de usuario') or buscar_columna(df_mla.columns, 'nómina')
+                    if col_id_mla:
+                        datos_mla_usr = df_mla[df_mla[col_id_mla].apply(clean_id) == nomina_aut]
+                    else:
+                        col_nom_mla = buscar_columna(df_mla.columns, 'nombre')
+                        datos_mla_usr = df_mla[df_mla[col_nom_mla].astype(str).str.strip().str.lower() == nombre_colab.strip().lower()] if col_nom_mla else pd.DataFrame()
+                    
+                    if not datos_mla_usr.empty:
+                        col_comp = buscar_columna(datos_mla_usr.columns, 'nombre de competencia') or buscar_columna(datos_mla_usr.columns, 'competencia')
+                        col_lid = buscar_columna(datos_mla_usr.columns, 'lider') or buscar_columna(datos_mla_usr.columns, 'líder')
+                        col_colab = buscar_columna(datos_mla_usr.columns, 'colaborador')
+                        
+                        if col_comp and col_lid and col_colab:
+                            df_tabla_mla = datos_mla_usr[[col_comp, col_colab, col_lid]].copy()
+                            df_tabla_mla.columns = ['Competencia MLA', 'Colaborador', 'Líder']
+                            st.dataframe(df_tabla_mla, use_container_width=True, hide_index=True)
                 else:
-                    col_nom_mla = buscar_columna(df_mla.columns, 'nombre')
-                    datos_mla_usr = df_mla[df_mla[col_nom_mla].astype(str).str.strip().str.lower() == nombre_colab.strip().lower()] if col_nom_mla else pd.DataFrame()
+                    st.info("Resultados MLA no disponibles.")
+
+            # --- COLUMNA DERECHA: FUNCIONALES Y TÉCNICAS ---
+            with col_der:
+                opciones_calif = ["", "1", "2", "3", "4", "5"]
+                evaluaciones_a_guardar = []
                 
-                if not datos_mla_usr.empty:
-                    st.markdown("<div style='background-color:#e0f2fe; padding:6px; color:#0369a1; font-weight:bold; text-align:center; border-radius:4px;'>📊 Evaluación de Modelo de Liderazgo Ayvi (MLA)</div>", unsafe_allow_html=True)
-                    st.info("Revisa tus resultados recientes del MLA. Utiliza estas calificaciones para definir tu Objetivo de Desarrollo enfocado en tus áreas de oportunidad.")
+                def renderizar_bloque_competencias(df_base, titulo, tipo_comp):
+                    st.markdown(f"##### 🛠️ {titulo}")
+                    if df_base.empty:
+                        st.info(f"No hay base de datos de {titulo}.")
+                        return
+                        
+                    col_puesto_base = buscar_columna(df_base.columns, 'puesto')
+                    col_depto_base = buscar_columna(df_base.columns, 'departamento')
+                    col_comp_base = buscar_columna(df_base.columns, 'competencia')
                     
-                    col_comp = buscar_columna(datos_mla_usr.columns, 'nombre de competencia') or buscar_columna(datos_mla_usr.columns, 'competencia')
-                    col_lid = buscar_columna(datos_mla_usr.columns, 'lider') or buscar_columna(datos_mla_usr.columns, 'líder')
-                    col_colab = buscar_columna(datos_mla_usr.columns, 'colaborador')
-                    
-                    if col_comp and col_lid and col_colab:
-                        df_tabla_mla = datos_mla_usr[[col_comp, col_colab, col_lid]].copy()
-                        df_tabla_mla.columns = ['Competencia MLA', 'Colaborador', 'Líder']
-                        st.dataframe(df_tabla_mla, use_container_width=True, hide_index=True)
-                    st.write("")
+                    if col_puesto_base and col_comp_base:
+                        match_puesto = df_base[df_base[col_puesto_base].astype(str).str.strip().str.lower() == puesto_aut.strip().lower()]
+                        
+                        if len(match_puesto) > 0 and col_depto_base and match_puesto[col_depto_base].nunique() > 1:
+                            match_depto = match_puesto[match_puesto[col_depto_base].astype(str).str.strip().str.lower() == depto_input.strip().lower()]
+                            if not match_depto.empty:
+                                match_puesto = match_depto
+                                
+                        competencias_asignadas = match_puesto[col_comp_base].dropna().unique().tolist()
+                        
+                        if competencias_asignadas:
+                            for idx, comp in enumerate(competencias_asignadas):
+                                calif_c_prev = ""
+                                calif_l_prev = ""
+                                if not df_evaluaciones.empty:
+                                    match_eval = df_evaluaciones[(df_evaluaciones['Nómina'].astype(str) == str(nomina_aut)) & (df_evaluaciones['Competencia'] == comp)]
+                                    if not match_eval.empty:
+                                        calif_c_prev = str(match_eval.iloc[0].get('Calif. Colab', ''))
+                                        calif_l_prev = str(match_eval.iloc[0].get('Calif. Líder', ''))
+
+                                c1, c2, c3 = st.columns([6, 2, 2])
+                                c1.markdown(f"<div style='font-size: 13px; margin-top:8px;'>{comp}</div>", unsafe_allow_html=True)
+                                
+                                idx_c = opciones_calif.index(calif_c_prev) if calif_c_prev in opciones_calif else 0
+                                idx_l = opciones_calif.index(calif_l_prev) if calif_l_prev in opciones_calif else 0
+                                
+                                val_c = c2.selectbox("Colab.", opciones_calif, index=idx_c, disabled=es_lider_evaluando, key=f"c_{tipo_comp}_{idx}", label_visibility="collapsed")
+                                val_l = c3.selectbox("Líder", opciones_calif, index=idx_l, disabled=not es_lider_evaluando, key=f"l_{tipo_comp}_{idx}", label_visibility="collapsed")
+                                
+                                evaluaciones_a_guardar.append({
+                                    "Nómina": nomina_aut, "Nombre": nombre_colab, "Puesto": puesto_aut,
+                                    "Tipo de Competencia": tipo_comp, "Competencia": comp, 
+                                    "Calif. Colab": val_c, "Calif. Líder": val_l, "Fecha": time.strftime("%d/%m/%Y")
+                                })
+                        else:
+                            st.info(f"No hay competencias configuradas para el puesto: {puesto_aut}")
+
+                renderizar_bloque_competencias(df_comp_funcionales, "Competencias Funcionales", "Funcional")
+                renderizar_bloque_competencias(df_comp_tecnicas, "Conocimientos Técnicos", "Técnica")
+
+            st.write("")
+            # --- FIN DE SECCIÓN DE COMPETENCIAS ---
             
             st.markdown("<div style='background-color:#fef08a; padding:6px; color:#854d0e; font-weight:bold; text-align:center; border-radius:4px;'>Objetivo de Desarrollo (Colaborador y Líder)</div>", unsafe_allow_html=True)
             st.write("")
@@ -474,8 +540,8 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         doc_id = match.group(1) if match else LINK_ARCHIVO
                         archivo = cliente.open_by_key(doc_id)
                         
+                        # ✨ 1. Guardar el PDI como lo teníamos
                         pestana_pdi_gs = archivo.worksheet(pdi_planeacion_str)
-                        
                         todas_las_acciones = acciones_70_nuevas + acciones_20_nuevas + acciones_10_nuevas
                         nuevas_filas = []
                         
@@ -518,6 +584,39 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
 
                         if datos_a_insertar:
                             pestana_pdi_gs.append_rows(datos_a_insertar)
+                            
+                        # ✨ 2. Guardar las Evaluaciones de Competencias
+                        if evaluaciones_a_guardar:
+                            try:
+                                pestana_eval = archivo.worksheet("Evaluaciones Competencias")
+                                registros_eval = pestana_eval.get_all_values()
+                                
+                                if len(registros_eval) > 0:
+                                    encabezados_e = registros_eval[0]
+                                    idx_id_e = buscar_columna(encabezados_e, 'nómina')
+                                    if idx_id_e:
+                                        idx_num_e = encabezados_e.index(idx_id_e)
+                                        filas_a_borrar_e = []
+                                        for i, row in enumerate(registros_eval):
+                                            if i > 0 and len(row) > idx_num_e and str(row[idx_num_e]).strip().lower() == str(nomina_aut).strip().lower():
+                                                filas_a_borrar_e.append(i + 1)
+                                        for num_fila in reversed(filas_a_borrar_e):
+                                            pestana_eval.delete_rows(num_fila)
+                                            
+                                datos_eval_insertar = []
+                                cols_eval = ["Nómina", "Nombre", "Puesto", "Tipo de Competencia", "Competencia", "Calif. Colab", "Calif. Líder", "Fecha"]
+                                
+                                if len(registros_eval) == 0:
+                                    pestana_eval.append_row(cols_eval) # Crear headers si está vacía
+                                    
+                                for ev in evaluaciones_a_guardar:
+                                    datos_eval_insertar.append([str(ev.get(col, "")) for col in cols_eval])
+                                    
+                                if datos_eval_insertar:
+                                    pestana_eval.append_rows(datos_eval_insertar)
+                                    
+                            except Exception as eval_err:
+                                st.warning(f"Se guardó el PDI, pero hubo un error al guardar las evaluaciones: {eval_err}")
                         
                         archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
                         st.cache_data.clear()
