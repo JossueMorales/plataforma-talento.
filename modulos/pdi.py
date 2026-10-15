@@ -25,7 +25,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
     
     estado_pdi = st.session_state.get("estado_pdi", "ABIERTO")
     
-    # ✨ PREFIJO ÚNICO PARA EVITAR DUPLICIDAD DE WIDGETS
     prefijo_unico = "eval_lider" if es_lider_evaluando else "eval_propia"
     
     col_tit, col_btn = st.columns([4, 1])
@@ -157,7 +156,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                             base_fila_c = {
                                 "Nómina": nomina_aut, "Nombre": nombre_colab, "Puesto": puesto_aut,
                                 "Dirección": dir_aut, "Líder": lider_aut, "Fecha Elaboración": fecha_elab_c,
-                                "Departamento": depto_c, "Rol Interés 1": rol_int_1, "Motivo 1": str(primer_row_c.get(f_c('motivo 1') or 'Motivo 1', '')),
+                                "Departamento": depto_c, "Rol Interés 1": rol_1_c, "Motivo 1": str(primer_row_c.get(f_c('motivo 1') or 'Motivo 1', '')),
                                 "Rol Interés 2": str(primer_row_c.get(f_c('rol interés 2') or 'Rol Interés 2', '')), "Motivo 2": str(primer_row_c.get(f_c('motivo 2') or 'Motivo 2', '')), 
                                 "Rol Interés 3": str(primer_row_c.get(f_c('rol interés 3') or 'Rol Interés 3', '')), "Motivo 3": str(primer_row_c.get(f_c('motivo 3') or 'Motivo 3', '')), 
                                 "Objetivo PDI": objetivo_c
@@ -180,8 +179,11 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                                     for i, row in enumerate(registros_vivos):
                                         if i > 0 and len(row) > idx_num and str(row[idx_num]).strip().lower() == valor_buscar:
                                             filas_a_borrar.append(i + 1)
-                                    for num_fila in reversed(filas_a_borrar):
-                                        pestana_pdi_cierre_gs.delete_rows(num_fila)
+                                    
+                                    # ✨ BATCH UPDATE PARA PDI CIERRE
+                                    if filas_a_borrar:
+                                        requests_batch = [{"deleteDimension": {"range": {"sheetId": pestana_pdi_cierre_gs.id, "dimension": "ROWS", "startIndex": r - 1, "endIndex": r}}} for r in reversed(filas_a_borrar)]
+                                        archivo.batch_update({"requests": requests_batch})
 
                             if datos_a_insertar:
                                 pestana_pdi_cierre_gs.append_rows(datos_a_insertar)
@@ -405,7 +407,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
             
             st.write("")
             
-            # --- INICIO DE SECCIÓN DE COMPETENCIAS DIVIDIDA EN 2 COLUMNAS ---
             st.markdown("<div style='background-color:#e0f2fe; padding:6px; color:#0369a1; font-weight:bold; text-align:center; border-radius:4px;'>📊 Evaluación de Competencias</div>", unsafe_allow_html=True)
             st.write("")
             
@@ -506,7 +507,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                 renderizar_filas_evaluacion(tecnicas_asignadas, "Conocimientos Técnicos", "Técnica", df_matriz_competencias.empty)
 
             st.write("")
-            # --- FIN DE SECCIÓN DE COMPETENCIAS ---
             
             st.markdown("<div style='background-color:#fef08a; padding:6px; color:#854d0e; font-weight:bold; text-align:center; border-radius:4px;'>Objetivo de Desarrollo (Colaborador y Líder)</div>", unsafe_allow_html=True)
             st.write("")
@@ -598,8 +598,11 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                                 for i, row in enumerate(registros_vivos):
                                     if i > 0 and len(row) > idx_num and str(row[idx_num]).strip().lower() == valor_buscar:
                                         filas_a_borrar.append(i + 1)
-                                    for num_fila in reversed(filas_a_borrar):
-                                        pestana_pdi_gs.delete_rows(num_fila)
+                                
+                                # ✨ BATCH UPDATE PARA PDI PLANEACION
+                                if filas_a_borrar:
+                                    requests_batch = [{"deleteDimension": {"range": {"sheetId": pestana_pdi_gs.id, "dimension": "ROWS", "startIndex": r - 1, "endIndex": r}}} for r in reversed(filas_a_borrar)]
+                                    archivo.batch_update({"requests": requests_batch})
 
                         if datos_a_insertar:
                             pestana_pdi_gs.append_rows(datos_a_insertar)
@@ -619,8 +622,11 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                                         for i, row in enumerate(registros_eval):
                                             if i > 0 and len(row) > idx_num_e and str(row[idx_num_e]).strip().lower() == str(nomina_aut).strip().lower():
                                                 filas_a_borrar_e.append(i + 1)
-                                        for num_fila in reversed(filas_a_borrar_e):
-                                            pestana_eval.delete_rows(num_fila)
+                                        
+                                        # ✨ BATCH UPDATE PARA EVALUACIONES
+                                        if filas_a_borrar_e:
+                                            requests_batch_e = [{"deleteDimension": {"range": {"sheetId": pestana_eval.id, "dimension": "ROWS", "startIndex": r - 1, "endIndex": r}}} for r in reversed(filas_a_borrar_e)]
+                                            archivo.batch_update({"requests": requests_batch_e})
                                             
                                 datos_eval_insertar = []
                                 cols_eval = ["Nómina", "Nombre", "Puesto", "Tipo de Competencia", "Competencia", "Calif. Colab", "Calif. Líder", "Fecha"]
