@@ -399,14 +399,16 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
             st.markdown("<div style='background-color:#e0f2fe; padding:6px; color:#0369a1; font-weight:bold; text-align:center; border-radius:4px;'>📊 Evaluación de Competencias</div>", unsafe_allow_html=True)
             st.write("")
             
-            # ✨ Limpieza súper agresiva para garantizar coincidencias
-            def normalize_string(s):
+            # ✨ Búsqueda Inteligente a Prueba de Tipeo (Fuzzy Matching Extremo)
+            def clean_and_split(s):
                 s = str(s)
                 s = unicodedata.normalize('NFKD', s).encode('ASCII', 'ignore').decode('utf-8')
-                s = re.sub(r'[^a-zA-Z0-9]', '', s)
-                return s.lower()
+                s = re.sub(r'[^a-zA-Z0-9\s]', ' ', s)
+                words = set(s.lower().split())
+                # Quitamos conectores comunes para que no den falsos positivos
+                return {w for w in words if w not in ['de', 'la', 'el', 'los', 'las', 'y', 'en', 'para']}
                 
-            puesto_clean = normalize_string(puesto_aut)
+            puesto_words = clean_and_split(puesto_aut)
             
             col_izq, col_der = st.columns(2)
             
@@ -439,22 +441,28 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                 funcionales_asignadas = []
                 tecnicas_asignadas = []
                 
-                # Búsqueda súper optimizada a prueba de fallos
+                # ✨ Extracción con Fuzzy Matching para la matriz consolidada
                 if not df_matriz_competencias.empty:
                     col_puesto_matriz = buscar_columna(df_matriz_competencias.columns, 'puesto')
                     if col_puesto_matriz:
-                        df_matriz_competencias['_puesto_norm'] = df_matriz_competencias[col_puesto_matriz].apply(normalize_string)
-                        match_matriz = df_matriz_competencias[df_matriz_competencias['_puesto_norm'] == puesto_clean]
+                        # Damos una puntuación a cada fila basándonos en cuántas palabras clave del puesto coinciden
+                        df_matriz_competencias['_score'] = df_matriz_competencias[col_puesto_matriz].apply(
+                            lambda x: len(puesto_words.intersection(clean_and_split(x)))
+                        )
+                        max_score = df_matriz_competencias['_score'].max()
                         
-                        if not match_matriz.empty:
+                        # Requerimos al menos el 50% de las palabras clave importantes para considerarlo un match válido
+                        # (Evita que "Jefe de Compras" se cruce con "Jefe de Ventas")
+                        if max_score > 0 and max_score >= (len(puesto_words) * 0.5):
+                            match_matriz = df_matriz_competencias[df_matriz_competencias['_score'] == max_score]
                             fila_matriz = match_matriz.iloc[0]
                             
-                            # Busca las columnas de "Competencia X"
+                            # Busca las columnas de "Competencia X" ignorando si tienen acentos o espacios extras
                             func_cols = [c for c in match_matriz.columns if 'comp' in str(c).lower() and 'puesto' not in str(c).lower()]
                             funcionales_asignadas = fila_matriz[func_cols].dropna().astype(str).tolist()
                             funcionales_asignadas = [c.strip() for c in funcionales_asignadas if c.strip() and c.lower() != 'nan']
                             
-                            # Busca las columnas de "Con.Tec X"
+                            # Busca las columnas de "Con.Tec X" o similares
                             tech_cols = [c for c in match_matriz.columns if 'tec' in str(c).lower() or ('con' in str(c).lower() and 'comp' not in str(c).lower())]
                             tecnicas_asignadas = fila_matriz[tech_cols].dropna().astype(str).tolist()
                             tecnicas_asignadas = [c.strip() for c in tecnicas_asignadas if c.strip() and c.lower() != 'nan']
