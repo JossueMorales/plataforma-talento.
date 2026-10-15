@@ -139,6 +139,7 @@ def main():
         
         # ✨ Carga de las nuevas bases de datos de competencias
         df_comp_funcionales = cargar_datos_csv("Competencias Funcionales", current_timestamp)
+        df_comp_por_area = cargar_datos_csv("Competencias por Area", current_timestamp) # <-- Pestaña extra
         df_comp_tecnicas = cargar_datos_csv("Conocimientos tecnicos", current_timestamp)
         df_evaluaciones = cargar_datos_csv("Evaluaciones Competencias", current_timestamp)
         
@@ -193,7 +194,7 @@ def main():
         col_jer = next((c for c in df_completo.columns if 'jerárquico' in str(c).lower() or 'jerarquico' in str(c).lower()), 'Nivel Jerárquico')
         
         if es_colaborador:
-            renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior, df_mla, df_comp_funcionales, df_comp_tecnicas, df_evaluaciones, es_lider_evaluando=False)
+            renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior, df_mla, df_comp_funcionales, df_comp_por_area, df_comp_tecnicas, df_evaluaciones, es_lider_evaluando=False)
         else:
             if "TODAS" not in direccion_permitida:
                 lista_dirs = [d.strip() for d in direccion_permitida.split(",")]
@@ -479,7 +480,6 @@ def main():
                             
                             st.dataframe(df_pdi_mostrar, use_container_width=True, hide_index=True)
                             
-                            # ✨ NUEVA SECCIÓN DE EVALUACIÓN DEL LÍDER
                             st.write("---")
                             st.markdown("#### 📝 Evaluar Competencias de mi Equipo")
                             st.info("Selecciona a uno de tus colaboradores para evaluar sus Conocimientos Técnicos y Competencias Funcionales.")
@@ -487,14 +487,13 @@ def main():
                             
                             if colab_a_evaluar:
                                 st.markdown(f"**Evaluando a:** {colab_a_evaluar}")
-                                renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior, df_mla, df_comp_funcionales, df_comp_tecnicas, df_evaluaciones, es_lider_evaluando=True, empleado_a_evaluar=colab_a_evaluar)
+                                renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior, df_mla, df_comp_funcionales, df_comp_por_area, df_comp_tecnicas, df_evaluaciones, es_lider_evaluando=True, empleado_a_evaluar=colab_a_evaluar)
                                 
                         else: st.warning("⚠️ Esperando el primer guardado para construir la tabla de seguimiento.")
                     else: st.warning("⚠️ No hay planes de desarrollo registrados en el equipo todavía.")
                 
                 with tab_mi_pdi:
-                    # ✨ Colaborador evaluándose a sí mismo
-                    renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior, df_mla, df_comp_funcionales, df_comp_tecnicas, df_evaluaciones, es_lider_evaluando=False)
+                    renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior, df_mla, df_comp_funcionales, df_comp_por_area, df_comp_tecnicas, df_evaluaciones, es_lider_evaluando=False)
                 
                 if st.session_state["id_usuario"] == "admin":
                     with tab_reportes:
