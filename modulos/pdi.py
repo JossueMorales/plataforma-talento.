@@ -3,6 +3,7 @@ import pandas as pd
 import re
 import time
 import gspread
+import unicodedata
 from google.oauth2.service_account import Credentials
 import streamlit.components.v1 as components
 
@@ -398,11 +399,14 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
             st.markdown("<div style='background-color:#e0f2fe; padding:6px; color:#0369a1; font-weight:bold; text-align:center; border-radius:4px;'>📊 Evaluación de Competencias</div>", unsafe_allow_html=True)
             st.write("")
             
-            # Limpieza robusta para asegurar que los puestos hagan "match"
-            def clean_for_match(series):
-                return series.astype(str).str.replace(r'\s+', ' ', regex=True).str.strip().str.lower()
+            # ✨ Limpieza súper agresiva para garantizar coincidencias
+            def normalize_string(s):
+                s = str(s)
+                s = unicodedata.normalize('NFKD', s).encode('ASCII', 'ignore').decode('utf-8')
+                s = re.sub(r'[^a-zA-Z0-9]', '', s)
+                return s.lower()
                 
-            puesto_clean = re.sub(r'\s+', ' ', str(puesto_aut)).strip().lower()
+            puesto_clean = normalize_string(puesto_aut)
             
             col_izq, col_der = st.columns(2)
             
@@ -432,28 +436,29 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                 opciones_calif = ["", "1", "2", "3", "4", "5"]
                 evaluaciones_a_guardar = []
                 
-                # ✨ EXTRACCIÓN PLANA Y DIRECTA DE LA MATRIZ DE COMPETENCIAS
                 funcionales_asignadas = []
                 tecnicas_asignadas = []
                 
+                # Búsqueda súper optimizada a prueba de fallos
                 if not df_matriz_competencias.empty:
                     col_puesto_matriz = buscar_columna(df_matriz_competencias.columns, 'puesto')
                     if col_puesto_matriz:
-                        match_matriz = df_matriz_competencias[clean_for_match(df_matriz_competencias[col_puesto_matriz]) == puesto_clean]
+                        df_matriz_competencias['_puesto_norm'] = df_matriz_competencias[col_puesto_matriz].apply(normalize_string)
+                        match_matriz = df_matriz_competencias[df_matriz_competencias['_puesto_norm'] == puesto_clean]
+                        
                         if not match_matriz.empty:
                             fila_matriz = match_matriz.iloc[0]
                             
-                            # Funcionales: cualquier columna que contenga la palabra "competencia " (ej. "Competencia 1", "Competencia 2")
-                            func_cols = [c for c in match_matriz.columns if 'competencia ' in c.lower()]
+                            # Busca las columnas de "Competencia X"
+                            func_cols = [c for c in match_matriz.columns if 'comp' in str(c).lower() and 'puesto' not in str(c).lower()]
                             funcionales_asignadas = fila_matriz[func_cols].dropna().astype(str).tolist()
                             funcionales_asignadas = [c.strip() for c in funcionales_asignadas if c.strip() and c.lower() != 'nan']
                             
-                            # Técnicas: cualquier columna que contenga "tec" (ej. "Con.Tec1", "Tec2")
-                            tech_cols = [c for c in match_matriz.columns if 'tec' in c.lower()]
+                            # Busca las columnas de "Con.Tec X"
+                            tech_cols = [c for c in match_matriz.columns if 'tec' in str(c).lower() or ('con' in str(c).lower() and 'comp' not in str(c).lower())]
                             tecnicas_asignadas = fila_matriz[tech_cols].dropna().astype(str).tolist()
                             tecnicas_asignadas = [c.strip() for c in tecnicas_asignadas if c.strip() and c.lower() != 'nan']
 
-                # Función para pintar las tablas interactivas en pantalla
                 def renderizar_filas_evaluacion(lista_comp, titulo, tipo_comp, is_df_empty):
                     st.markdown(f"##### 🛠️ {titulo}")
                     if is_df_empty:
