@@ -65,9 +65,10 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
     
     prefijo_unico = "eval_lider" if es_lider_evaluando else "eval_propia"
     
+    # ✨ LIMPIADOR DE MEMORIA AJUSTADO PARA SER MÁS AGRESIVO
     def limpiar_memoria_formularios():
         for k in list(st.session_state.keys()):
-            if str(k).endswith("_eval_propia") or str(k).endswith("_eval_lider"):
+            if k.endswith(f"_{prefijo_unico}"):
                 del st.session_state[k]
     
     col_tit, col_btn = st.columns([4, 1])
@@ -169,10 +170,10 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                 for i, accion in enumerate(acciones_cierre):
                     st.markdown(f"**{accion['cat']}**")
                     a1, a2, a3, a4 = st.columns([4, 1.5, 1.5, 1.5])
-                    a1.text_area("Acción de Desarrollo", value=accion['acc'], disabled=True, key=f"eval_acc_{i}_{prefijo_unico}", height=68)
-                    a2.text_input("Fecha Ejecución", value=accion['fec'], disabled=True, key=f"eval_fec_{i}_{prefijo_unico}")
-                    n_av = a3.selectbox("% Avance", opciones_avance, index=index_seguro(opciones_avance, accion['av']), key=f"eval_av_{i}_{prefijo_unico}")
-                    n_est = a4.selectbox("Estatus", opciones_estatus, index=index_seguro(opciones_estatus, accion['est']), key=f"eval_est_{i}_{prefijo_unico}")
+                    a1.text_area("Acción de Desarrollo", value=accion['acc'], disabled=True, key=f"eval_acc_{i}_{prefijo_unico}", height=68, label_visibility="collapsed")
+                    a2.text_input("Fecha Ejecución", value=accion['fec'], disabled=True, key=f"eval_fec_{i}_{prefijo_unico}", label_visibility="collapsed")
+                    n_av = a3.selectbox("% Avance", opciones_avance, index=index_seguro(opciones_avance, accion['av']), key=f"eval_av_{i}_{prefijo_unico}", label_visibility="collapsed")
+                    n_est = a4.selectbox("Estatus", opciones_estatus, index=index_seguro(opciones_estatus, accion['est']), key=f"eval_est_{i}_{prefijo_unico}", label_visibility="collapsed")
                     st.write("")
                     
                     accion_actualizada = {
@@ -258,9 +259,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                 nombres_act = df_pdi['Nombre'].astype(str).str.strip().str.lower()
                 datos_pdi_usuario = df_pdi[nombres_act == nombre_colab.strip().lower()].copy()
             
-        if 'clonar_pdi' not in st.session_state:
-            st.session_state['clonar_pdi'] = False
-
         historial = pd.DataFrame()
         if not df_pdi_anterior.empty:
             col_nom_ant = buscar_columna(df_pdi_anterior.columns, 'nomina')
@@ -271,32 +269,33 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                 nombres_ant = df_pdi_anterior['Nombre'].astype(str).str.strip().str.lower()
                 historial = df_pdi_anterior[nombres_ant == nombre_colab.strip().lower()].copy()
 
+        # ✨ CONTROL DE ESTADO DE CLONACIÓN NATIVO DE STREAMLIT
+        clonacion_activa = st.session_state.get(f"clonar_{prefijo_unico}", False)
+
         if not historial.empty:
-            if not st.session_state['clonar_pdi']:
+            if not clonacion_activa:
                 if datos_pdi_usuario.empty:
                     st.warning(f"✨ Tienes un PDI del ciclo anterior ({pdi_cierre_str}).")
-                    # ✨ AQUÍ: Forzamos RERUN después de la limpieza
                     if st.button("🔄 Clonar estrategias no completadas", key=f"btn_clonar_{prefijo_unico}", use_container_width=True):
-                        st.session_state['clonar_pdi'] = True
-                        limpiar_memoria_formularios()
-                        time.sleep(0.5) 
+                        st.session_state[f"clonar_{prefijo_unico}"] = True
                         st.rerun()
                 else:
                     with st.expander(f"✨ Detectamos un historial en {pdi_cierre_str}. ¿Deseas sobreescribir este plan?"):
                         st.info("Ya tienes datos guardados en este nuevo ciclo. Si haces clic aquí, reemplazaremos lo que está abajo con tus pendientes del año pasado.")
                         if st.button("🔄 Sobreescribir trayendo mis pendientes del año pasado", key=f"btn_sobre_{prefijo_unico}", use_container_width=True):
-                            st.session_state['clonar_pdi'] = True
-                            limpiar_memoria_formularios()
-                            time.sleep(0.5) 
+                            st.session_state[f"clonar_{prefijo_unico}"] = True
                             st.rerun()
-            else:
+            
+            if clonacion_activa:
                 col_est = next((c for c in historial.columns if 'estatus' in clean_text(str(c)).lower()), None)
                 if col_est:
                     historial = historial[~historial[col_est].astype(str).str.lower().isin(['completado', 'cancelado', 'terminado', 'concluido'])]
+                
+                # ✨ AQUÍ INYECTAMOS DIRECTAMENTE EL HISTORIAL A LA VISTA ACTUAL
                 datos_pdi_usuario = historial.copy() 
                 
                 num_acciones = 0
-                col_acc_clon = next((c for c in historial.columns if 'qué' in clean_text(str(c)).lower() or 'acci' in clean_text(str(c)).lower()), None)
+                col_acc_clon = next((c for c in historial.columns if 'que' in clean_text(str(c)).lower() or 'acci' in clean_text(str(c)).lower()), None)
                 if col_acc_clon:
                     num_acciones = len(historial[historial[col_acc_clon].astype(str).str.strip() != ""])
                 
@@ -708,11 +707,13 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
                         st.cache_data.clear()
                         
-                        st.session_state['clonar_pdi'] = False
+                        # ✨ APAGAR CLONACIÓN Y LIMPIAR
+                        st.session_state[f"clonar_{prefijo_unico}"] = False
                         limpiar_memoria_formularios()
                         
-                        st.success(f"✅ ¡Evaluación guardada exitosamente en {pdi_cierre_str}!")
-                        time.sleep(2)
+                        st.balloons()
+                        st.toast(f"¡Plan {pdi_planeacion_str} guardado exitosamente!", icon="✅")
+                        time.sleep(2.5)
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Error al guardar en Google Sheets: {e}")
