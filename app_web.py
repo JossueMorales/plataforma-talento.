@@ -132,7 +132,6 @@ def main():
     with st.spinner("Cargando base de datos y validando seguridad dinámica..."):
         current_timestamp, estado_sucesion, estado_pdi, pdi_planeacion, pdi_cierre = obtener_metadata()
         
-        # ✨ FUNCIÓN AUXILIAR PARA BUSCAR PESTAÑAS IGNORANDO ACENTOS Y MAYÚSCULAS
         def intentar_cargar_pestana(opciones_nombres, timestamp):
             for nombre in opciones_nombres:
                 df = cargar_datos_csv(nombre, timestamp)
@@ -145,10 +144,8 @@ def main():
         df_pdi_anterior = cargar_datos_csv(pdi_cierre, current_timestamp)
         df_mla = cargar_datos_csv("Resultados MLA", current_timestamp)
         
-        # ✨ CARGA INTELIGENTE DE LAS NUEVAS BASES
-        df_comp_funcionales = intentar_cargar_pestana(["Competencias Funcionales", "Competencias funcionales"], current_timestamp)
-        df_comp_por_area = intentar_cargar_pestana(["Competencias por Area", "Competencias por area", "Competencias por Área", "Competencias por área"], current_timestamp)
-        df_comp_tecnicas = intentar_cargar_pestana(["Conocimientos tecnicos", "Conocimientos técnicos", "Conocimientos Tecnicos", "Conocimientos Técnicos"], current_timestamp)
+        # ✨ AHORA SOLO CARGAMOS LA MATRIZ CONSOLIDADA
+        df_matriz_competencias = intentar_cargar_pestana(["Conocimientos tecnicos", "Conocimientos técnicos", "Matriz de Competencias"], current_timestamp)
         df_evaluaciones = intentar_cargar_pestana(["Evaluaciones Competencias", "Evaluaciones competencias"], current_timestamp)
         
         if df_completo_raw.empty:
@@ -202,7 +199,7 @@ def main():
         col_jer = next((c for c in df_completo.columns if 'jerárquico' in str(c).lower() or 'jerarquico' in str(c).lower()), 'Nivel Jerárquico')
         
         if es_colaborador:
-            renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior, df_mla, df_comp_funcionales, df_comp_por_area, df_comp_tecnicas, df_evaluaciones, es_lider_evaluando=False)
+            renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior, df_mla, df_matriz_competencias, df_evaluaciones, es_lider_evaluando=False)
         else:
             if "TODAS" not in direccion_permitida:
                 lista_dirs = [d.strip() for d in direccion_permitida.split(",")]
@@ -495,13 +492,13 @@ def main():
                             
                             if colab_a_evaluar:
                                 st.markdown(f"**Evaluando a:** {colab_a_evaluar}")
-                                renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior, df_mla, df_comp_funcionales, df_comp_por_area, df_comp_tecnicas, df_evaluaciones, es_lider_evaluando=True, empleado_a_evaluar=colab_a_evaluar)
+                                renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior, df_mla, df_matriz_competencias, df_evaluaciones, es_lider_evaluando=True, empleado_a_evaluar=colab_a_evaluar)
                                 
                         else: st.warning("⚠️ Esperando el primer guardado para construir la tabla de seguimiento.")
                     else: st.warning("⚠️ No hay planes de desarrollo registrados en el equipo todavía.")
                 
                 with tab_mi_pdi:
-                    renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior, df_mla, df_comp_funcionales, df_comp_por_area, df_comp_tecnicas, df_evaluaciones, es_lider_evaluando=False)
+                    renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior, df_mla, df_matriz_competencias, df_evaluaciones, es_lider_evaluando=False)
                 
                 if st.session_state["id_usuario"] == "admin":
                     with tab_reportes:
