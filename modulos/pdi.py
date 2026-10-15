@@ -9,7 +9,6 @@ import streamlit.components.v1 as components
 
 from config_ui import clean_text, clean_id
 from database import LINK_ARCHIVO
-from modulos.mapa_org import buscar_columna
 
 COLUMNAS_PDI = [
     "Nómina", "Nombre", "Puesto", "Dirección", "Líder", "Fecha Elaboración", "Departamento",
@@ -66,7 +65,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
     
     prefijo_unico = "eval_lider" if es_lider_evaluando else "eval_propia"
     
-    # ✨ FUNCIÓN NUCLEAR PARA BORRAR MEMORIA FANTASMA (Moviéndola arriba para uso global)
     def limpiar_memoria_formularios():
         for k in list(st.session_state.keys()):
             if str(k).endswith("_eval_propia") or str(k).endswith("_eval_lider"):
@@ -241,10 +239,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                             
                             archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
                             st.cache_data.clear()
-                            
-                            # ✨ LIMPIAMOS CACHÉ FANTASMA AL GUARDAR
-                            limpiar_memoria_formularios()
-                            
                             st.success(f"✅ ¡Evaluación guardada exitosamente en {pdi_cierre_str}!")
                             time.sleep(2)
                             st.rerun()
@@ -281,9 +275,11 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
             if not st.session_state['clonar_pdi']:
                 if datos_pdi_usuario.empty:
                     st.warning(f"✨ Tienes un PDI del ciclo anterior ({pdi_cierre_str}).")
+                    # ✨ AQUÍ: Forzamos RERUN después de la limpieza
                     if st.button("🔄 Clonar estrategias no completadas", key=f"btn_clonar_{prefijo_unico}", use_container_width=True):
                         st.session_state['clonar_pdi'] = True
                         limpiar_memoria_formularios()
+                        time.sleep(0.5) 
                         st.rerun()
                 else:
                     with st.expander(f"✨ Detectamos un historial en {pdi_cierre_str}. ¿Deseas sobreescribir este plan?"):
@@ -291,6 +287,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         if st.button("🔄 Sobreescribir trayendo mis pendientes del año pasado", key=f"btn_sobre_{prefijo_unico}", use_container_width=True):
                             st.session_state['clonar_pdi'] = True
                             limpiar_memoria_formularios()
+                            time.sleep(0.5) 
                             st.rerun()
             else:
                 col_est = next((c for c in historial.columns if 'estatus' in clean_text(str(c)).lower()), None)
@@ -711,13 +708,11 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
                         st.cache_data.clear()
                         
-                        # ✨ APAGAR MODO CLONACIÓN Y LIMPIAR
                         st.session_state['clonar_pdi'] = False
                         limpiar_memoria_formularios()
                         
-                        st.balloons()
-                        st.toast(f"¡Plan {pdi_planeacion_str} guardado exitosamente!", icon="✅")
-                        time.sleep(2.5)
+                        st.success(f"✅ ¡Evaluación guardada exitosamente en {pdi_cierre_str}!")
+                        time.sleep(2)
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Error al guardar en Google Sheets: {e}")
