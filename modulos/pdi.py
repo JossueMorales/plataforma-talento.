@@ -217,18 +217,26 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                 nombres_ant = df_pdi_anterior['Nombre'].astype(str).str.strip().str.lower()
                 historial = df_pdi_anterior[nombres_ant == nombre_colab.strip().lower()].copy()
 
+        # ✨ FUNCIÓN PARA BORRAR LA MEMORIA FANTASMA
+        def limpiar_memoria_formularios():
+            for k in list(st.session_state.keys()):
+                if k.startswith(("70_", "20_", "10_", "mot")):
+                    del st.session_state[k]
+
         if not historial.empty:
             if not st.session_state['clonar_pdi']:
                 if datos_pdi_usuario.empty:
                     st.warning(f"✨ Tienes un PDI del ciclo anterior ({pdi_cierre_str}).")
                     if st.button("🔄 Clonar estrategias no completadas", use_container_width=True):
                         st.session_state['clonar_pdi'] = True
+                        limpiar_memoria_formularios() # ✨ AQUÍ SE LLAMA A LA FUNCIÓN
                         st.rerun()
                 else:
                     with st.expander(f"✨ Detectamos un historial en {pdi_cierre_str}. ¿Deseas sobreescribir este plan?"):
                         st.info("Ya tienes datos guardados en este nuevo ciclo. Si haces clic aquí, reemplazaremos lo que está abajo con tus pendientes del año pasado.")
                         if st.button("🔄 Sobreescribir trayendo mis pendientes del año pasado", use_container_width=True):
                             st.session_state['clonar_pdi'] = True
+                            limpiar_memoria_formularios() # ✨ Y AQUÍ TAMBIÉN
                             st.rerun()
             else:
                 col_est = next((c for c in historial.columns if 'estatus' in clean_text(str(c)).lower()), None)
@@ -399,13 +407,11 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
             st.markdown("<div style='background-color:#e0f2fe; padding:6px; color:#0369a1; font-weight:bold; text-align:center; border-radius:4px;'>📊 Evaluación de Competencias</div>", unsafe_allow_html=True)
             st.write("")
             
-            # ✨ Búsqueda Inteligente a Prueba de Tipeo (Fuzzy Matching Extremo)
             def clean_and_split(s):
                 s = str(s)
                 s = unicodedata.normalize('NFKD', s).encode('ASCII', 'ignore').decode('utf-8')
                 s = re.sub(r'[^a-zA-Z0-9\s]', ' ', s)
                 words = set(s.lower().split())
-                # Quitamos conectores comunes para que no den falsos positivos
                 return {w for w in words if w not in ['de', 'la', 'el', 'los', 'las', 'y', 'en', 'para']}
                 
             puesto_words = clean_and_split(puesto_aut)
@@ -441,27 +447,22 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                 funcionales_asignadas = []
                 tecnicas_asignadas = []
                 
-                # ✨ Extracción con Fuzzy Matching para la matriz consolidada
                 if not df_matriz_competencias.empty:
                     col_puesto_matriz = buscar_columna(df_matriz_competencias.columns, 'puesto')
                     if col_puesto_matriz:
-                        # Damos una puntuación a cada fila basándonos en cuántas palabras clave del puesto coinciden
                         df_matriz_competencias['_score'] = df_matriz_competencias[col_puesto_matriz].apply(
                             lambda x: len(puesto_words.intersection(clean_and_split(x)))
                         )
                         max_score = df_matriz_competencias['_score'].max()
                         
-                        # Requerimos al menos el 50% de las palabras clave importantes para considerarlo un match válido
                         if max_score > 0 and max_score >= (len(puesto_words) * 0.5):
                             match_matriz = df_matriz_competencias[df_matriz_competencias['_score'] == max_score]
                             fila_matriz = match_matriz.iloc[0]
                             
-                            # Busca las columnas de "Competencia X" ignorando la columna C (que se llama exactamente "Competencia")
                             func_cols = [c for c in match_matriz.columns if 'comp' in str(c).lower() and 'puesto' not in str(c).lower() and str(c).strip().lower() != 'competencia']
                             funcionales_asignadas = fila_matriz[func_cols].dropna().astype(str).tolist()
                             funcionales_asignadas = [c.strip() for c in funcionales_asignadas if c.strip() and c.lower() != 'nan']
                             
-                            # Busca las columnas de "Con.Tec X" o similares
                             tech_cols = [c for c in match_matriz.columns if 'tec' in str(c).lower() or ('con' in str(c).lower() and 'comp' not in str(c).lower())]
                             tecnicas_asignadas = fila_matriz[tech_cols].dropna().astype(str).tolist()
                             tecnicas_asignadas = [c.strip() for c in tecnicas_asignadas if c.strip() and c.lower() != 'nan']
