@@ -452,7 +452,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         max_score = df_matriz_competencias['_score'].max()
                         
                         # Requerimos al menos el 50% de las palabras clave importantes para considerarlo un match válido
-                        # (Evita que "Jefe de Compras" se cruce con "Jefe de Ventas")
                         if max_score > 0 and max_score >= (len(puesto_words) * 0.5):
                             match_matriz = df_matriz_competencias[df_matriz_competencias['_score'] == max_score]
                             fila_matriz = match_matriz.iloc[0]
@@ -605,7 +604,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         # 2. Guardar las Evaluaciones de Competencias
                         if evaluaciones_a_guardar:
                             try:
-                                pestana_eval = archivo.worksheet("Evaluaciones Competencias")
+                                pestana_eval = archivo.worksheet("Evaluaciones Tecnicas")
                                 registros_eval = pestana_eval.get_all_values()
                                 
                                 if len(registros_eval) > 0:
@@ -633,7 +632,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                                     pestana_eval.append_rows(datos_eval_insertar)
                                     
                             except Exception as eval_err:
-                                st.warning(f"Se guardó el PDI, pero hubo un error al guardar las evaluaciones (Asegúrate que exista la pestaña 'Evaluaciones Competencias'): {eval_err}")
+                                st.warning(f"Se guardó el PDI, pero hubo un error al guardar las evaluaciones (Asegúrate que exista la pestaña 'Evaluaciones Tecnicas'): {eval_err}")
                         
                         archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
                         st.cache_data.clear()
