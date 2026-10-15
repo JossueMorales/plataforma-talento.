@@ -185,7 +185,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                                         archivo.batch_update({"requests": requests_batch})
 
                             if datos_a_insertar:
-                                # ✨ SOLUCIÓN: table_range="A1" fuerza que pegue desde la columna A
                                 pestana_pdi_cierre_gs.append_rows(datos_a_insertar, table_range="A1")
                             
                             archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
@@ -305,22 +304,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
         while len(acciones_20) < 3: acciones_20.append(molde_vacio.copy())
         while len(acciones_10) < 3: acciones_10.append(molde_vacio.copy())
 
-        with st.container():
-            st.markdown("<div style='background-color:#1e40af; padding:8px; color:white; font-weight:bold; text-align:center; border-radius:4px;'>Información General</div>", unsafe_allow_html=True)
-            st.write("")
-            c1, c2, c3, c4 = st.columns(4)
-            c1.text_input("Nombre del colaborador:", value=nombre_colab, disabled=True, key=f"info_nom_{prefijo_unico}")
-            c2.text_input("Número de nómina:", value=nomina_aut, disabled=True, key=f"info_num_{prefijo_unico}")
-            c3.text_input("Puesto actual:", value=puesto_aut, disabled=True, key=f"info_pue_{prefijo_unico}")
-            depto_input = c4.text_input("Departamento:", value=depto, placeholder="Escribe tu depto...", key=f"info_dep_{prefijo_unico}")
-            
-            c5, c6, c7, c8 = st.columns(4)
-            c5.text_input("Dirección Organizacional:", value=dir_aut, disabled=True, key=f"info_dir_{prefijo_unico}")
-            c6.text_input("Líder Directo:", value=lider_aut, disabled=True, key=f"info_lid_{prefijo_unico}")
-            fecha_input = c7.text_input("Fecha de elaboración:", value=fecha_elab, placeholder="Ej. 9/9/2026", key=f"info_fec_{prefijo_unico}")
-            
-        st.write("")
-        
+        # ✨ SE MOVIÓ EL EXPANDER MLA AFUERA Y ARRIBA DEL FORMULARIO
         with st.expander("📚 Sugerencias de Desarrollo (Catálogo MLA)", expanded=False):
             st.markdown("¿No sabes por dónde empezar tu PDI? El sistema analizará tus áreas de oportunidad del MLA y te mostrará los comportamientos esperados y sugerencias clave para desarrollarlas.")
             
@@ -389,7 +373,25 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         except Exception as e:
                             st.error(f"❌ Ocurrió un error al buscar en el archivo (Asegúrate de que la pestaña se llama 'Orientacion MLA'): {e}")
 
+        # ✨ EL FORMULARIO INICIA AQUÍ, ABSORBIENDO LA INFORMACIÓN GENERAL
         with st.form(f"form_edicion_pdi_planeacion_{prefijo_unico}", clear_on_submit=False):
+            
+            with st.container():
+                st.markdown("<div style='background-color:#1e40af; padding:8px; color:white; font-weight:bold; text-align:center; border-radius:4px;'>Información General</div>", unsafe_allow_html=True)
+                st.write("")
+                c1, c2, c3, c4 = st.columns(4)
+                c1.text_input("Nombre del colaborador:", value=nombre_colab, disabled=True, key=f"info_nom_{prefijo_unico}")
+                c2.text_input("Número de nómina:", value=nomina_aut, disabled=True, key=f"info_num_{prefijo_unico}")
+                c3.text_input("Puesto actual:", value=puesto_aut, disabled=True, key=f"info_pue_{prefijo_unico}")
+                depto_input = c4.text_input("Departamento:", value=depto, placeholder="Escribe tu depto...", key=f"info_dep_{prefijo_unico}")
+                
+                c5, c6, c7, c8 = st.columns(4)
+                c5.text_input("Dirección Organizacional:", value=dir_aut, disabled=True, key=f"info_dir_{prefijo_unico}")
+                c6.text_input("Líder Directo:", value=lider_aut, disabled=True, key=f"info_lid_{prefijo_unico}")
+                fecha_input = c7.text_input("Fecha de elaboración:", value=fecha_elab, placeholder="Ej. 9/9/2026", key=f"info_fec_{prefijo_unico}")
+                
+            st.write("")
+            
             st.markdown("<div style='background-color:#fef08a; padding:6px; color:#854d0e; font-weight:bold; text-align:center; border-radius:4px;'>Expectativas de Desarrollo (Colaborador)</div>", unsafe_allow_html=True)
             st.write("")
             
@@ -566,8 +568,8 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         
                         base_fila = {
                             "Nómina": nomina_aut, "Nombre": nombre_colab, "Puesto": puesto_aut,
-                            "Dirección": dir_aut, "Líder": lider_aut, "Fecha Elaboración": fecha_elab_c,
-                            "Departamento": depto_c, "Rol Interés 1": rol_int_1, "Motivo 1": mot_int_1,
+                            "Dirección": dir_aut, "Líder": lider_aut, "Fecha Elaboración": fecha_input,
+                            "Departamento": depto_input, "Rol Interés 1": rol_int_1, "Motivo 1": mot_int_1,
                             "Rol Interés 2": rol_int_2, "Motivo 2": mot_int_2, "Rol Interés 3": rol_int_3,
                             "Motivo 3": mot_int_3, "Objetivo PDI": obj_desarrollo
                         }
@@ -599,13 +601,11 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                                     if i > 0 and len(row) > idx_num and str(row[idx_num]).strip().lower() == valor_buscar:
                                         filas_a_borrar.append(i + 1)
                                 
-                                # ✨ BATCH UPDATE PARA PDI PLANEACION
                                 if filas_a_borrar:
                                     requests_batch = [{"deleteDimension": {"range": {"sheetId": pestana_pdi_gs.id, "dimension": "ROWS", "startIndex": r - 1, "endIndex": r}}} for r in reversed(filas_a_borrar)]
                                     archivo.batch_update({"requests": requests_batch})
 
                         if datos_a_insertar:
-                            # ✨ SOLUCIÓN: table_range="A1" fuerza que pegue desde la columna A
                             pestana_pdi_gs.append_rows(datos_a_insertar, table_range="A1")
                             
                         # 2. Guardar las Evaluaciones de Competencias
@@ -624,7 +624,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                                             if i > 0 and len(row) > idx_num_e and str(row[idx_num_e]).strip().lower() == str(nomina_aut).strip().lower():
                                                 filas_a_borrar_e.append(i + 1)
                                         
-                                        # ✨ BATCH UPDATE PARA EVALUACIONES
                                         if filas_a_borrar_e:
                                             requests_batch_e = [{"deleteDimension": {"range": {"sheetId": pestana_eval.id, "dimension": "ROWS", "startIndex": r - 1, "endIndex": r}}} for r in reversed(filas_a_borrar_e)]
                                             archivo.batch_update({"requests": requests_batch_e})
@@ -639,7 +638,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                                     datos_eval_insertar.append([str(ev.get(col, "")) for col in cols_eval])
                                     
                                 if datos_eval_insertar:
-                                    # ✨ SOLUCIÓN: table_range="A1" fuerza que pegue desde la columna A
                                     pestana_eval.append_rows(datos_eval_insertar, table_range="A1")
                                     
                             except Exception as eval_err:
