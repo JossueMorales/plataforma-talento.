@@ -144,9 +144,9 @@ def main():
         df_pdi_anterior = cargar_datos_csv(pdi_cierre, current_timestamp)
         df_mla = cargar_datos_csv("Resultados MLA", current_timestamp)
         
-        # ✨ AHORA SOLO CARGAMOS LA MATRIZ CONSOLIDADA
-        df_matriz_competencias = intentar_cargar_pestana(["Conocimientos tecnicos", "Conocimientos técnicos", "Matriz de Competencias"], current_timestamp)
-        df_evaluaciones = intentar_cargar_pestana(["Evaluaciones Competencias", "Evaluaciones competencias"], current_timestamp)
+        # ✨ AHORA SOLO CARGAMOS LA MATRIZ CONSOLIDADA Y LA HOJA DE EVALUACIONES
+        df_matriz_competencias = intentar_cargar_pestana(["Matriz de Competencias", "Matriz de competencias"], current_timestamp)
+        df_evaluaciones = intentar_cargar_pestana(["Evaluaciones Tecnicas", "Evaluaciones tecnicas", "Evaluaciones Competencias"], current_timestamp)
         
         if df_completo_raw.empty:
             st.error("Error al conectar con la base de datos principal.")
