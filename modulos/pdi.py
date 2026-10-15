@@ -180,13 +180,13 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                                         if i > 0 and len(row) > idx_num and str(row[idx_num]).strip().lower() == valor_buscar:
                                             filas_a_borrar.append(i + 1)
                                     
-                                    # ✨ BATCH UPDATE PARA PDI CIERRE
                                     if filas_a_borrar:
                                         requests_batch = [{"deleteDimension": {"range": {"sheetId": pestana_pdi_cierre_gs.id, "dimension": "ROWS", "startIndex": r - 1, "endIndex": r}}} for r in reversed(filas_a_borrar)]
                                         archivo.batch_update({"requests": requests_batch})
 
                             if datos_a_insertar:
-                                pestana_pdi_cierre_gs.append_rows(datos_a_insertar)
+                                # ✨ SOLUCIÓN: table_range="A1" fuerza que pegue desde la columna A
+                                pestana_pdi_cierre_gs.append_rows(datos_a_insertar, table_range="A1")
                             
                             archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
                             st.cache_data.clear()
@@ -605,7 +605,8 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                                     archivo.batch_update({"requests": requests_batch})
 
                         if datos_a_insertar:
-                            pestana_pdi_gs.append_rows(datos_a_insertar)
+                            # ✨ SOLUCIÓN: table_range="A1" fuerza que pegue desde la columna A
+                            pestana_pdi_gs.append_rows(datos_a_insertar, table_range="A1")
                             
                         # 2. Guardar las Evaluaciones de Competencias
                         if evaluaciones_a_guardar:
@@ -638,7 +639,8 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                                     datos_eval_insertar.append([str(ev.get(col, "")) for col in cols_eval])
                                     
                                 if datos_eval_insertar:
-                                    pestana_eval.append_rows(datos_eval_insertar)
+                                    # ✨ SOLUCIÓN: table_range="A1" fuerza que pegue desde la columna A
+                                    pestana_eval.append_rows(datos_eval_insertar, table_range="A1")
                                     
                             except Exception as eval_err:
                                 st.warning(f"Se guardó el PDI, pero hubo un error al guardar las evaluaciones (Asegúrate que exista la pestaña 'Evaluaciones Tecnicas'): {eval_err}")
