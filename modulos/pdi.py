@@ -65,12 +65,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
     
     prefijo_unico = "eval_lider" if es_lider_evaluando else "eval_propia"
     
-    # ✨ LIMPIADOR DE MEMORIA AJUSTADO PARA SER MÁS AGRESIVO
-    def limpiar_memoria_formularios():
-        for k in list(st.session_state.keys()):
-            if k.endswith(f"_{prefijo_unico}"):
-                del st.session_state[k]
-    
     col_tit, col_btn = st.columns([4, 1])
     with col_tit:
         st.markdown(f"### 📝 Plan de Desarrollo Individual")
@@ -259,6 +253,9 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                 nombres_act = df_pdi['Nombre'].astype(str).str.strip().str.lower()
                 datos_pdi_usuario = df_pdi[nombres_act == nombre_colab.strip().lower()].copy()
             
+        if 'clonar_pdi' not in st.session_state:
+            st.session_state['clonar_pdi'] = False
+
         historial = pd.DataFrame()
         if not df_pdi_anterior.empty:
             col_nom_ant = buscar_columna(df_pdi_anterior.columns, 'nomina')
@@ -269,33 +266,29 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                 nombres_ant = df_pdi_anterior['Nombre'].astype(str).str.strip().str.lower()
                 historial = df_pdi_anterior[nombres_ant == nombre_colab.strip().lower()].copy()
 
-        # ✨ CONTROL DE ESTADO DE CLONACIÓN NATIVO DE STREAMLIT
-        clonacion_activa = st.session_state.get(f"clonar_{prefijo_unico}", False)
-
         if not historial.empty:
-            if not clonacion_activa:
+            if not st.session_state['clonar_pdi']:
                 if datos_pdi_usuario.empty:
                     st.warning(f"✨ Tienes un PDI del ciclo anterior ({pdi_cierre_str}).")
                     if st.button("🔄 Clonar estrategias no completadas", key=f"btn_clonar_{prefijo_unico}", use_container_width=True):
-                        st.session_state[f"clonar_{prefijo_unico}"] = True
+                        # Activa la clonación y fuerza la recarga
+                        st.session_state['clonar_pdi'] = True
                         st.rerun()
                 else:
                     with st.expander(f"✨ Detectamos un historial en {pdi_cierre_str}. ¿Deseas sobreescribir este plan?"):
                         st.info("Ya tienes datos guardados en este nuevo ciclo. Si haces clic aquí, reemplazaremos lo que está abajo con tus pendientes del año pasado.")
                         if st.button("🔄 Sobreescribir trayendo mis pendientes del año pasado", key=f"btn_sobre_{prefijo_unico}", use_container_width=True):
-                            st.session_state[f"clonar_{prefijo_unico}"] = True
+                            # Activa la clonación y fuerza la recarga
+                            st.session_state['clonar_pdi'] = True
                             st.rerun()
-            
-            if clonacion_activa:
+            else:
                 col_est = next((c for c in historial.columns if 'estatus' in clean_text(str(c)).lower()), None)
                 if col_est:
                     historial = historial[~historial[col_est].astype(str).str.lower().isin(['completado', 'cancelado', 'terminado', 'concluido'])]
-                
-                # ✨ AQUÍ INYECTAMOS DIRECTAMENTE EL HISTORIAL A LA VISTA ACTUAL
                 datos_pdi_usuario = historial.copy() 
                 
                 num_acciones = 0
-                col_acc_clon = next((c for c in historial.columns if 'que' in clean_text(str(c)).lower() or 'acci' in clean_text(str(c)).lower()), None)
+                col_acc_clon = next((c for c in historial.columns if 'qué' in clean_text(str(c)).lower() or 'acci' in clean_text(str(c)).lower()), None)
                 if col_acc_clon:
                     num_acciones = len(historial[historial[col_acc_clon].astype(str).str.strip() != ""])
                 
@@ -419,21 +412,25 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         except Exception as e:
                             st.error(f"❌ Ocurrió un error al buscar en el archivo (Asegúrate de que la pestaña se llama 'Orientacion MLA'): {e}")
 
-        with st.form(f"form_edicion_pdi_planeacion_{prefijo_unico}", clear_on_submit=False):
+        # ✨ EL TRUCO MÁGICO: Si la clonación se activa, el formulario cambia de nombre invisible 
+        # y Streamlit se ve obligado a dibujarlo de nuevo con los datos frescos.
+        w_suffix = f"{prefijo_unico}_clon" if st.session_state.get('clonar_pdi', False) else prefijo_unico
+
+        with st.form(f"form_edicion_pdi_planeacion_{w_suffix}", clear_on_submit=False):
             
             with st.container():
                 st.markdown("<div style='background-color:#1e40af; padding:8px; color:white; font-weight:bold; text-align:center; border-radius:4px;'>Información General</div>", unsafe_allow_html=True)
                 st.write("")
                 c1, c2, c3, c4 = st.columns(4)
-                c1.text_input("Nombre del colaborador:", value=nombre_colab, disabled=True, key=f"info_nom_{prefijo_unico}")
-                c2.text_input("Número de nómina:", value=nomina_aut, disabled=True, key=f"info_num_{prefijo_unico}")
-                c3.text_input("Puesto actual:", value=puesto_aut, disabled=True, key=f"info_pue_{prefijo_unico}")
-                depto_input = c4.text_input("Departamento:", value=depto, placeholder="Escribe tu depto...", key=f"info_dep_{prefijo_unico}")
+                c1.text_input("Nombre del colaborador:", value=nombre_colab, disabled=True, key=f"info_nom_{w_suffix}")
+                c2.text_input("Número de nómina:", value=nomina_aut, disabled=True, key=f"info_num_{w_suffix}")
+                c3.text_input("Puesto actual:", value=puesto_aut, disabled=True, key=f"info_pue_{w_suffix}")
+                depto_input = c4.text_input("Departamento:", value=depto, placeholder="Escribe tu depto...", key=f"info_dep_{w_suffix}")
                 
                 c5, c6, c7, c8 = st.columns(4)
-                c5.text_input("Dirección Organizacional:", value=dir_aut, disabled=True, key=f"info_dir_{prefijo_unico}")
-                c6.text_input("Líder Directo:", value=lider_aut, disabled=True, key=f"info_lid_{prefijo_unico}")
-                fecha_input = c7.text_input("Fecha de elaboración:", value=fecha_elab, placeholder="Ej. 9/9/2026", key=f"info_fec_{prefijo_unico}")
+                c5.text_input("Dirección Organizacional:", value=dir_aut, disabled=True, key=f"info_dir_{w_suffix}")
+                c6.text_input("Líder Directo:", value=lider_aut, disabled=True, key=f"info_lid_{w_suffix}")
+                fecha_input = c7.text_input("Fecha de elaboración:", value=fecha_elab, placeholder="Ej. 9/9/2026", key=f"info_fec_{w_suffix}")
                 
             st.write("")
             
@@ -441,16 +438,16 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
             st.write("")
             
             r1, m1 = st.columns([1, 2])
-            rol_int_1 = r1.selectbox("Rol / Área de Interés 1", roles_disponibles, index=index_seguro(roles_disponibles, rol_1), key=f"mot_r1_{prefijo_unico}")
-            mot_int_1 = m1.text_input("Motivo 1", value=mot_1, key=f"mot_m1_{prefijo_unico}", placeholder="¿Por qué te interesa este rol?")
+            rol_int_1 = r1.selectbox("Rol / Área de Interés 1", roles_disponibles, index=index_seguro(roles_disponibles, rol_1), key=f"mot_r1_{w_suffix}")
+            mot_int_1 = m1.text_input("Motivo 1", value=mot_1, key=f"mot_m1_{w_suffix}", placeholder="¿Por qué te interesa este rol?")
             
             r2, m2 = st.columns([1, 2])
-            rol_int_2 = r2.selectbox("Rol / Área de Interés 2", roles_disponibles, index=index_seguro(roles_disponibles, rol_2), key=f"mot_r2_{prefijo_unico}")
-            mot_int_2 = m2.text_input("Motivo 2", value=mot_2, key=f"mot_m2_{prefijo_unico}")
+            rol_int_2 = r2.selectbox("Rol / Área de Interés 2", roles_disponibles, index=index_seguro(roles_disponibles, rol_2), key=f"mot_r2_{w_suffix}")
+            mot_int_2 = m2.text_input("Motivo 2", value=mot_2, key=f"mot_m2_{w_suffix}")
             
             r3, m3 = st.columns([1, 2])
-            rol_int_3 = r3.selectbox("Rol / Área de Interés 3", roles_disponibles, index=index_seguro(roles_disponibles, rol_3), key=f"mot_r3_{prefijo_unico}")
-            mot_int_3 = m3.text_input("Motivo 3", value=mot_3, key=f"mot_m3_{prefijo_unico}")
+            rol_int_3 = r3.selectbox("Rol / Área de Interés 3", roles_disponibles, index=index_seguro(roles_disponibles, rol_3), key=f"mot_r3_{w_suffix}")
+            mot_int_3 = m3.text_input("Motivo 3", value=mot_3, key=f"mot_m3_{w_suffix}")
             
             st.write("")
             
@@ -541,8 +538,8 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         idx_c = opciones_calif.index(calif_c_prev) if calif_c_prev in opciones_calif else 0
                         idx_l = opciones_calif.index(calif_l_prev) if calif_l_prev in opciones_calif else 0
                         
-                        val_c = c2.selectbox("Colab.", opciones_calif, index=idx_c, disabled=es_lider_evaluando, key=f"c_{tipo_comp}_{idx}_{prefijo_unico}", label_visibility="collapsed")
-                        val_l = c3.selectbox("Líder", opciones_calif, index=idx_l, disabled=not es_lider_evaluando, key=f"l_{tipo_comp}_{idx}_{prefijo_unico}", label_visibility="collapsed")
+                        val_c = c2.selectbox("Colab.", opciones_calif, index=idx_c, disabled=es_lider_evaluando, key=f"c_{tipo_comp}_{idx}_{w_suffix}", label_visibility="collapsed")
+                        val_l = c3.selectbox("Líder", opciones_calif, index=idx_l, disabled=not es_lider_evaluando, key=f"l_{tipo_comp}_{idx}_{w_suffix}", label_visibility="collapsed")
                         
                         evaluaciones_a_guardar.append({
                             "Nómina": nomina_aut, "Nombre": nombre_colab, "Puesto": puesto_aut,
@@ -558,7 +555,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
             st.markdown("<div style='background-color:#fef08a; padding:6px; color:#854d0e; font-weight:bold; text-align:center; border-radius:4px;'>Objetivo de Desarrollo (Colaborador y Líder)</div>", unsafe_allow_html=True)
             st.write("")
             
-            obj_desarrollo = st.text_area("Objetivo a Desarrollar:", value=objetivo, placeholder="Ej. Desarrollar Conocimientos Técnicos, Creación de Equipos eficientes y Valentía Gerencial...", height=68, key=f"obj_desarrollo_{prefijo_unico}")
+            obj_desarrollo = st.text_area("Objetivo a Desarrollar:", value=objetivo, placeholder="Ej. Desarrollar Conocimientos Técnicos, Creación de Equipos eficientes y Valentía Gerencial...", height=68, key=f"obj_desarrollo_{w_suffix}")
             
             st.write("")
             st.markdown("<div style='background-color:#1e40af; padding:8px; color:white; font-weight:bold; text-align:center; border-radius:4px;'>Plan de Desarrollo (Modelo 70-20-10)</div>", unsafe_allow_html=True)
@@ -569,13 +566,13 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                 nuevas = []
                 for i in range(3):
                     a1, a2, a3, a4, a5, a6, a7 = st.columns([2, 1.5, 1.5, 1.5, 1, 1, 1])
-                    acc = a1.text_area("Qué? / Acciones" if i==0 else "", value=lista_acciones[i]['acc'], key=f"{prefijo}_acc_{i}_{prefijo_unico}", height=68, label_visibility="visible" if i==0 else "collapsed")
-                    comp = a2.text_input("Para qué? / Competencia" if i==0 else "", value=lista_acciones[i]['comp'], key=f"{prefijo}_comp_{i}_{prefijo_unico}", label_visibility="visible" if i==0 else "collapsed")
-                    rec = a3.text_input("Quién? / Recursos" if i==0 else "", value=lista_acciones[i]['rec'], key=f"{prefijo}_rec_{i}_{prefijo_unico}", label_visibility="visible" if i==0 else "collapsed")
-                    met = a4.text_input("Métricas" if i==0 else "", value=lista_acciones[i]['met'], key=f"{prefijo}_met_{i}_{prefijo_unico}", label_visibility="visible" if i==0 else "collapsed")
-                    fec = a5.text_input("Fecha Ejecución" if i==0 else "", value=lista_acciones[i]['fec'], key=f"{prefijo}_fec_{i}_{prefijo_unico}", label_visibility="visible" if i==0 else "collapsed")
-                    av = a6.selectbox("% Avance" if i==0 else "", opciones_avance, index=index_seguro(opciones_avance, lista_acciones[i]['av']), key=f"{prefijo}_av_{i}_{prefijo_unico}", label_visibility="visible" if i==0 else "collapsed")
-                    est = a7.selectbox("Estatus" if i==0 else "", opciones_estatus, index=index_seguro(opciones_estatus, lista_acciones[i]['est']), key=f"{prefijo}_est_{i}_{prefijo_unico}", label_visibility="visible" if i==0 else "collapsed")
+                    acc = a1.text_area("Qué? / Acciones" if i==0 else "", value=lista_acciones[i]['acc'], key=f"{prefijo}_acc_{i}_{w_suffix}", height=68, label_visibility="visible" if i==0 else "collapsed")
+                    comp = a2.text_input("Para qué? / Competencia" if i==0 else "", value=lista_acciones[i]['comp'], key=f"{prefijo}_comp_{i}_{w_suffix}", label_visibility="visible" if i==0 else "collapsed")
+                    rec = a3.text_input("Quién? / Recursos" if i==0 else "", value=lista_acciones[i]['rec'], key=f"{prefijo}_rec_{i}_{w_suffix}", label_visibility="visible" if i==0 else "collapsed")
+                    met = a4.text_input("Métricas" if i==0 else "", value=lista_acciones[i]['met'], key=f"{prefijo}_met_{i}_{w_suffix}", label_visibility="visible" if i==0 else "collapsed")
+                    fec = a5.text_input("Fecha Ejecución" if i==0 else "", value=lista_acciones[i]['fec'], key=f"{prefijo}_fec_{i}_{w_suffix}", label_visibility="visible" if i==0 else "collapsed")
+                    av = a6.selectbox("% Avance" if i==0 else "", opciones_avance, index=index_seguro(opciones_avance, lista_acciones[i]['av']), key=f"{prefijo}_av_{i}_{w_suffix}", label_visibility="visible" if i==0 else "collapsed")
+                    est = a7.selectbox("Estatus" if i==0 else "", opciones_estatus, index=index_seguro(opciones_estatus, lista_acciones[i]['est']), key=f"{prefijo}_est_{i}_{w_suffix}", label_visibility="visible" if i==0 else "collapsed")
                     
                     nuevas.append({
                         "PDI": titulo, "Qué? / Acciones de Desarrollo": acc, "¿Para qué? / Competencia": comp,
@@ -707,9 +704,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
                         st.cache_data.clear()
                         
-                        # ✨ APAGAR CLONACIÓN Y LIMPIAR
-                        st.session_state[f"clonar_{prefijo_unico}"] = False
-                        limpiar_memoria_formularios()
+                        st.session_state['clonar_pdi'] = False
                         
                         st.balloons()
                         st.toast(f"¡Plan {pdi_planeacion_str} guardado exitosamente!", icon="✅")
