@@ -18,7 +18,7 @@ COLUMNAS_PDI = [
     "¿Cuándo? / Fechas", "% de Avance", "Estatus"
 ]
 
-def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_mla=pd.DataFrame(), df_comp_funcionales=pd.DataFrame(), df_comp_por_area=pd.DataFrame(), df_comp_tecnicas=pd.DataFrame(), df_evaluaciones=pd.DataFrame(), es_lider_evaluando=False, empleado_a_evaluar=None):
+def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_mla=pd.DataFrame(), df_matriz_competencias=pd.DataFrame(), df_evaluaciones=pd.DataFrame(), es_lider_evaluando=False, empleado_a_evaluar=None):
     pdi_planeacion_str = st.session_state.get("pdi_planeacion", "PDI 2027")
     pdi_cierre_str = st.session_state.get("pdi_cierre", "PDI 2026")
     
@@ -398,7 +398,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
             st.markdown("<div style='background-color:#e0f2fe; padding:6px; color:#0369a1; font-weight:bold; text-align:center; border-radius:4px;'>📊 Evaluación de Competencias</div>", unsafe_allow_html=True)
             st.write("")
             
-            # Función auxiliar para limpieza extrema de cruces
+            # Limpieza robusta para asegurar que los puestos hagan "match"
             def clean_for_match(series):
                 return series.astype(str).str.replace(r'\s+', ' ', regex=True).str.strip().str.lower()
                 
@@ -432,45 +432,32 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                 opciones_calif = ["", "1", "2", "3", "4", "5"]
                 evaluaciones_a_guardar = []
                 
-                # ✨ 1. EXTRAER CONOCIMIENTOS TÉCNICOS (A prueba de balas)
-                tecnicas_asignadas = []
-                col_puesto_tech = buscar_columna(df_comp_tecnicas.columns, 'puesto') if not df_comp_tecnicas.empty else None
-                if col_puesto_tech:
-                    match_tech = df_comp_tecnicas[clean_for_match(df_comp_tecnicas[col_puesto_tech]) == puesto_clean]
-                    if not match_tech.empty:
-                        # Tomas todas las columnas que estén a la derecha del puesto (Así no importa el nombre)
-                        idx_puesto = df_comp_tecnicas.columns.get_loc(col_puesto_tech)
-                        tech_cols = df_comp_tecnicas.columns[idx_puesto + 1:]
-                        tecnicas_asignadas = match_tech.iloc[0][tech_cols].dropna().astype(str).tolist()
-                        tecnicas_asignadas = [c.strip() for c in tecnicas_asignadas if c.strip() and c.lower() != 'nan']
-
-                # ✨ 2. EXTRAER COMPETENCIAS FUNCIONALES (A prueba de balas)
+                # ✨ EXTRACCIÓN PLANA Y DIRECTA DE LA MATRIZ DE COMPETENCIAS
                 funcionales_asignadas = []
-                col_puesto_func = buscar_columna(df_comp_funcionales.columns, 'puesto') if not df_comp_funcionales.empty else None
+                tecnicas_asignadas = []
                 
-                if col_puesto_func and not df_comp_por_area.empty:
-                    match_func = df_comp_funcionales[clean_for_match(df_comp_funcionales[col_puesto_func]) == puesto_clean]
-                    if not match_func.empty:
-                        # Asume que la "Base de competencias" es siempre la última columna (o busca "base")
-                        col_base_func = buscar_columna(df_comp_funcionales.columns, 'base') or df_comp_funcionales.columns[-1]
-                        base_comp = match_func.iloc[0].get(col_base_func, '')
-                        if base_comp:
-                            base_clean = re.sub(r'\s+', ' ', str(base_comp)).strip().lower()
-                            col_comp_area = buscar_columna(df_comp_por_area.columns, 'competencia')
-                            if col_comp_area:
-                                match_area = df_comp_por_area[clean_for_match(df_comp_por_area[col_comp_area]) == base_clean]
-                                if not match_area.empty:
-                                    # Tomas todas las columnas a la derecha de "Competencia"
-                                    idx_comp = df_comp_por_area.columns.get_loc(col_comp_area)
-                                    area_cols = df_comp_por_area.columns[idx_comp + 1:]
-                                    funcionales_asignadas = match_area.iloc[0][area_cols].dropna().astype(str).tolist()
-                                    funcionales_asignadas = [c.strip() for c in funcionales_asignadas if c.strip() and c.lower() != 'nan']
+                if not df_matriz_competencias.empty:
+                    col_puesto_matriz = buscar_columna(df_matriz_competencias.columns, 'puesto')
+                    if col_puesto_matriz:
+                        match_matriz = df_matriz_competencias[clean_for_match(df_matriz_competencias[col_puesto_matriz]) == puesto_clean]
+                        if not match_matriz.empty:
+                            fila_matriz = match_matriz.iloc[0]
+                            
+                            # Funcionales: cualquier columna que contenga la palabra "competencia " (ej. "Competencia 1", "Competencia 2")
+                            func_cols = [c for c in match_matriz.columns if 'competencia ' in c.lower()]
+                            funcionales_asignadas = fila_matriz[func_cols].dropna().astype(str).tolist()
+                            funcionales_asignadas = [c.strip() for c in funcionales_asignadas if c.strip() and c.lower() != 'nan']
+                            
+                            # Técnicas: cualquier columna que contenga "tec" (ej. "Con.Tec1", "Tec2")
+                            tech_cols = [c for c in match_matriz.columns if 'tec' in c.lower()]
+                            tecnicas_asignadas = fila_matriz[tech_cols].dropna().astype(str).tolist()
+                            tecnicas_asignadas = [c.strip() for c in tecnicas_asignadas if c.strip() and c.lower() != 'nan']
 
-                # ✨ 3. RENDERIZAR INTERFAZ
+                # Función para pintar las tablas interactivas en pantalla
                 def renderizar_filas_evaluacion(lista_comp, titulo, tipo_comp, is_df_empty):
                     st.markdown(f"##### 🛠️ {titulo}")
                     if is_df_empty:
-                        st.error(f"🚨 Error de conexión: No se pudo cargar correctamente la pestaña de {titulo} desde Google Sheets.")
+                        st.error(f"🚨 La matriz de conocimientos no se cargó correctamente. Da clic en el botón de forzar actualización.")
                         return
                     if not lista_comp:
                         st.info(f"No hay {titulo.lower()} configuradas para el puesto: {puesto_aut}")
@@ -500,8 +487,8 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                             "Calif. Colab": val_c, "Calif. Líder": val_l, "Fecha": time.strftime("%d/%m/%Y")
                         })
 
-                renderizar_filas_evaluacion(funcionales_asignadas, "Competencias Funcionales", "Funcional", df_comp_funcionales.empty or df_comp_por_area.empty)
-                renderizar_filas_evaluacion(tecnicas_asignadas, "Conocimientos Técnicos", "Técnica", df_comp_tecnicas.empty)
+                renderizar_filas_evaluacion(funcionales_asignadas, "Competencias Funcionales", "Funcional", df_matriz_competencias.empty)
+                renderizar_filas_evaluacion(tecnicas_asignadas, "Conocimientos Técnicos", "Técnica", df_matriz_competencias.empty)
 
             st.write("")
             # --- FIN DE SECCIÓN DE COMPETENCIAS ---
@@ -564,8 +551,8 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         
                         base_fila = {
                             "Nómina": nomina_aut, "Nombre": nombre_colab, "Puesto": puesto_aut,
-                            "Dirección": dir_aut, "Líder": lider_aut, "Fecha Elaboración": fecha_input,
-                            "Departamento": depto_input, "Rol Interés 1": rol_int_1, "Motivo 1": mot_int_1,
+                            "Dirección": dir_aut, "Líder": lider_aut, "Fecha Elaboración": fecha_elab_c,
+                            "Departamento": depto_c, "Rol Interés 1": rol_int_1, "Motivo 1": mot_int_1,
                             "Rol Interés 2": rol_int_2, "Motivo 2": mot_int_2, "Rol Interés 3": rol_int_3,
                             "Motivo 3": mot_int_3, "Objetivo PDI": obj_desarrollo
                         }
