@@ -132,16 +132,24 @@ def main():
     with st.spinner("Cargando base de datos y validando seguridad dinámica..."):
         current_timestamp, estado_sucesion, estado_pdi, pdi_planeacion, pdi_cierre = obtener_metadata()
         
+        # ✨ FUNCIÓN AUXILIAR PARA BUSCAR PESTAÑAS IGNORANDO ACENTOS Y MAYÚSCULAS
+        def intentar_cargar_pestana(opciones_nombres, timestamp):
+            for nombre in opciones_nombres:
+                df = cargar_datos_csv(nombre, timestamp)
+                if not df.empty:
+                    return df
+            return pd.DataFrame()
+
         df_completo_raw = cargar_datos_csv("Base de datos", current_timestamp)
         df_pdi = cargar_datos_csv(pdi_planeacion, current_timestamp)
         df_pdi_anterior = cargar_datos_csv(pdi_cierre, current_timestamp)
         df_mla = cargar_datos_csv("Resultados MLA", current_timestamp)
         
-        # ✨ Carga de las nuevas bases de datos de competencias
-        df_comp_funcionales = cargar_datos_csv("Competencias Funcionales", current_timestamp)
-        df_comp_por_area = cargar_datos_csv("Competencias por Area", current_timestamp) # <-- Pestaña extra
-        df_comp_tecnicas = cargar_datos_csv("Conocimientos tecnicos", current_timestamp)
-        df_evaluaciones = cargar_datos_csv("Evaluaciones Competencias", current_timestamp)
+        # ✨ CARGA INTELIGENTE DE LAS NUEVAS BASES
+        df_comp_funcionales = intentar_cargar_pestana(["Competencias Funcionales", "Competencias funcionales"], current_timestamp)
+        df_comp_por_area = intentar_cargar_pestana(["Competencias por Area", "Competencias por area", "Competencias por Área", "Competencias por área"], current_timestamp)
+        df_comp_tecnicas = intentar_cargar_pestana(["Conocimientos tecnicos", "Conocimientos técnicos", "Conocimientos Tecnicos", "Conocimientos Técnicos"], current_timestamp)
+        df_evaluaciones = intentar_cargar_pestana(["Evaluaciones Competencias", "Evaluaciones competencias"], current_timestamp)
         
         if df_completo_raw.empty:
             st.error("Error al conectar con la base de datos principal.")
