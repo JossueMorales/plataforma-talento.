@@ -428,31 +428,38 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                 
                 # ✨ 1. EXTRAER CONOCIMIENTOS TÉCNICOS
                 tecnicas_asignadas = []
-                if not df_comp_tecnicas.empty and 'PUESTO' in df_comp_tecnicas.columns:
-                    match_tech = df_comp_tecnicas[df_comp_tecnicas['PUESTO'].astype(str).str.strip().str.lower() == puesto_aut.strip().lower()]
+                col_puesto_tech = buscar_columna(df_comp_tecnicas.columns, 'puesto') if not df_comp_tecnicas.empty else None
+                if col_puesto_tech:
+                    match_tech = df_comp_tecnicas[df_comp_tecnicas[col_puesto_tech].astype(str).str.strip().str.lower() == puesto_aut.strip().lower()]
                     if not match_tech.empty:
-                        tech_cols = [c for c in match_tech.columns if 'Tec' in c or 'tec' in c.lower()]
+                        tech_cols = [c for c in match_tech.columns if 'tec' in c.lower()]
                         tecnicas_asignadas = match_tech.iloc[0][tech_cols].dropna().astype(str).tolist()
-                        tecnicas_asignadas = [c.strip() for c in tecnicas_asignadas if c.strip()]
+                        tecnicas_asignadas = [c.strip() for c in tecnicas_asignadas if c.strip() and c.lower() != 'nan']
 
                 # ✨ 2. EXTRAER COMPETENCIAS FUNCIONALES
                 funcionales_asignadas = []
-                if not df_comp_funcionales.empty and not df_comp_por_area.empty and 'PUESTO' in df_comp_funcionales.columns:
-                    match_func = df_comp_funcionales[df_comp_funcionales['PUESTO'].astype(str).str.strip().str.lower() == puesto_aut.strip().lower()]
+                col_puesto_func = buscar_columna(df_comp_funcionales.columns, 'puesto') if not df_comp_funcionales.empty else None
+                col_base_func = buscar_columna(df_comp_funcionales.columns, 'base') if not df_comp_funcionales.empty else None
+                
+                if col_puesto_func and col_base_func and not df_comp_por_area.empty:
+                    match_func = df_comp_funcionales[df_comp_funcionales[col_puesto_func].astype(str).str.strip().str.lower() == puesto_aut.strip().lower()]
                     if not match_func.empty:
-                        base_comp = match_func.iloc[0].get('Base de competencias', '')
+                        base_comp = match_func.iloc[0].get(col_base_func, '')
                         if base_comp:
                             col_comp_area = buscar_columna(df_comp_por_area.columns, 'competencia')
                             if col_comp_area:
                                 match_area = df_comp_por_area[df_comp_por_area[col_comp_area].astype(str).str.strip().str.lower() == str(base_comp).strip().lower()]
                                 if not match_area.empty:
-                                    area_cols = [c for c in match_area.columns if 'Competencia ' in c]
+                                    area_cols = [c for c in match_area.columns if 'competencia ' in c.lower()]
                                     funcionales_asignadas = match_area.iloc[0][area_cols].dropna().astype(str).tolist()
-                                    funcionales_asignadas = [c.strip() for c in funcionales_asignadas if c.strip()]
+                                    funcionales_asignadas = [c.strip() for c in funcionales_asignadas if c.strip() and c.lower() != 'nan']
 
                 # ✨ 3. RENDERIZAR INTERFAZ
-                def renderizar_filas_evaluacion(lista_comp, titulo, tipo_comp):
+                def renderizar_filas_evaluacion(lista_comp, titulo, tipo_comp, is_df_empty):
                     st.markdown(f"##### 🛠️ {titulo}")
+                    if is_df_empty:
+                        st.error(f"🚨 Error de conexión: No se pudo cargar correctamente la pestaña de {titulo} desde Google Sheets.")
+                        return
                     if not lista_comp:
                         st.info(f"No hay {titulo.lower()} configuradas para el puesto: {puesto_aut}")
                         return
@@ -461,7 +468,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         calif_c_prev = ""
                         calif_l_prev = ""
                         if not df_evaluaciones.empty and 'Competencia' in df_evaluaciones.columns and 'Nómina' in df_evaluaciones.columns:
-                            match_eval = df_evaluaciones[(df_evaluaciones['Nómina'].astype(str) == str(nomina_aut)) & (df_evaluaciones['Competencia'] == comp)]
+                            match_eval = df_evaluaciones[(df_evaluaciones['Nómina'].astype(str) == str(nomina_aut)) & (df_evaluaciones['Competencia'].astype(str).str.strip().str.lower() == str(comp).strip().lower())]
                             if not match_eval.empty:
                                 calif_c_prev = str(match_eval.iloc[0].get('Calif. Colab', ''))
                                 calif_l_prev = str(match_eval.iloc[0].get('Calif. Líder', ''))
@@ -481,8 +488,8 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                             "Calif. Colab": val_c, "Calif. Líder": val_l, "Fecha": time.strftime("%d/%m/%Y")
                         })
 
-                renderizar_filas_evaluacion(funcionales_asignadas, "Competencias Funcionales", "Funcional")
-                renderizar_filas_evaluacion(tecnicas_asignadas, "Conocimientos Técnicos", "Técnica")
+                renderizar_filas_evaluacion(funcionales_asignadas, "Competencias Funcionales", "Funcional", df_comp_funcionales.empty or df_comp_por_area.empty)
+                renderizar_filas_evaluacion(tecnicas_asignadas, "Conocimientos Técnicos", "Técnica", df_comp_tecnicas.empty)
 
             st.write("")
             # --- FIN DE SECCIÓN DE COMPETENCIAS ---
