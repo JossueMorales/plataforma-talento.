@@ -398,6 +398,12 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
             st.markdown("<div style='background-color:#e0f2fe; padding:6px; color:#0369a1; font-weight:bold; text-align:center; border-radius:4px;'>📊 Evaluación de Competencias</div>", unsafe_allow_html=True)
             st.write("")
             
+            # Función auxiliar para limpieza extrema de cruces
+            def clean_for_match(series):
+                return series.astype(str).str.replace(r'\s+', ' ', regex=True).str.strip().str.lower()
+                
+            puesto_clean = re.sub(r'\s+', ' ', str(puesto_aut)).strip().lower()
+            
             col_izq, col_der = st.columns(2)
             
             with col_izq:
@@ -426,31 +432,37 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                 opciones_calif = ["", "1", "2", "3", "4", "5"]
                 evaluaciones_a_guardar = []
                 
-                # ✨ 1. EXTRAER CONOCIMIENTOS TÉCNICOS
+                # ✨ 1. EXTRAER CONOCIMIENTOS TÉCNICOS (A prueba de balas)
                 tecnicas_asignadas = []
                 col_puesto_tech = buscar_columna(df_comp_tecnicas.columns, 'puesto') if not df_comp_tecnicas.empty else None
                 if col_puesto_tech:
-                    match_tech = df_comp_tecnicas[df_comp_tecnicas[col_puesto_tech].astype(str).str.strip().str.lower() == puesto_aut.strip().lower()]
+                    match_tech = df_comp_tecnicas[clean_for_match(df_comp_tecnicas[col_puesto_tech]) == puesto_clean]
                     if not match_tech.empty:
-                        tech_cols = [c for c in match_tech.columns if 'tec' in c.lower()]
+                        # Tomas todas las columnas que estén a la derecha del puesto (Así no importa el nombre)
+                        idx_puesto = df_comp_tecnicas.columns.get_loc(col_puesto_tech)
+                        tech_cols = df_comp_tecnicas.columns[idx_puesto + 1:]
                         tecnicas_asignadas = match_tech.iloc[0][tech_cols].dropna().astype(str).tolist()
                         tecnicas_asignadas = [c.strip() for c in tecnicas_asignadas if c.strip() and c.lower() != 'nan']
 
-                # ✨ 2. EXTRAER COMPETENCIAS FUNCIONALES
+                # ✨ 2. EXTRAER COMPETENCIAS FUNCIONALES (A prueba de balas)
                 funcionales_asignadas = []
                 col_puesto_func = buscar_columna(df_comp_funcionales.columns, 'puesto') if not df_comp_funcionales.empty else None
-                col_base_func = buscar_columna(df_comp_funcionales.columns, 'base') if not df_comp_funcionales.empty else None
                 
-                if col_puesto_func and col_base_func and not df_comp_por_area.empty:
-                    match_func = df_comp_funcionales[df_comp_funcionales[col_puesto_func].astype(str).str.strip().str.lower() == puesto_aut.strip().lower()]
+                if col_puesto_func and not df_comp_por_area.empty:
+                    match_func = df_comp_funcionales[clean_for_match(df_comp_funcionales[col_puesto_func]) == puesto_clean]
                     if not match_func.empty:
+                        # Asume que la "Base de competencias" es siempre la última columna (o busca "base")
+                        col_base_func = buscar_columna(df_comp_funcionales.columns, 'base') or df_comp_funcionales.columns[-1]
                         base_comp = match_func.iloc[0].get(col_base_func, '')
                         if base_comp:
+                            base_clean = re.sub(r'\s+', ' ', str(base_comp)).strip().lower()
                             col_comp_area = buscar_columna(df_comp_por_area.columns, 'competencia')
                             if col_comp_area:
-                                match_area = df_comp_por_area[df_comp_por_area[col_comp_area].astype(str).str.strip().str.lower() == str(base_comp).strip().lower()]
+                                match_area = df_comp_por_area[clean_for_match(df_comp_por_area[col_comp_area]) == base_clean]
                                 if not match_area.empty:
-                                    area_cols = [c for c in match_area.columns if 'competencia ' in c.lower()]
+                                    # Tomas todas las columnas a la derecha de "Competencia"
+                                    idx_comp = df_comp_por_area.columns.get_loc(col_comp_area)
+                                    area_cols = df_comp_por_area.columns[idx_comp + 1:]
                                     funcionales_asignadas = match_area.iloc[0][area_cols].dropna().astype(str).tolist()
                                     funcionales_asignadas = [c.strip() for c in funcionales_asignadas if c.strip() and c.lower() != 'nan']
 
