@@ -11,13 +11,32 @@ from config_ui import clean_text, clean_id
 from database import LINK_ARCHIVO
 from modulos.mapa_org import buscar_columna
 
-COLUMNAS_PDI = [
-    "Nómina", "Nombre", "Puesto", "Dirección", "Líder", "Fecha Elaboración", "Departamento",
-    "Rol Interés 1", "Motivo 1", "Rol Interés 2", "Motivo 2", "Rol Interés 3", "Motivo 3",
-    "Objetivo PDI", "PDI", "Qué? / Acciones de Desarrollo", 
-    "¿Para qué? / Competencia", "¿Quién? / Recursos", "¿Cómo sabremos que se logró? / Métricas", 
-    "¿Cuándo? / Fechas", "% de Avance", "Estatus"
-]
+# Este diccionario mapea las palabras clave que el robot buscará en el encabezado real del Excel
+# para saber en qué columna meter cada dato.
+MAPEO_COLUMNAS = {
+    "Nómina": "nómina",
+    "Nombre": "nombre",
+    "Puesto": "puesto",
+    "Dirección": "dirección",
+    "Líder": "líder",
+    "Fecha Elaboración": "fecha",
+    "Departamento": "departamento",
+    "Rol Interés 1": "rol",
+    "Motivo 1": "motivo 1",
+    "Rol Interés 2": "rol",
+    "Motivo 2": "motivo 2",
+    "Rol Interés 3": "rol",
+    "Motivo 3": "motivo 3",
+    "Objetivo PDI": "objetivo",
+    "PDI": "pdi",
+    "Qué? / Acciones de Desarrollo": "qué",
+    "¿Para qué? / Competencia": "para qué",
+    "¿Quién? / Recursos": "quién",
+    "¿Cómo sabremos que se logró? / Métricas": "cómo",
+    "¿Cuándo? / Fechas": "cuándo",
+    "% de Avance": "avance",
+    "Estatus": "estatus"
+}
 
 def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_mla=pd.DataFrame(), df_matriz_competencias=pd.DataFrame(), df_evaluaciones=pd.DataFrame(), es_lider_evaluando=False, empleado_a_evaluar=None):
     pdi_planeacion_str = st.session_state.get("pdi_planeacion", "PDI 2027")
@@ -91,7 +110,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                 
                 fecha_elab_c = str(primer_row_c.get(f_c('fecha elab') or 'Fecha Elaboración', ''))
                 depto_c = str(primer_row_c.get(f_c('departamento') or 'Departamento', ''))
-                rol_1_c = str(primer_row_c.get(f_c('rol interés 1') or 'Rol Interés 1', ''))
+                rol_1_c = str(primer_row_c.get(f_c('rol interés 1') or f_c('roles / áreas'), ''))
                 mot_1_c = str(primer_row_c.get(f_c('motivo 1') or 'Motivo 1', ''))
                 objetivo_c = str(primer_row_c.get(f_c('objetivo') or 'Objetivo PDI', ''))
                 
@@ -162,15 +181,11 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                                 "Objetivo PDI": objetivo_c
                             }
                             
-                            datos_a_insertar = []
-                            for acc in nuevas_evaluaciones:
-                                fila = base_fila_c.copy()
-                                fila.update(acc)
-                                datos_a_insertar.append([str(fila.get(col, "")) for col in COLUMNAS_PDI])
-                                
                             registros_vivos = pestana_pdi_cierre_gs.get_all_values()
                             if len(registros_vivos) > 0:
                                 encabezados = registros_vivos[0]
+                                
+                                # Borrar las filas viejas del usuario
                                 idx_identificador = buscar_columna(encabezados, 'nómina') or buscar_columna(encabezados, 'nombre')
                                 if idx_identificador:
                                     idx_num = encabezados.index(idx_identificador)
@@ -184,8 +199,21 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                                         requests_batch = [{"deleteDimension": {"range": {"sheetId": pestana_pdi_cierre_gs.id, "dimension": "ROWS", "startIndex": r - 1, "endIndex": r}}} for r in reversed(filas_a_borrar)]
                                         archivo.batch_update({"requests": requests_batch})
 
-                            if datos_a_insertar:
-                                pestana_pdi_cierre_gs.append_rows(datos_a_insertar, table_range="A1")
+                                # Mapeo inteligente de columnas para insertar
+                                datos_a_insertar = []
+                                for acc in nuevas_evaluaciones:
+                                    fila = base_fila_c.copy()
+                                    fila.update(acc)
+                                    fila_excel = [""] * len(encabezados)
+                                    for col_dict, kw in MAPEO_COLUMNAS.items():
+                                        col_excel = buscar_columna(encabezados, kw)
+                                        if col_excel:
+                                            idx_excel = encabezados.index(col_excel)
+                                            fila_excel[idx_excel] = str(fila.get(col_dict, ""))
+                                    datos_a_insertar.append(fila_excel)
+
+                                if datos_a_insertar:
+                                    pestana_pdi_cierre_gs.append_rows(datos_a_insertar, table_range="A1")
                             
                             archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
                             st.cache_data.clear()
@@ -270,7 +298,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                 
             fecha_elab = str(primer_row.get(fc('fecha elab') or 'Fecha Elaboración', ''))
             depto = str(primer_row.get(fc('departamento') or 'Departamento', ''))
-            rol_1 = str(primer_row.get(fc('rol interés 1') or 'Rol Interés 1', ''))
+            rol_1 = str(primer_row.get(fc('rol interés 1') or f_c('roles / áreas'), ''))
             mot_1 = str(primer_row.get(fc('motivo 1') or 'Motivo 1', ''))
             rol_2 = str(primer_row.get(fc('rol interés 2') or 'Rol Interés 2', ''))
             mot_2 = str(primer_row.get(fc('motivo 2') or 'Motivo 2', ''))
@@ -304,7 +332,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
         while len(acciones_20) < 3: acciones_20.append(molde_vacio.copy())
         while len(acciones_10) < 3: acciones_10.append(molde_vacio.copy())
 
-        # ✨ SE MOVIÓ EL EXPANDER MLA AFUERA Y ARRIBA DEL FORMULARIO
         with st.expander("📚 Sugerencias de Desarrollo (Catálogo MLA)", expanded=False):
             st.markdown("¿No sabes por dónde empezar tu PDI? El sistema analizará tus áreas de oportunidad del MLA y te mostrará los comportamientos esperados y sugerencias clave para desarrollarlas.")
             
@@ -373,7 +400,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         except Exception as e:
                             st.error(f"❌ Ocurrió un error al buscar en el archivo (Asegúrate de que la pestaña se llama 'Orientacion MLA'): {e}")
 
-        # ✨ EL FORMULARIO INICIA AQUÍ, ABSORBIENDO LA INFORMACIÓN GENERAL
         with st.form(f"form_edicion_pdi_planeacion_{prefijo_unico}", clear_on_submit=False):
             
             with st.container():
@@ -561,10 +587,17 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         doc_id = match.group(1) if match else LINK_ARCHIVO
                         archivo = cliente.open_by_key(doc_id)
                         
-                        # 1. Guardar el PDI
+                        # ✨ LECTURA INTELIGENTE DEL ENCABEZADO REAL EN EXCEL
                         pestana_pdi_gs = archivo.worksheet(pdi_planeacion_str)
+                        registros_vivos = pestana_pdi_gs.get_all_values()
+                        
+                        if len(registros_vivos) == 0:
+                            pestana_pdi_gs.append_row(COLUMNAS_PDI)
+                            encabezados_reales = COLUMNAS_PDI
+                        else:
+                            encabezados_reales = registros_vivos[0]
+
                         todas_las_acciones = acciones_70_nuevas + acciones_20_nuevas + acciones_10_nuevas
-                        nuevas_filas = []
                         
                         base_fila = {
                             "Nómina": nomina_aut, "Nombre": nombre_colab, "Puesto": puesto_aut,
@@ -574,27 +607,38 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                             "Motivo 3": mot_int_3, "Objetivo PDI": obj_desarrollo
                         }
                         
+                        datos_a_insertar = []
+                        al_menos_una_accion = False
+                        
                         for acc in todas_las_acciones:
                             if acc['Qué? / Acciones de Desarrollo'].strip() != "":
-                                fila = base_fila.copy()
-                                fila.update(acc)
-                                nuevas_filas.append(fila)
+                                al_menos_una_accion = True
+                                fila_completa = base_fila.copy()
+                                fila_completa.update(acc)
                                 
-                        if not nuevas_filas:
-                            fila = base_fila.copy()
-                            fila.update({"PDI": "", "Qué? / Acciones de Desarrollo": "", "¿Para qué? / Competencia": "", "¿Quién? / Recursos": "", "¿Cómo sabremos que se logró? / Métricas": "", "¿Cuándo? / Fechas": "", "% de Avance": "", "Estatus": ""})
-                            nuevas_filas.append(fila)
+                                fila_excel = [""] * len(encabezados_reales)
+                                for col_dict, kw in MAPEO_COLUMNAS.items():
+                                    col_excel = buscar_columna(encabezados_reales, kw)
+                                    if col_excel:
+                                        idx_excel = encabezados_reales.index(col_excel)
+                                        fila_excel[idx_excel] = str(fila_completa.get(col_dict, ""))
+                                datos_a_insertar.append(fila_excel)
+                                
+                        if not al_menos_una_accion:
+                            fila_vacia = base_fila.copy()
+                            fila_vacia.update({"PDI": "", "Qué? / Acciones de Desarrollo": "", "¿Para qué? / Competencia": "", "¿Quién? / Recursos": "", "¿Cómo sabremos que se logró? / Métricas": "", "¿Cuándo? / Fechas": "", "% de Avance": "", "Estatus": ""})
+                            fila_excel = [""] * len(encabezados_reales)
+                            for col_dict, kw in MAPEO_COLUMNAS.items():
+                                col_excel = buscar_columna(encabezados_reales, kw)
+                                if col_excel:
+                                    idx_excel = encabezados_reales.index(col_excel)
+                                    fila_excel[idx_excel] = str(fila_vacia.get(col_dict, ""))
+                            datos_a_insertar.append(fila_excel)
 
-                        datos_a_insertar = []
-                        for f in nuevas_filas:
-                            datos_a_insertar.append([str(f.get(col, "")) for col in COLUMNAS_PDI])
-
-                        registros_vivos = pestana_pdi_gs.get_all_values()
                         if len(registros_vivos) > 0:
-                            encabezados = registros_vivos[0]
-                            idx_identificador = buscar_columna(encabezados, 'nómina') or buscar_columna(encabezados, 'nombre')
+                            idx_identificador = buscar_columna(encabezados_reales, 'nómina') or buscar_columna(encabezados_reales, 'nombre')
                             if idx_identificador:
-                                idx_num = encabezados.index(idx_identificador)
+                                idx_num = encabezados_reales.index(idx_identificador)
                                 filas_a_borrar = []
                                 valor_buscar = str(nomina_aut).strip().lower() if 'nómina' in idx_identificador.lower() else str(nombre_colab).strip().lower()
                                 for i, row in enumerate(registros_vivos):
