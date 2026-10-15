@@ -25,6 +25,9 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
     
     estado_pdi = st.session_state.get("estado_pdi", "ABIERTO")
     
+    # ✨ PREFIJO ÚNICO PARA EVITAR DUPLICIDAD DE WIDGETS
+    prefijo_unico = "eval_lider" if es_lider_evaluando else "eval_propia"
+    
     col_tit, col_btn = st.columns([4, 1])
     with col_tit:
         st.markdown(f"### 📝 Plan de Desarrollo Individual")
@@ -83,7 +86,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
         if datos_pdi_cierre.empty:
             st.warning(f"No tienes un PDI registrado para el ciclo {pdi_cierre_str}.")
         else:
-            with st.form("form_evaluacion_pdi", clear_on_submit=False):
+            with st.form(f"form_evaluacion_pdi_{prefijo_unico}", clear_on_submit=False):
                 primer_row_c = datos_pdi_cierre.iloc[0]
                 def f_c(keyword): return next((c for c in datos_pdi_cierre.columns if clean_text(keyword).lower() in clean_text(str(c)).lower()), None)
                 
@@ -124,10 +127,10 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                 for i, accion in enumerate(acciones_cierre):
                     st.markdown(f"**{accion['cat']}**")
                     a1, a2, a3, a4 = st.columns([4, 1.5, 1.5, 1.5])
-                    a1.text_area("Acción de Desarrollo", value=accion['acc'], disabled=True, key=f"eval_acc_{i}", height=68)
-                    a2.text_input("Fecha Ejecución", value=accion['fec'], disabled=True, key=f"eval_fec_{i}")
-                    n_av = a3.selectbox("% Avance", opciones_avance, index=index_seguro(opciones_avance, accion['av']), key=f"eval_av_{i}")
-                    n_est = a4.selectbox("Estatus", opciones_estatus, index=index_seguro(opciones_estatus, accion['est']), key=f"eval_est_{i}")
+                    a1.text_area("Acción de Desarrollo", value=accion['acc'], disabled=True, key=f"eval_acc_{i}_{prefijo_unico}", height=68)
+                    a2.text_input("Fecha Ejecución", value=accion['fec'], disabled=True, key=f"eval_fec_{i}_{prefijo_unico}")
+                    n_av = a3.selectbox("% Avance", opciones_avance, index=index_seguro(opciones_avance, accion['av']), key=f"eval_av_{i}_{prefijo_unico}")
+                    n_est = a4.selectbox("Estatus", opciones_estatus, index=index_seguro(opciones_estatus, accion['est']), key=f"eval_est_{i}_{prefijo_unico}")
                     st.write("")
                     
                     accion_actualizada = {
@@ -154,7 +157,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                             base_fila_c = {
                                 "Nómina": nomina_aut, "Nombre": nombre_colab, "Puesto": puesto_aut,
                                 "Dirección": dir_aut, "Líder": lider_aut, "Fecha Elaboración": fecha_elab_c,
-                                "Departamento": depto_c, "Rol Interés 1": rol_1_c, "Motivo 1": str(primer_row_c.get(f_c('motivo 1') or 'Motivo 1', '')),
+                                "Departamento": depto_c, "Rol Interés 1": rol_int_1, "Motivo 1": str(primer_row_c.get(f_c('motivo 1') or 'Motivo 1', '')),
                                 "Rol Interés 2": str(primer_row_c.get(f_c('rol interés 2') or 'Rol Interés 2', '')), "Motivo 2": str(primer_row_c.get(f_c('motivo 2') or 'Motivo 2', '')), 
                                 "Rol Interés 3": str(primer_row_c.get(f_c('rol interés 3') or 'Rol Interés 3', '')), "Motivo 3": str(primer_row_c.get(f_c('motivo 3') or 'Motivo 3', '')), 
                                 "Objetivo PDI": objetivo_c
@@ -217,7 +220,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                 nombres_ant = df_pdi_anterior['Nombre'].astype(str).str.strip().str.lower()
                 historial = df_pdi_anterior[nombres_ant == nombre_colab.strip().lower()].copy()
 
-        # ✨ FUNCIÓN PARA BORRAR LA MEMORIA FANTASMA
         def limpiar_memoria_formularios():
             for k in list(st.session_state.keys()):
                 if k.startswith(("70_", "20_", "10_", "mot")):
@@ -227,16 +229,16 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
             if not st.session_state['clonar_pdi']:
                 if datos_pdi_usuario.empty:
                     st.warning(f"✨ Tienes un PDI del ciclo anterior ({pdi_cierre_str}).")
-                    if st.button("🔄 Clonar estrategias no completadas", use_container_width=True):
+                    if st.button("🔄 Clonar estrategias no completadas", key=f"btn_clonar_{prefijo_unico}", use_container_width=True):
                         st.session_state['clonar_pdi'] = True
-                        limpiar_memoria_formularios() # ✨ AQUÍ SE LLAMA A LA FUNCIÓN
+                        limpiar_memoria_formularios()
                         st.rerun()
                 else:
                     with st.expander(f"✨ Detectamos un historial en {pdi_cierre_str}. ¿Deseas sobreescribir este plan?"):
                         st.info("Ya tienes datos guardados en este nuevo ciclo. Si haces clic aquí, reemplazaremos lo que está abajo con tus pendientes del año pasado.")
-                        if st.button("🔄 Sobreescribir trayendo mis pendientes del año pasado", use_container_width=True):
+                        if st.button("🔄 Sobreescribir trayendo mis pendientes del año pasado", key=f"btn_sobre_{prefijo_unico}", use_container_width=True):
                             st.session_state['clonar_pdi'] = True
-                            limpiar_memoria_formularios() # ✨ Y AQUÍ TAMBIÉN
+                            limpiar_memoria_formularios()
                             st.rerun()
             else:
                 col_est = next((c for c in historial.columns if 'estatus' in clean_text(str(c)).lower()), None)
@@ -305,15 +307,15 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
             st.markdown("<div style='background-color:#1e40af; padding:8px; color:white; font-weight:bold; text-align:center; border-radius:4px;'>Información General</div>", unsafe_allow_html=True)
             st.write("")
             c1, c2, c3, c4 = st.columns(4)
-            c1.text_input("Nombre del colaborador:", value=nombre_colab, disabled=True)
-            c2.text_input("Número de nómina:", value=nomina_aut, disabled=True)
-            c3.text_input("Puesto actual:", value=puesto_aut, disabled=True)
-            depto_input = c4.text_input("Departamento:", value=depto, placeholder="Escribe tu depto...")
+            c1.text_input("Nombre del colaborador:", value=nombre_colab, disabled=True, key=f"info_nom_{prefijo_unico}")
+            c2.text_input("Número de nómina:", value=nomina_aut, disabled=True, key=f"info_num_{prefijo_unico}")
+            c3.text_input("Puesto actual:", value=puesto_aut, disabled=True, key=f"info_pue_{prefijo_unico}")
+            depto_input = c4.text_input("Departamento:", value=depto, placeholder="Escribe tu depto...", key=f"info_dep_{prefijo_unico}")
             
             c5, c6, c7, c8 = st.columns(4)
-            c5.text_input("Dirección Organizacional:", value=dir_aut, disabled=True)
-            c6.text_input("Líder Directo:", value=lider_aut, disabled=True)
-            fecha_input = c7.text_input("Fecha de elaboración:", value=fecha_elab, placeholder="Ej. 9/9/2026")
+            c5.text_input("Dirección Organizacional:", value=dir_aut, disabled=True, key=f"info_dir_{prefijo_unico}")
+            c6.text_input("Líder Directo:", value=lider_aut, disabled=True, key=f"info_lid_{prefijo_unico}")
+            fecha_input = c7.text_input("Fecha de elaboración:", value=fecha_elab, placeholder="Ej. 9/9/2026", key=f"info_fec_{prefijo_unico}")
             
         st.write("")
         
@@ -335,7 +337,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         except:
                             pass
 
-            if st.button("📖 Consultar sugerencias para mis áreas de oportunidad", type="primary"):
+            if st.button("📖 Consultar sugerencias para mis áreas de oportunidad", type="primary", key=f"btn_sug_mla_{prefijo_unico}"):
                 if not competencias_bajas:
                     st.warning("No encontramos calificaciones bajas en tu evaluación MLA reciente para darte una sugerencia específica.")
                 else:
@@ -385,21 +387,21 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         except Exception as e:
                             st.error(f"❌ Ocurrió un error al buscar en el archivo (Asegúrate de que la pestaña se llama 'Orientacion MLA'): {e}")
 
-        with st.form("form_edicion_pdi_planeacion", clear_on_submit=False):
+        with st.form(f"form_edicion_pdi_planeacion_{prefijo_unico}", clear_on_submit=False):
             st.markdown("<div style='background-color:#fef08a; padding:6px; color:#854d0e; font-weight:bold; text-align:center; border-radius:4px;'>Expectativas de Desarrollo (Colaborador)</div>", unsafe_allow_html=True)
             st.write("")
             
             r1, m1 = st.columns([1, 2])
-            rol_int_1 = r1.selectbox("Rol / Área de Interés 1", roles_disponibles, index=index_seguro(roles_disponibles, rol_1), key="mot_r1")
-            mot_int_1 = m1.text_input("Motivo 1", value=mot_1, key="mot_m1", placeholder="¿Por qué te interesa este rol?")
+            rol_int_1 = r1.selectbox("Rol / Área de Interés 1", roles_disponibles, index=index_seguro(roles_disponibles, rol_1), key=f"mot_r1_{prefijo_unico}")
+            mot_int_1 = m1.text_input("Motivo 1", value=mot_1, key=f"mot_m1_{prefijo_unico}", placeholder="¿Por qué te interesa este rol?")
             
             r2, m2 = st.columns([1, 2])
-            rol_int_2 = r2.selectbox("Rol / Área de Interés 2", roles_disponibles, index=index_seguro(roles_disponibles, rol_2), key="mot_r2")
-            mot_int_2 = m2.text_input("Motivo 2", value=mot_2, key="mot_m2")
+            rol_int_2 = r2.selectbox("Rol / Área de Interés 2", roles_disponibles, index=index_seguro(roles_disponibles, rol_2), key=f"mot_r2_{prefijo_unico}")
+            mot_int_2 = m2.text_input("Motivo 2", value=mot_2, key=f"mot_m2_{prefijo_unico}")
             
             r3, m3 = st.columns([1, 2])
-            rol_int_3 = r3.selectbox("Rol / Área de Interés 3", roles_disponibles, index=index_seguro(roles_disponibles, rol_3), key="mot_r3")
-            mot_int_3 = m3.text_input("Motivo 3", value=mot_3, key="mot_m3")
+            rol_int_3 = r3.selectbox("Rol / Área de Interés 3", roles_disponibles, index=index_seguro(roles_disponibles, rol_3), key=f"mot_r3_{prefijo_unico}")
+            mot_int_3 = m3.text_input("Motivo 3", value=mot_3, key=f"mot_m3_{prefijo_unico}")
             
             st.write("")
             
@@ -491,8 +493,8 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         idx_c = opciones_calif.index(calif_c_prev) if calif_c_prev in opciones_calif else 0
                         idx_l = opciones_calif.index(calif_l_prev) if calif_l_prev in opciones_calif else 0
                         
-                        val_c = c2.selectbox("Colab.", opciones_calif, index=idx_c, disabled=es_lider_evaluando, key=f"c_{tipo_comp}_{idx}", label_visibility="collapsed")
-                        val_l = c3.selectbox("Líder", opciones_calif, index=idx_l, disabled=not es_lider_evaluando, key=f"l_{tipo_comp}_{idx}", label_visibility="collapsed")
+                        val_c = c2.selectbox("Colab.", opciones_calif, index=idx_c, disabled=es_lider_evaluando, key=f"c_{tipo_comp}_{idx}_{prefijo_unico}", label_visibility="collapsed")
+                        val_l = c3.selectbox("Líder", opciones_calif, index=idx_l, disabled=not es_lider_evaluando, key=f"l_{tipo_comp}_{idx}_{prefijo_unico}", label_visibility="collapsed")
                         
                         evaluaciones_a_guardar.append({
                             "Nómina": nomina_aut, "Nombre": nombre_colab, "Puesto": puesto_aut,
@@ -509,7 +511,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
             st.markdown("<div style='background-color:#fef08a; padding:6px; color:#854d0e; font-weight:bold; text-align:center; border-radius:4px;'>Objetivo de Desarrollo (Colaborador y Líder)</div>", unsafe_allow_html=True)
             st.write("")
             
-            obj_desarrollo = st.text_area("Objetivo a Desarrollar:", value=objetivo, placeholder="Ej. Desarrollar Conocimientos Técnicos, Creación de Equipos eficientes y Valentía Gerencial...", height=68)
+            obj_desarrollo = st.text_area("Objetivo a Desarrollar:", value=objetivo, placeholder="Ej. Desarrollar Conocimientos Técnicos, Creación de Equipos eficientes y Valentía Gerencial...", height=68, key=f"obj_desarrollo_{prefijo_unico}")
             
             st.write("")
             st.markdown("<div style='background-color:#1e40af; padding:8px; color:white; font-weight:bold; text-align:center; border-radius:4px;'>Plan de Desarrollo (Modelo 70-20-10)</div>", unsafe_allow_html=True)
@@ -520,13 +522,13 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                 nuevas = []
                 for i in range(3):
                     a1, a2, a3, a4, a5, a6, a7 = st.columns([2, 1.5, 1.5, 1.5, 1, 1, 1])
-                    acc = a1.text_area("Qué? / Acciones" if i==0 else "", value=lista_acciones[i]['acc'], key=f"{prefijo}_acc_{i}", height=68, label_visibility="visible" if i==0 else "collapsed")
-                    comp = a2.text_input("Para qué? / Competencia" if i==0 else "", value=lista_acciones[i]['comp'], key=f"{prefijo}_comp_{i}", label_visibility="visible" if i==0 else "collapsed")
-                    rec = a3.text_input("Quién? / Recursos" if i==0 else "", value=lista_acciones[i]['rec'], key=f"{prefijo}_rec_{i}", label_visibility="visible" if i==0 else "collapsed")
-                    met = a4.text_input("Métricas" if i==0 else "", value=lista_acciones[i]['met'], key=f"{prefijo}_met_{i}", label_visibility="visible" if i==0 else "collapsed")
-                    fec = a5.text_input("Fecha Ejecución" if i==0 else "", value=lista_acciones[i]['fec'], key=f"{prefijo}_fec_{i}", label_visibility="visible" if i==0 else "collapsed")
-                    av = a6.selectbox("% Avance" if i==0 else "", opciones_avance, index=index_seguro(opciones_avance, lista_acciones[i]['av']), key=f"{prefijo}_av_{i}", label_visibility="visible" if i==0 else "collapsed")
-                    est = a7.selectbox("Estatus" if i==0 else "", opciones_estatus, index=index_seguro(opciones_estatus, lista_acciones[i]['est']), key=f"{prefijo}_est_{i}", label_visibility="visible" if i==0 else "collapsed")
+                    acc = a1.text_area("Qué? / Acciones" if i==0 else "", value=lista_acciones[i]['acc'], key=f"{prefijo}_acc_{i}_{prefijo_unico}", height=68, label_visibility="visible" if i==0 else "collapsed")
+                    comp = a2.text_input("Para qué? / Competencia" if i==0 else "", value=lista_acciones[i]['comp'], key=f"{prefijo}_comp_{i}_{prefijo_unico}", label_visibility="visible" if i==0 else "collapsed")
+                    rec = a3.text_input("Quién? / Recursos" if i==0 else "", value=lista_acciones[i]['rec'], key=f"{prefijo}_rec_{i}_{prefijo_unico}", label_visibility="visible" if i==0 else "collapsed")
+                    met = a4.text_input("Métricas" if i==0 else "", value=lista_acciones[i]['met'], key=f"{prefijo}_met_{i}_{prefijo_unico}", label_visibility="visible" if i==0 else "collapsed")
+                    fec = a5.text_input("Fecha Ejecución" if i==0 else "", value=lista_acciones[i]['fec'], key=f"{prefijo}_fec_{i}_{prefijo_unico}", label_visibility="visible" if i==0 else "collapsed")
+                    av = a6.selectbox("% Avance" if i==0 else "", opciones_avance, index=index_seguro(opciones_avance, lista_acciones[i]['av']), key=f"{prefijo}_av_{i}_{prefijo_unico}", label_visibility="visible" if i==0 else "collapsed")
+                    est = a7.selectbox("Estatus" if i==0 else "", opciones_estatus, index=index_seguro(opciones_estatus, lista_acciones[i]['est']), key=f"{prefijo}_est_{i}_{prefijo_unico}", label_visibility="visible" if i==0 else "collapsed")
                     
                     nuevas.append({
                         "PDI": titulo, "Qué? / Acciones de Desarrollo": acc, "¿Para qué? / Competencia": comp,
