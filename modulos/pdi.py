@@ -11,7 +11,6 @@ from config_ui import clean_text, clean_id
 from database import LINK_ARCHIVO
 from modulos.mapa_org import buscar_columna
 
-# ✨ LA LISTA QUE FALTABA
 COLUMNAS_PDI = [
     "Nómina", "Nombre", "Puesto", "Dirección", "Líder", "Fecha Elaboración", "Departamento",
     "Rol Interés 1", "Motivo 1", "Rol Interés 2", "Motivo 2", "Rol Interés 3", "Motivo 3",
@@ -20,14 +19,12 @@ COLUMNAS_PDI = [
     "¿Cuándo? / Fechas", "% de Avance", "Estatus"
 ]
 
-# Este diccionario mapea las palabras clave que el robot buscará en el encabezado real del Excel
-# para saber en qué columna meter cada dato.
 MAPEO_COLUMNAS = {
-    "Nómina": "nómina",
+    "Nómina": "nomina",
     "Nombre": "nombre",
     "Puesto": "puesto",
-    "Dirección": "dirección",
-    "Líder": "líder",
+    "Dirección": "direccion",
+    "Líder": "lider",
     "Fecha Elaboración": "fecha",
     "Departamento": "departamento",
     "Rol Interés 1": "rol",
@@ -38,14 +35,28 @@ MAPEO_COLUMNAS = {
     "Motivo 3": "motivo 3",
     "Objetivo PDI": "objetivo",
     "PDI": "pdi",
-    "Qué? / Acciones de Desarrollo": "qué",
-    "¿Para qué? / Competencia": "para qué",
-    "¿Quién? / Recursos": "quién",
-    "¿Cómo sabremos que se logró? / Métricas": "cómo",
-    "¿Cuándo? / Fechas": "cuándo",
+    "Qué? / Acciones de Desarrollo": "que",
+    "¿Para qué? / Competencia": "para",
+    "¿Quién? / Recursos": "quien",
+    "¿Cómo sabremos que se logró? / Métricas": "como",
+    "¿Cuándo? / Fechas": "cuando",
     "% de Avance": "avance",
     "Estatus": "estatus"
 }
+
+def buscar_columna(columnas, palabra_clave, numero=None):
+    def quitar_acentos(texto):
+        texto = str(texto)
+        texto = unicodedata.normalize('NFKD', texto).encode('ASCII', 'ignore').decode('utf-8')
+        return re.sub(r'[^a-z0-9]', '', texto.lower())
+        
+    palabra_limpia = quitar_acentos(palabra_clave)
+    for col in columnas:
+        col_limpia = quitar_acentos(col)
+        if palabra_limpia in col_limpia:
+            if numero is None or str(numero) in col_limpia:
+                return col
+    return None
 
 def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_mla=pd.DataFrame(), df_matriz_competencias=pd.DataFrame(), df_evaluaciones=pd.DataFrame(), es_lider_evaluando=False, empleado_a_evaluar=None):
     pdi_planeacion_str = st.session_state.get("pdi_planeacion", "PDI 2027")
@@ -54,6 +65,12 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
     estado_pdi = st.session_state.get("estado_pdi", "ABIERTO")
     
     prefijo_unico = "eval_lider" if es_lider_evaluando else "eval_propia"
+    
+    # ✨ FUNCIÓN NUCLEAR PARA BORRAR MEMORIA FANTASMA (Moviéndola arriba para uso global)
+    def limpiar_memoria_formularios():
+        for k in list(st.session_state.keys()):
+            if str(k).endswith("_eval_propia") or str(k).endswith("_eval_lider"):
+                del st.session_state[k]
     
     col_tit, col_btn = st.columns([4, 1])
     with col_tit:
@@ -102,7 +119,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
         
         datos_pdi_cierre = pd.DataFrame()
         if not df_pdi_anterior.empty:
-            col_nom_ant = buscar_columna(df_pdi_anterior.columns, 'nómina')
+            col_nom_ant = buscar_columna(df_pdi_anterior.columns, 'nomina')
             if col_nom_ant and nomina_aut != "N/A":
                 ids_ant_limpios = df_pdi_anterior[col_nom_ant].apply(clean_id)
                 datos_pdi_cierre = df_pdi_anterior[ids_ant_limpios == nomina_aut].copy()
@@ -115,11 +132,11 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
         else:
             with st.form(f"form_evaluacion_pdi_{prefijo_unico}", clear_on_submit=False):
                 primer_row_c = datos_pdi_cierre.iloc[0]
-                def f_c(keyword): return next((c for c in datos_pdi_cierre.columns if clean_text(keyword).lower() in clean_text(str(c)).lower()), None)
+                def f_c(keyword): return buscar_columna(datos_pdi_cierre.columns, keyword)
                 
-                fecha_elab_c = str(primer_row_c.get(f_c('fecha elab') or 'Fecha Elaboración', ''))
+                fecha_elab_c = str(primer_row_c.get(f_c('fecha') or 'Fecha Elaboración', ''))
                 depto_c = str(primer_row_c.get(f_c('departamento') or 'Departamento', ''))
-                rol_1_c = str(primer_row_c.get(f_c('rol interés 1') or f_c('roles / áreas'), ''))
+                rol_1_c = str(primer_row_c.get(f_c('rol') or 'Rol Interés 1', ''))
                 mot_1_c = str(primer_row_c.get(f_c('motivo 1') or 'Motivo 1', ''))
                 objetivo_c = str(primer_row_c.get(f_c('objetivo') or 'Objetivo PDI', ''))
                 
@@ -128,11 +145,11 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                 st.divider()
                 
                 col_cat = f_c('pdi') or f_c('clasificacion') or f_c('categoría') or 'PDI'
-                col_acc = f_c('qué') or f_c('acción') or 'Qué? / Acciones de Desarrollo'
-                col_comp = f_c('para qué') or f_c('competencia') or '¿Para qué? / Competencia'
-                col_rec = f_c('quién') or f_c('recursos') or '¿Quién? / Recursos'
-                col_met = f_c('cómo') or f_c('métricas') or '¿Cómo sabremos que se logró? / Métricas'
-                col_fec = f_c('cuándo') or f_c('cuándo') or '¿Cuándo? / Fechas'
+                col_acc = f_c('que') or f_c('acción') or 'Qué? / Acciones de Desarrollo'
+                col_comp = f_c('para') or f_c('competencia') or '¿Para qué? / Competencia'
+                col_rec = f_c('quien') or f_c('recursos') or '¿Quién? / Recursos'
+                col_met = f_c('como') or f_c('métricas') or '¿Cómo sabremos que se logró? / Métricas'
+                col_fec = f_c('cuando') or '¿Cuándo? / Fechas'
                 col_av = f_c('avance') or '% de Avance'
                 col_est = f_c('estatus') or 'Estatus'
                 
@@ -194,11 +211,11 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                             if len(registros_vivos) > 0:
                                 encabezados = registros_vivos[0]
                                 
-                                idx_identificador = buscar_columna(encabezados, 'nómina') or buscar_columna(encabezados, 'nombre')
+                                idx_identificador = buscar_columna(encabezados, 'nomina') or buscar_columna(encabezados, 'nombre')
                                 if idx_identificador:
                                     idx_num = encabezados.index(idx_identificador)
                                     filas_a_borrar = []
-                                    valor_buscar = str(nomina_aut).strip().lower() if 'nómina' in idx_identificador.lower() else str(nombre_colab).strip().lower()
+                                    valor_buscar = str(nomina_aut).strip().lower() if 'nómina' in idx_identificador.lower() or 'nomina' in idx_identificador.lower() else str(nombre_colab).strip().lower()
                                     for i, row in enumerate(registros_vivos):
                                         if i > 0 and len(row) > idx_num and str(row[idx_num]).strip().lower() == valor_buscar:
                                             filas_a_borrar.append(i + 1)
@@ -224,6 +241,10 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                             
                             archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
                             st.cache_data.clear()
+                            
+                            # ✨ LIMPIAMOS CACHÉ FANTASMA AL GUARDAR
+                            limpiar_memoria_formularios()
+                            
                             st.success(f"✅ ¡Evaluación guardada exitosamente en {pdi_cierre_str}!")
                             time.sleep(2)
                             st.rerun()
@@ -235,7 +256,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
         
         datos_pdi_usuario = pd.DataFrame()
         if not df_pdi.empty:
-            col_nom_act = buscar_columna(df_pdi.columns, 'nómina')
+            col_nom_act = buscar_columna(df_pdi.columns, 'nomina')
             if col_nom_act and nomina_aut != "N/A":
                 ids_act = df_pdi[col_nom_act].apply(clean_id)
                 datos_pdi_usuario = df_pdi[ids_act == nomina_aut].copy()
@@ -248,18 +269,13 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
 
         historial = pd.DataFrame()
         if not df_pdi_anterior.empty:
-            col_nom_ant = buscar_columna(df_pdi_anterior.columns, 'nómina')
+            col_nom_ant = buscar_columna(df_pdi_anterior.columns, 'nomina')
             if col_nom_ant and nomina_aut != "N/A":
                 ids_ant = df_pdi_anterior[col_nom_ant].apply(clean_id)
                 historial = df_pdi_anterior[ids_ant == nomina_aut].copy()
             elif 'Nombre' in df_pdi_anterior.columns:
                 nombres_ant = df_pdi_anterior['Nombre'].astype(str).str.strip().str.lower()
                 historial = df_pdi_anterior[nombres_ant == nombre_colab.strip().lower()].copy()
-
-        def limpiar_memoria_formularios():
-            for k in list(st.session_state.keys()):
-                if k.startswith(("70_", "20_", "10_", "mot")):
-                    del st.session_state[k]
 
         if not historial.empty:
             if not st.session_state['clonar_pdi']:
@@ -301,24 +317,24 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
 
         if not datos_pdi_usuario.empty:
             primer_row = datos_pdi_usuario.iloc[0]
-            def fc(keyword): return next((c for c in datos_pdi_usuario.columns if clean_text(keyword).lower() in clean_text(str(c)).lower()), None)
+            def fc(keyword): return buscar_columna(datos_pdi_usuario.columns, keyword)
                 
-            fecha_elab = str(primer_row.get(fc('fecha elab') or 'Fecha Elaboración', ''))
-            depto = str(primer_row.get(fc('departamento') or 'Departamento', ''))
-            rol_1 = str(primer_row.get(fc('rol interés 1') or f_c('roles / áreas'), ''))
+            fecha_elab = str(primer_row.get(fc('fecha'), ''))
+            depto = str(primer_row.get(fc('departamento'), ''))
+            rol_1 = str(primer_row.get(fc('rol') or 'Rol Interés 1', ''))
             mot_1 = str(primer_row.get(fc('motivo 1') or 'Motivo 1', ''))
-            rol_2 = str(primer_row.get(fc('rol interés 2') or 'Rol Interés 2', ''))
+            rol_2 = str(primer_row.get(fc('rol') or 'Rol Interés 2', ''))
             mot_2 = str(primer_row.get(fc('motivo 2') or 'Motivo 2', ''))
-            rol_3 = str(primer_row.get(fc('rol interés 3') or 'Rol Interés 3', ''))
+            rol_3 = str(primer_row.get(fc('rol') or 'Rol Interés 3', ''))
             mot_3 = str(primer_row.get(fc('motivo 3') or 'Motivo 3', ''))
             objetivo = str(primer_row.get(fc('objetivo') or 'Objetivo PDI', ''))
             
             col_cat = fc('pdi') or fc('clasificacion') or fc('categoría') or 'PDI'
-            col_acc = fc('qué') or fc('acción') or 'Qué? / Acciones de Desarrollo'
-            col_comp = fc('para qué') or fc('competencia') or '¿Para qué? / Competencia'
-            col_rec = fc('quién') or fc('recursos') or '¿Quién? / Recursos'
-            col_met = fc('cómo') or fc('métricas') or '¿Cómo sabremos que se logró? / Métricas'
-            col_fec = fc('cuándo') or fc('cuándo') or '¿Cuándo? / Fechas'
+            col_acc = fc('que') or fc('acción') or 'Qué? / Acciones de Desarrollo'
+            col_comp = fc('para') or fc('competencia') or '¿Para qué? / Competencia'
+            col_rec = fc('quien') or fc('recursos') or '¿Quién? / Recursos'
+            col_met = fc('como') or fc('métricas') or '¿Cómo sabremos que se logró? / Métricas'
+            col_fec = fc('cuando') or '¿Cuándo? / Fechas'
             col_av = fc('avance') or '% de Avance'
             col_est = fc('estatus') or 'Estatus'
             
@@ -344,7 +360,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
             
             competencias_bajas = []
             if not df_mla.empty:
-                col_id_mla = buscar_columna(df_mla.columns, 'id de usuario') or buscar_columna(df_mla.columns, 'nómina')
+                col_id_mla = buscar_columna(df_mla.columns, 'id de usuario') or buscar_columna(df_mla.columns, 'nomina')
                 col_comp = buscar_columna(df_mla.columns, 'nombre de competencia') or buscar_columna(df_mla.columns, 'competencia')
                 col_lid = buscar_columna(df_mla.columns, 'lider') or buscar_columna(df_mla.columns, 'líder')
                 
@@ -459,7 +475,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
             with col_izq:
                 st.markdown("##### 🧭 Modelo de Liderazgo Ayvi (MLA)")
                 if not df_mla.empty:
-                    col_id_mla = buscar_columna(df_mla.columns, 'id de usuario') or buscar_columna(df_mla.columns, 'nómina')
+                    col_id_mla = buscar_columna(df_mla.columns, 'id de usuario') or buscar_columna(df_mla.columns, 'nomina')
                     if col_id_mla:
                         datos_mla_usr = df_mla[df_mla[col_id_mla].apply(clean_id) == nomina_aut]
                     else:
@@ -642,11 +658,11 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                             datos_a_insertar.append(fila_excel)
 
                         if len(registros_vivos) > 0:
-                            idx_identificador = buscar_columna(encabezados_reales, 'nómina') or buscar_columna(encabezados_reales, 'nombre')
+                            idx_identificador = buscar_columna(encabezados_reales, 'nomina') or buscar_columna(encabezados_reales, 'nombre')
                             if idx_identificador:
                                 idx_num = encabezados_reales.index(idx_identificador)
                                 filas_a_borrar = []
-                                valor_buscar = str(nomina_aut).strip().lower() if 'nómina' in idx_identificador.lower() else str(nombre_colab).strip().lower()
+                                valor_buscar = str(nomina_aut).strip().lower() if 'nómina' in idx_identificador.lower() or 'nomina' in idx_identificador.lower() else str(nombre_colab).strip().lower()
                                 for i, row in enumerate(registros_vivos):
                                     if i > 0 and len(row) > idx_num and str(row[idx_num]).strip().lower() == valor_buscar:
                                         filas_a_borrar.append(i + 1)
@@ -665,7 +681,7 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                                 
                                 if len(registros_eval) > 0:
                                     encabezados_e = registros_eval[0]
-                                    idx_id_e = buscar_columna(encabezados_e, 'nómina')
+                                    idx_id_e = buscar_columna(encabezados_e, 'nomina')
                                     if idx_id_e:
                                         idx_num_e = encabezados_e.index(idx_id_e)
                                         filas_a_borrar_e = []
@@ -694,6 +710,10 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         
                         archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
                         st.cache_data.clear()
+                        
+                        # ✨ APAGAR MODO CLONACIÓN Y LIMPIAR
+                        st.session_state['clonar_pdi'] = False
+                        limpiar_memoria_formularios()
                         
                         st.balloons()
                         st.toast(f"¡Plan {pdi_planeacion_str} guardado exitosamente!", icon="✅")
