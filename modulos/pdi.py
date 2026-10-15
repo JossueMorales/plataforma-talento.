@@ -11,6 +11,15 @@ from config_ui import clean_text, clean_id
 from database import LINK_ARCHIVO
 from modulos.mapa_org import buscar_columna
 
+# ✨ LA LISTA QUE FALTABA
+COLUMNAS_PDI = [
+    "Nómina", "Nombre", "Puesto", "Dirección", "Líder", "Fecha Elaboración", "Departamento",
+    "Rol Interés 1", "Motivo 1", "Rol Interés 2", "Motivo 2", "Rol Interés 3", "Motivo 3",
+    "Objetivo PDI", "PDI", "Qué? / Acciones de Desarrollo", 
+    "¿Para qué? / Competencia", "¿Quién? / Recursos", "¿Cómo sabremos que se logró? / Métricas", 
+    "¿Cuándo? / Fechas", "% de Avance", "Estatus"
+]
+
 # Este diccionario mapea las palabras clave que el robot buscará en el encabezado real del Excel
 # para saber en qué columna meter cada dato.
 MAPEO_COLUMNAS = {
@@ -185,7 +194,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                             if len(registros_vivos) > 0:
                                 encabezados = registros_vivos[0]
                                 
-                                # Borrar las filas viejas del usuario
                                 idx_identificador = buscar_columna(encabezados, 'nómina') or buscar_columna(encabezados, 'nombre')
                                 if idx_identificador:
                                     idx_num = encabezados.index(idx_identificador)
@@ -199,7 +207,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                                         requests_batch = [{"deleteDimension": {"range": {"sheetId": pestana_pdi_cierre_gs.id, "dimension": "ROWS", "startIndex": r - 1, "endIndex": r}}} for r in reversed(filas_a_borrar)]
                                         archivo.batch_update({"requests": requests_batch})
 
-                                # Mapeo inteligente de columnas para insertar
                                 datos_a_insertar = []
                                 for acc in nuevas_evaluaciones:
                                     fila = base_fila_c.copy()
@@ -587,7 +594,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         doc_id = match.group(1) if match else LINK_ARCHIVO
                         archivo = cliente.open_by_key(doc_id)
                         
-                        # ✨ LECTURA INTELIGENTE DEL ENCABEZADO REAL EN EXCEL
                         pestana_pdi_gs = archivo.worksheet(pdi_planeacion_str)
                         registros_vivos = pestana_pdi_gs.get_all_values()
                         
@@ -652,7 +658,6 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                         if datos_a_insertar:
                             pestana_pdi_gs.append_rows(datos_a_insertar, table_range="A1")
                             
-                        # 2. Guardar las Evaluaciones de Competencias
                         if evaluaciones_a_guardar:
                             try:
                                 pestana_eval = archivo.worksheet("Evaluaciones Tecnicas")
