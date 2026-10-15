@@ -11,6 +11,7 @@ import math
 import streamlit.components.v1 as components
 import re
 import gspread
+import unicodedata
 from google.oauth2.service_account import Credentials
 import time
 
@@ -49,6 +50,13 @@ def ordenar_jerarquia_talento(df, col_puesto='Nombre de la Posición', col_nombr
     if col_nombre in df.columns: cols_sort.append(col_nombre)
     df = df.sort_values(by=cols_sort)
     return df.drop(columns=['_peso_jerarquia'])
+
+def clean_and_split(s):
+    s = str(s)
+    s = unicodedata.normalize('NFKD', s).encode('ASCII', 'ignore').decode('utf-8')
+    s = re.sub(r'[^a-zA-Z0-9\s]', ' ', s)
+    words = set(s.lower().split())
+    return {w for w in words if w not in ['de', 'la', 'el', 'los', 'las', 'y', 'en', 'para']}
 
 # ==========================================
 # INTERFAZ PRINCIPAL DE LA PLATAFORMA WEB
@@ -147,7 +155,6 @@ def main():
         df_matriz_competencias = intentar_cargar_pestana(["Matriz de Competencias", "Matriz de competencias"], current_timestamp)
         df_evaluaciones = intentar_cargar_pestana(["Evaluaciones Tecnicas", "Evaluaciones tecnicas", "Evaluaciones Competencias"], current_timestamp)
         
-        # Cargar a los usuarios para ver sus permisos de Módulos (Si existe la columna)
         df_usuarios_permisos = cargar_datos_csv("Usuarios", current_timestamp)
         
         if df_completo_raw.empty:
@@ -200,7 +207,6 @@ def main():
         lider_permitido_str = str(st.session_state.get("lider_permitido", "TODOS")).strip()
         col_jer = next((c for c in df_completo.columns if 'jerárquico' in str(c).lower() or 'jerarquico' in str(c).lower()), 'Nivel Jerárquico')
         
-        # ✨ EXTRAER MÓDULOS PERMITIDOS DEL USUARIO ACTUAL
         modulos_permitidos_usuario = ["TODOS"]
         if not df_usuarios_permisos.empty and "Modulos" in df_usuarios_permisos.columns:
             match_u = df_usuarios_permisos[df_usuarios_permisos['Usuario'].astype(str).str.strip() == str(st.session_state["id_usuario"])]
@@ -209,7 +215,6 @@ def main():
                 if mods_str and mods_str != "NAN":
                     modulos_permitidos_usuario = [m.strip() for m in mods_str.split(",")]
 
-        # Construir el árbol de jerarquías para saber quién es jefe de quién
         dict_nom_global = {clean_id(r.get('id Empleado')): clean_text(r.get('Nombre')) for r in df_completo.to_dict('records')}
         jerarquia_global = {}
         for j, e in zip(df_completo['ID Del Jefe'].astype(str).str.strip(), df_completo['id Empleado'].astype(str).str.strip()):
@@ -218,21 +223,15 @@ def main():
             if j not in jerarquia_global: jerarquia_global[j] = []
             jerarquia_global[j].append(e)
 
-        # ✨ INTELIGENCIA DE PERFIL: ¿El Colaborador tiene gente a su cargo?
         tiene_equipo = False
         mi_nomina = clean_id(st.session_state["id_usuario"])
         mis_subordinados_directos = jerarquia_global.get(mi_nomina, [])
         if len(mis_subordinados_directos) > 0 and st.session_state["id_usuario"] != "admin":
             tiene_equipo = True
 
-        # Renderizado de pestañas basado en el Perfil y si tienen equipo
         if es_colaborador and not tiene_equipo:
-            # Perfil 1: Es Colaborador 100% (No tiene gente a su cargo)
             renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior, df_mla, df_matriz_competencias, df_evaluaciones, es_lider_evaluando=False)
         else:
-            # Perfiles 2 y 3: Es Líder o es un Colaborador que TIENE equipo.
-            
-            # --- LÓGICA DE FILTRADO DE SEGURIDAD PARA LÍDERES ---
             if "TODAS" not in direccion_permitida:
                 lista_dirs = [d.strip() for d in direccion_permitida.split(",")]
                 mask_dir = df_completo['Dirección'].astype(str).str.upper().apply(lambda d_val: any(d in d_val for d in lista_dirs))
@@ -266,7 +265,6 @@ def main():
                 nombres_permitidos_limpios = [str(dict_nom_global.get(s)).strip().lower() for s in subs_globales if s in dict_nom_global and str(dict_nom_global.get(s)).strip() != '']
                 st.session_state['nombres_permitidos_limpios'] = nombres_permitidos_limpios
             elif es_colaborador and tiene_equipo:
-                # Si es colaborador con equipo, limitarlo automáticamente a su propio árbol de jerarquía
                 subs_globales = set()
                 cola = [mi_nomina]
                 while cola:
@@ -288,7 +286,6 @@ def main():
             if st.session_state["id_usuario"] != "admin":
                 df_filtros = df_seguro[~df_seguro[col_jer].astype(str).str.strip().isin(['5'])]
 
-            # --- FILTROS GLOBALES DE PANTALLA ---
             col_head1, col_head2 = st.columns([2, 1])
             with col_head1:
                 st.markdown("### 🎛️ Filtros Globales")
@@ -361,39 +358,31 @@ def main():
             
             html_mapa, df_alertas, kpis = generar_mapa_html_cacheado(df_seguro, df_pdi, f_dir, f_lid, f_crit, f_jerarquia, f_box, f_edr, f_puesto, f_riesgos, renderizar_mapa, st.session_state["id_usuario"])
             
-            # --- CONSTRUCCIÓN DINÁMICA DE PESTAÑAS BASADO EN PERMISOS ---
             if kpis is not None:
                 tabs_a_mostrar = []
                 nombres_tabs = []
                 
-                # 1. Mapa Organizacional (Admin, Lideres Normales, o Colab con Permiso explícito)
                 if st.session_state["id_usuario"] == "admin" or ("TODOS" in modulos_permitidos_usuario) or ("MAPA" in modulos_permitidos_usuario):
-                    if not es_colaborador: # Solo si no es un simple colaborador
+                    if not es_colaborador: 
                         nombres_tabs.append("🗺️ Mapa Organizacional")
                         
-                # 2. Sucesión
                 if st.session_state["id_usuario"] == "admin" or ("TODOS" in modulos_permitidos_usuario) or ("SUCESIÓN" in modulos_permitidos_usuario) or ("SUCESION" in modulos_permitidos_usuario):
                     if not es_colaborador: 
                         nombres_tabs.append("🔀 Sucesión")
                         
-                # 3. Seguimiento PDI Equipo (Admin, Líder, o Colaborador con gente a su cargo)
                 if st.session_state["id_usuario"] == "admin" or ("TODOS" in modulos_permitidos_usuario) or ("PDI EQUIPO" in modulos_permitidos_usuario) or tiene_equipo:
                     nombres_tabs.append("📈 Seguimiento de PDI (Mi Equipo)")
                     
-                # 4. Mi PDI (Todos los usuarios lo ven)
                 nombres_tabs.append("📝 Mi PDI")
                 
-                # 5. Reportes (Solo Admin o con permiso)
                 if st.session_state["id_usuario"] == "admin" or ("TODOS" in modulos_permitidos_usuario) or ("REPORTES" in modulos_permitidos_usuario):
                     nombres_tabs.append("📊 Reportes e IA")
                     
-                # 6. Admin Panel
                 if st.session_state["id_usuario"] == "admin":
                     nombres_tabs.append("⚙️ Panel de Administración")
                     
                 tabs_creados = st.tabs(nombres_tabs)
                 
-                # Desplegar contenido según las pestañas habilitadas
                 for i, nombre_tab in enumerate(nombres_tabs):
                     
                     if nombre_tab == "🗺️ Mapa Organizacional":
@@ -451,14 +440,17 @@ def main():
                         with tabs_creados[i]:
                             st.markdown("### 📈 Seguimiento de PDI de mi Equipo")
                             st.info("Gracias a la nueva arquitectura multifila, ahora puedes ver el estatus granular de cada acción del plan 70-20-10 de tus colaboradores.")
+                            
+                            si_es_admin = st.session_state["id_usuario"] == "admin"
+                            equipo_permitido = [str(n).strip().lower() for n in st.session_state.get('nombres_permitidos_limpios', [])]
+                            
                             if not df_pdi.empty and 'Nombre' in df_pdi.columns:
+                                df_pdi_filtrado = df_pdi.copy()
+                                df_pdi_filtrado['Nombre_Limpio'] = df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower()
                                 
-                                # Limitar a solo los nombres del equipo del usuario activo
-                                si_es_admin = st.session_state["id_usuario"] == "admin"
+                                # Si es un usuario normal (no admin), filtrar SOLO a su equipo
                                 if not si_es_admin:
-                                    df_pdi_filtrado = df_pdi[df_pdi['Nombre'].astype(str).str.strip().str.lower().isin(st.session_state['nombres_permitidos_limpios'])].copy()
-                                else:
-                                    df_pdi_filtrado = df_pdi.copy()
+                                    df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre_Limpio'].isin(equipo_permitido)]
                                 
                                 columnas_busqueda = [
                                     ("nómina", "Nómina"), ("nombre", "Colaborador"), ("roles", "Roles / Áreas de Interés"),
@@ -506,17 +498,60 @@ def main():
                                         
                                     st.markdown("#### 📊 Análisis Global del Modelo 70-20-10")
                                     
-                                    # ✨ KPI EXTRA: PENDIENTES DE EVALUAR POR EL LÍDER
+                                    # ✨ KPI EXTRA 1: PENDIENTES DE EVALUAR POR EL LÍDER (CRUCE INTELIGENTE)
                                     falta_evaluacion = 0
                                     lista_falta_eval = []
-                                    if not df_evaluaciones.empty and "Calif. Líder" in df_evaluaciones.columns and "Nombre" in df_evaluaciones.columns:
-                                        df_ev_mia = df_evaluaciones[df_evaluaciones['Nombre'].astype(str).str.strip().str.lower().isin(st.session_state['nombres_permitidos_limpios'])] if not si_es_admin else df_evaluaciones
-                                        mask_falta = (df_ev_mia['Calif. Líder'].isna()) | (df_ev_mia['Calif. Líder'].astype(str).str.strip() == "")
-                                        df_faltan = df_ev_mia[mask_falta]
-                                        falta_evaluacion = len(df_faltan)
-                                        lista_falta_eval = df_faltan['Nombre'].dropna().astype(str).unique().tolist()
+                                    if not df_matriz_competencias.empty:
+                                        col_puesto_matriz = buscar_columna(df_matriz_competencias.columns, 'puesto')
+                                        df_equipo = df_completo[df_completo['Nombre_Cruce'].isin(equipo_permitido)] if not si_es_admin else df_completo
+                                        
+                                        for _, colab_info in df_equipo.iterrows():
+                                            c_nombre = str(colab_info.get("Nombre", "")).strip()
+                                            c_nom_limpio = c_nombre.lower()
+                                            c_puesto = str(colab_info.get("Nombre de la Posición", "")).strip()
+                                            
+                                            # ¿Cuántas competencias le tocan a este puesto?
+                                            puesto_words = clean_and_split(c_puesto)
+                                            df_matriz_competencias['_score'] = df_matriz_competencias[col_puesto_matriz].apply(
+                                                lambda x: len(puesto_words.intersection(clean_and_split(x)))
+                                            )
+                                            max_score = df_matriz_competencias['_score'].max()
+                                            comps_esperadas = 0
+                                            
+                                            if max_score > 0 and max_score >= (len(puesto_words) * 0.5):
+                                                fila_m = df_matriz_competencias[df_matriz_competencias['_score'] == max_score].iloc[0]
+                                                f_cols = [c for c in df_matriz_competencias.columns if 'comp' in str(c).lower() and 'puesto' not in str(c).lower() and str(c).strip().lower() != 'competencia']
+                                                t_cols = [c for c in df_matriz_competencias.columns if 'tec' in str(c).lower() or ('con' in str(c).lower() and 'comp' not in str(c).lower())]
+                                                lista_f = [c.strip() for c in fila_m[f_cols].dropna().astype(str).tolist() if c.strip() and c.lower() != 'nan']
+                                                lista_t = [c.strip() for c in fila_m[t_cols].dropna().astype(str).tolist() if c.strip() and c.lower() != 'nan']
+                                                comps_esperadas = len(lista_f) + len(lista_t)
+                                                
+                                            # ¿Cuántas evaluaciones reales tiene en el Excel?
+                                            comps_evaluadas = 0
+                                            if comps_esperadas > 0 and not df_evaluaciones.empty and "Nombre" in df_evaluaciones.columns and "Calif. Líder" in df_evaluaciones.columns:
+                                                ev_colab = df_evaluaciones[df_evaluaciones["Nombre"].astype(str).str.strip().str.lower() == c_nom_limpio]
+                                                # Filtrar solo las que SÍ tienen calificación del líder
+                                                ev_completas = ev_colab[ev_colab['Calif. Líder'].astype(str).str.strip() != ""]
+                                                comps_evaluadas = len(ev_completas)
+                                                
+                                            if comps_esperadas > 0 and comps_evaluadas < comps_esperadas:
+                                                falta_evaluacion += (comps_esperadas - comps_evaluadas)
+                                                lista_falta_eval.append(c_nombre)
 
-                                    pk1, pk2, pk3, pk4, pk5, pk6 = st.columns(6)
+                                    # ✨ KPI EXTRA 2: COLABORADORES QUE NO HAN SUBIDO SU PDI
+                                    lista_pdi_iniciados = df_pdi_filtrado['Colaborador'].dropna().astype(str).str.strip().str.lower().unique().tolist()
+                                    nombres_equipo_originales = []
+                                    df_equipo_raw = df_completo[df_completo['Nombre_Cruce'].isin(equipo_permitido)] if not si_es_admin else df_completo
+                                    for _, r in df_equipo_raw.iterrows():
+                                        nom_orig = str(r.get("Nombre", "")).strip()
+                                        if nom_orig and nom_orig.lower() != st.session_state["nombre_usuario"].strip().lower(): 
+                                            nombres_equipo_originales.append(nom_orig)
+                                            
+                                    nombres_equipo_originales = list(set(nombres_equipo_originales))
+                                    lista_pdi_faltantes = [n for n in nombres_equipo_originales if n.lower() not in lista_pdi_iniciados]
+                                    total_faltantes_pdi = len(lista_pdi_faltantes)
+
+                                    pk1, pk2, pk3, pk4, pk5, pk6, pk7 = st.columns(7)
                                     
                                     with pk1:
                                         if st.button(f"📊 Total Acciones\n\n{total_acciones}", key="b_pdi_todas", use_container_width=True): 
@@ -533,24 +568,38 @@ def main():
                                         if st.button(f"🔴 Formación\n\n{prom_10}%", key="b_pdi_10", use_container_width=True):
                                             st.session_state['filtro_pdi_cat'] = '10'; st.rerun()
                                     with pk6:
-                                        # ✨ BOTÓN DE ALERTA PARA EL LÍDER
+                                        # ✨ NUEVO BOTÓN: FALTAN DE EVALUAR POR EL LÍDER
                                         if st.button(f"⚠️ Falta Eval. Líder\n\n{falta_evaluacion} comps.", key="b_pdi_falta_eval", use_container_width=True):
                                             st.session_state['filtro_pdi_cat'] = 'falta_eval'; st.rerun()
+                                    with pk7:
+                                        # ✨ NUEVO BOTÓN: COLABORADORES QUE NO HAN HECHO NADA
+                                        if st.button(f"🚨 Faltan Capturar PDI\n\n{total_faltantes_pdi} colabs.", key="b_pdi_no_iniciado", use_container_width=True):
+                                            st.session_state['filtro_pdi_cat'] = 'no_iniciado'; st.rerun()
                                             
                                     st.write("---")
                                     
-                                    # Aplicar filtros si existen
+                                    # Aplicar filtros
                                     if 'filtro_pdi_cat' in st.session_state and st.session_state['filtro_pdi_cat'] not in ['todas', None]:
                                         f_cat = st.session_state['filtro_pdi_cat']
                                         c_f1, c_f2 = st.columns([8, 2])
                                         
                                         if f_cat == 'falta_eval':
-                                            if lista_falta_eval:
-                                                df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Colaborador'].isin(lista_falta_eval)]
-                                                c_f1.error(f"🚨 **Alerta de Evaluación:** Mostrando únicamente a los colaboradores que tienen competencias pendientes de calificar por ti.")
+                                            lista_unica_falta_eval = list(set(lista_falta_eval))
+                                            if lista_unica_falta_eval:
+                                                df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Colaborador'].isin(lista_unica_falta_eval)]
+                                                c_f1.error(f"🚨 **Alerta de Evaluación:** Tienes competencias pendientes de calificar para estos colaboradores: {', '.join(lista_unica_falta_eval)}")
                                             else:
-                                                df_pdi_mostrar = df_pdi_mostrar.iloc[0:0] # Tabla vacía
+                                                df_pdi_mostrar = df_pdi_mostrar.iloc[0:0] 
                                                 c_f1.success(f"✅ ¡Felicidades! Has evaluado todas las competencias técnicas y funcionales de tu equipo.")
+                                                
+                                        elif f_cat == 'no_iniciado':
+                                            # Como estas personas no están en el DataFrame de PDI, vaciamos la tabla y les mostramos los nombres en una alerta.
+                                            df_pdi_mostrar = df_pdi_mostrar.iloc[0:0]
+                                            if lista_pdi_faltantes:
+                                                c_f1.error(f"🚨 **Alerta de PDI no iniciado:** Los siguientes colaboradores de tu equipo aún no han subido ninguna actividad de PDI: **{', '.join(lista_pdi_faltantes)}**")
+                                            else:
+                                                c_f1.success(f"✅ ¡Excelente! Todo tu equipo ha capturado su PDI.")
+                                                
                                         else:
                                             if col_pdi_kpi:
                                                 df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar[col_pdi_kpi].astype(str).str.contains(f_cat)]
@@ -563,7 +612,6 @@ def main():
                                     lista_nombres_pdi = []
                                     if "Colaborador" in df_pdi_mostrar.columns:
                                         lista_nombres_pdi = sorted(df_pdi_mostrar['Colaborador'].dropna().astype(str).unique().tolist())
-                                        # Si el filtro de alerta está activo, auto-seleccionar
                                         filtro_nombre = col_p1.multiselect("👤 Filtrar por Colaborador:", options=lista_nombres_pdi)
                                         if filtro_nombre: df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Colaborador'].isin(filtro_nombre)]
                                     
@@ -583,7 +631,11 @@ def main():
                                     st.write("---")
                                     st.markdown("#### 📝 Evaluar Competencias de mi Equipo")
                                     st.info("Selecciona a uno de tus colaboradores para evaluar sus Conocimientos Técnicos y Competencias Funcionales.")
-                                    colab_a_evaluar = st.selectbox("Seleccionar Colaborador:", [""] + lista_nombres_pdi, key="sel_eval_equipo")
+                                    
+                                    # Combinar los que ya tienen PDI con los que no tienen PDI para que el líder pueda evaluarlos de todos modos.
+                                    todos_los_nombres_equipo = sorted(list(set(lista_nombres_pdi + lista_pdi_faltantes)))
+                                    
+                                    colab_a_evaluar = st.selectbox("Seleccionar Colaborador:", [""] + todos_los_nombres_equipo, key="sel_eval_equipo")
                                     
                                     if colab_a_evaluar:
                                         st.markdown(f"**Evaluando a:** {colab_a_evaluar}")
@@ -683,7 +735,6 @@ def main():
 
                             sub_tab_nuevo, sub_tab_editar = st.tabs(["➕ Agregar Nuevo Perfil", "✏️ Editar / Eliminar Perfil"])
 
-                            # LISTA DE MÓDULOS PARA PERMISOS
                             opciones_modulos = ["TODOS", "MAPA", "SUCESIÓN", "PDI EQUIPO", "REPORTES"]
 
                             with sub_tab_nuevo:
@@ -702,7 +753,6 @@ def main():
                                     lideres_para_admin = sorted(df_completo['Nombre'].dropna().astype(str).str.strip()[lambda x: x != ''].unique().tolist())
                                     n_lider_list = st.multiselect("👤 Líder Restringido (Filtro por jerarquía de equipo)", ["TODOS"] + lideres_para_admin, default=["TODOS"])
                                     
-                                    # ✨ NUEVO CAMPO DE MÓDULOS
                                     n_mods_list = st.multiselect("🧩 Módulos Permitidos en Pantalla", opciones_modulos, default=["TODOS"])
                                     
                                     submit_btn = st.form_submit_button("Crear Nuevo Usuario")
@@ -725,7 +775,6 @@ def main():
                                                     
                                                     pestana_users = archivo.worksheet("Usuarios")
                                                     
-                                                    # Verificar que la pestaña tenga la columna Modulos
                                                     enc_u = pestana_users.row_values(1)
                                                     if "Modulos" not in enc_u:
                                                         pestana_users.update_cell(1, len(enc_u) + 1, "Modulos")
@@ -777,7 +826,6 @@ def main():
                                             e_dir_list = st.multiselect("🏢 Direcciones Permitidas", opciones_dir, default=c_dir_list_valid)
                                             e_lider_list = st.multiselect("👤 Líder Restringido (Filtro por jerarquía de equipo)", opciones_lid, default=c_lid_list_valid)
                                             
-                                            # ✨ NUEVO CAMPO AL EDITAR
                                             e_mods_list = st.multiselect("🧩 Módulos Permitidos", opciones_modulos, default=c_mods_list_valid)
                                             
                                             col_b1, col_b2 = st.columns(2)
@@ -803,7 +851,6 @@ def main():
                                                             
                                                             pestana_users = archivo.worksheet("Usuarios")
                                                             
-                                                            # Verificar columna Módulos
                                                             enc_u = pestana_users.row_values(1)
                                                             col_mods_idx = buscar_columna(enc_u, "modulos")
                                                             if not col_mods_idx:
@@ -816,9 +863,7 @@ def main():
                                                             
                                                             try:
                                                                 fila_usuario = usuarios_col.index(u_id_sel) + 1
-                                                                # Guardar Pwd, Dir, Lider (Columnas C, D, E)
                                                                 pestana_users.update(values=[[pass_to_save, e_dir_str, e_lider_str]], range_name=f"C{fila_usuario}:E{fila_usuario}")
-                                                                # Guardar Modulos en su columna correspondiente
                                                                 pestana_users.update_cell(fila_usuario, gspread.utils.a1_to_rowcol(f"{col_idx_letra}1")[1], e_mods_str)
                                                                 
                                                                 archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
