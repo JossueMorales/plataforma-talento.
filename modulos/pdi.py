@@ -456,8 +456,8 @@ def renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior=pd.DataFrame(), df_ml
                             match_matriz = df_matriz_competencias[df_matriz_competencias['_score'] == max_score]
                             fila_matriz = match_matriz.iloc[0]
                             
-                            # Busca las columnas de "Competencia X" ignorando si tienen acentos o espacios extras
-                            func_cols = [c for c in match_matriz.columns if 'comp' in str(c).lower() and 'puesto' not in str(c).lower()]
+                            # Busca las columnas de "Competencia X" ignorando la columna C (que se llama exactamente "Competencia")
+                            func_cols = [c for c in match_matriz.columns if 'comp' in str(c).lower() and 'puesto' not in str(c).lower() and str(c).strip().lower() != 'competencia']
                             funcionales_asignadas = fila_matriz[func_cols].dropna().astype(str).tolist()
                             funcionales_asignadas = [c.strip() for c in funcionales_asignadas if c.strip() and c.lower() != 'nan']
                             
