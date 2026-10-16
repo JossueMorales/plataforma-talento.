@@ -495,7 +495,6 @@ def main():
                                         prom_70, prom_20, prom_10 = get_avg(mask_70), get_avg(mask_20), get_avg(mask_10)
                                         promedio_avance = get_avg(pd.Series(True, index=df_pdi_mostrar.index))
 
-                                    # ✨ CÁLCULO DE QUIÉN FALTA POR SER EVALUADO POR EL LÍDER
                                     lista_falta_eval = []
                                     if not df_matriz_competencias.empty:
                                         col_puesto_matriz = buscar_columna(df_matriz_competencias.columns, 'puesto')
@@ -533,7 +532,6 @@ def main():
                                     lista_unica_falta_eval = sorted(list(set(lista_falta_eval)))
                                     falta_evaluacion = len(lista_unica_falta_eval) 
 
-                                    # ✨ CÁLCULO DE QUIÉN FALTA POR CAPTURAR SU PDI
                                     lista_pdi_iniciados = df_pdi_filtrado['Nombre'].dropna().astype(str).str.strip().str.lower().unique().tolist()
                                     nombres_equipo_originales = []
                                     df_equipo_raw = df_temp_puestos.copy() 
@@ -552,38 +550,54 @@ def main():
                                     st.markdown("#### 📊 Análisis Global del Modelo 70-20-10")
                                     pk1, pk2, pk3, pk4, pk5 = st.columns(5)
                                     
+                                    # ✨ CUANDO EL LÍDER CAMBIA DE FILTRO, LIMPIAMOS LA MEMORIA DE LA SELECCIÓN
                                     with pk1:
                                         if st.button(f"📊 Total Acciones\n\n{total_acciones}", key="b_pdi_todas", use_container_width=True): 
-                                            st.session_state['filtro_pdi_cat'] = 'todas'; st.rerun()
+                                            st.session_state['filtro_pdi_cat'] = 'todas'
+                                            st.session_state['colab_a_evaluar_equipo'] = ""
+                                            st.rerun()
                                     with pk2:
                                         st.button(f"📈 Avance Prom.\n\n{promedio_avance}%", key="b_pdi_prom", use_container_width=True)
                                     with pk3:
                                         if st.button(f"🔵 Experiencia\n\n{prom_70}%", key="b_pdi_70", use_container_width=True):
-                                            st.session_state['filtro_pdi_cat'] = '70'; st.rerun()
+                                            st.session_state['filtro_pdi_cat'] = '70'
+                                            st.session_state['colab_a_evaluar_equipo'] = ""
+                                            st.rerun()
                                     with pk4:
                                         if st.button(f"🟡 Mentoring\n\n{prom_20}%", key="b_pdi_20", use_container_width=True):
-                                            st.session_state['filtro_pdi_cat'] = '20'; st.rerun()
+                                            st.session_state['filtro_pdi_cat'] = '20'
+                                            st.session_state['colab_a_evaluar_equipo'] = ""
+                                            st.rerun()
                                     with pk5:
                                         if st.button(f"🔴 Formación\n\n{prom_10}%", key="b_pdi_10", use_container_width=True):
-                                            st.session_state['filtro_pdi_cat'] = '10'; st.rerun()
+                                            st.session_state['filtro_pdi_cat'] = '10'
+                                            st.session_state['colab_a_evaluar_equipo'] = ""
+                                            st.rerun()
                                             
                                     st.write("---")
                                     st.markdown("#### 🚀 Estatus Operativo del Equipo (Captura y Evaluación)")
                                     
-                                    # ✨ LÍNEA PRINCIPAL DE 4 BOTONES DE ALERTA Y ESTATUS
                                     c1, c2, c3, c4 = st.columns(4)
                                     with c1:
                                         if st.button(f"👥 TOTAL COLABORADORES\n\n{total_equipo}", key="b_pdi_tot_eq", use_container_width=True):
-                                            st.session_state['filtro_pdi_cat'] = 'total_equipo'; st.rerun()
+                                            st.session_state['filtro_pdi_cat'] = 'total_equipo'
+                                            st.session_state['colab_a_evaluar_equipo'] = ""
+                                            st.rerun()
                                     with c2:
                                         if st.button(f"✅ PDI DEFINIDO\n\n{pdi_capturados}", key="b_pdi_def_eq", use_container_width=True):
-                                            st.session_state['filtro_pdi_cat'] = 'definido'; st.rerun()
+                                            st.session_state['filtro_pdi_cat'] = 'definido'
+                                            st.session_state['colab_a_evaluar_equipo'] = ""
+                                            st.rerun()
                                     with c3:
                                         if st.button(f"🚨 FALTA CAPTURAR PDI\n\n{total_faltantes_pdi}", key="b_pdi_no_iniciado", use_container_width=True):
-                                            st.session_state['filtro_pdi_cat'] = 'no_iniciado'; st.rerun()
+                                            st.session_state['filtro_pdi_cat'] = 'no_iniciado'
+                                            st.session_state['colab_a_evaluar_equipo'] = ""
+                                            st.rerun()
                                     with c4:
                                         if st.button(f"⚠️ FALTA EVALUAR\n\n{falta_evaluacion}", key="b_pdi_falta_eval", use_container_width=True):
-                                            st.session_state['filtro_pdi_cat'] = 'falta_eval'; st.rerun()
+                                            st.session_state['filtro_pdi_cat'] = 'falta_eval'
+                                            st.session_state['colab_a_evaluar_equipo'] = ""
+                                            st.rerun()
                                     
                                     st.write("---")
                                     
@@ -591,7 +605,6 @@ def main():
                                         f_cat = st.session_state['filtro_pdi_cat']
                                         c_f1, c_f2 = st.columns([8, 2])
                                         
-                                        # ✨ LÓGICA DE ALERTA 1: PDI NO INICIADO
                                         if f_cat == 'no_iniciado':
                                             df_pdi_mostrar = df_pdi_mostrar.iloc[0:0]
                                             if lista_pdi_faltantes:
@@ -605,7 +618,6 @@ def main():
                                             else:
                                                 c_f1.success(f"✅ ¡Excelente! Todos han capturado su PDI.")
                                         
-                                        # ✨ LÓGICA DE ALERTA 2: FALTAN POR EVALUAR POR EL LÍDER
                                         elif f_cat == 'falta_eval':
                                             if lista_unica_falta_eval:
                                                 df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Colaborador'].isin(lista_unica_falta_eval)]
@@ -620,7 +632,6 @@ def main():
                                                 df_pdi_mostrar = df_pdi_mostrar.iloc[0:0] 
                                                 c_f1.success(f"✅ ¡Felicidades! Has evaluado todas las competencias técnicas y funcionales de tu equipo.")
                                                 
-                                        # LÓGICA: PDI DEFINIDO
                                         elif f_cat == 'definido':
                                             nombres_iniciados_bien = [n for n in nombres_equipo_originales if n.lower() in lista_pdi_iniciados]
                                             if nombres_iniciados_bien:
@@ -635,7 +646,6 @@ def main():
                                                 df_pdi_mostrar = df_pdi_mostrar.iloc[0:0]
                                                 c_f1.warning(f"⚠️ Aún no hay PDI capturados en este grupo.")
                                         
-                                        # LÓGICA: TOTAL EQUIPO
                                         elif f_cat == 'total_equipo':
                                             c_f1.info(f"👥 **Total del Equipo:** Tienes {total_equipo} colaboradores en esta vista.")
                                             st.markdown("##### 👤 Haz clic en cualquier colaborador para ver su perfil y evaluarlo:")
@@ -650,8 +660,11 @@ def main():
                                                 df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar[col_pdi_kpi].astype(str).str.contains(f_cat)]
                                                 c_f1.info(f"👆 **Filtro Activo:** Mostrando exclusivamente las acciones de la categoría **{f_cat}%**.")
                                         
+                                        # ✨ AQUÍ TAMBIÉN LIMPIAMOS LA SELECCIÓN AL QUITAR EL FILTRO
                                         if c_f2.button("❌ Quitar filtro", use_container_width=True): 
-                                            st.session_state['filtro_pdi_cat'] = None; st.rerun()
+                                            st.session_state['filtro_pdi_cat'] = None
+                                            st.session_state['colab_a_evaluar_equipo'] = ""
+                                            st.rerun()
                                     
                                     col_p1, col_p2, col_p3 = st.columns(3)
                                     lista_nombres_pdi = []
