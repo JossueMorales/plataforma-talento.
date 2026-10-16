@@ -64,51 +64,65 @@ def clean_and_split(s):
 def main():
     if not login(): st.stop()
     
-    if st.session_state.get("password_actual") == PASSWORD_POR_DEFECTO:
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        col_espacio1, col_centro, col_espacio3 = st.columns([1, 2, 1])
-        with col_centro:
-            st.markdown("<h2 style='text-align:center; color:#1e3a8a;'>🔒 Actualización de Seguridad Requerida</h2>", unsafe_allow_html=True)
-            st.info("¡Bienvenido(a) a tu Portal de Talento! Al ser tu primer ingreso, por políticas corporativas debes cambiar tu contraseña temporal antes de continuar.")
+    # ✨ 1. OBTENER METADATOS Y USUARIOS AL INSTANTE ✨
+    current_timestamp, estado_sucesion, estado_pdi, pdi_planeacion, pdi_cierre = obtener_metadata()
+    df_usuarios_permisos = cargar_datos_csv("Usuarios", current_timestamp)
+    
+    # ✨ 2. CANDADO DE SEGURIDAD INFALIBLE (LECTURA DIRECTA A EXCEL) ✨
+    if not df_usuarios_permisos.empty:
+        match_usuario = df_usuarios_permisos[df_usuarios_permisos['Usuario'].astype(str).str.strip() == str(st.session_state["id_usuario"])]
+        if not match_usuario.empty:
+            hash_bd = str(match_usuario.iloc[0].get("Password", "")).strip()
+            hash_defecto = str(hash_password(PASSWORD_POR_DEFECTO)).strip()
             
-            with st.form("cambio_pass_form"):
-                n_pass1 = st.text_input("Ingresa tu nueva contraseña", type="password")
-                n_pass2 = st.text_input("Confirma tu nueva contraseña", type="password")
+            # Compara si el Hash de su celda de Excel es el de "123" o si alguien escribió "123" literal en el Excel
+            if hash_bd == hash_defecto or hash_bd == str(PASSWORD_POR_DEFECTO).strip():
+                st.markdown("<br><br>", unsafe_allow_html=True)
+                col_espacio1, col_centro, col_espacio3 = st.columns([1, 2, 1])
+                with col_centro:
+                    st.markdown("<h2 style='text-align:center; color:#1e3a8a;'>🔒 Actualización de Seguridad Requerida</h2>", unsafe_allow_html=True)
+                    st.info("¡Bienvenido(a) a tu Portal de Talento! Al ser tu primer ingreso, por políticas corporativas debes cambiar tu contraseña temporal antes de continuar.")
+                    
+                    with st.form("cambio_pass_form"):
+                        n_pass1 = st.text_input("Ingresa tu nueva contraseña", type="password")
+                        n_pass2 = st.text_input("Confirma tu nueva contraseña", type="password")
+                        
+                        if st.form_submit_button("💾 Guardar Contraseña y Entrar", use_container_width=True):
+                            if n_pass1 != n_pass2:
+                                st.error("❌ Las contraseñas no coinciden. Inténtalo de nuevo.")
+                            elif len(n_pass1) < 5:
+                                st.error("❌ La contraseña debe tener al menos 5 caracteres.")
+                            elif n_pass1 == str(PASSWORD_POR_DEFECTO).strip():
+                                st.error("❌ Debes elegir una contraseña diferente a la temporal.")
+                            else:
+                                with st.spinner("Actualizando seguridad en la base de datos..."):
+                                    try:
+                                        secretos = st.secrets["connections"]["gsheets"]
+                                        credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
+                                        cliente = gspread.authorize(credenciales)
+                                        match = re.search(r'/d/([a-zA-Z0-9-_]+)', LINK_ARCHIVO)
+                                        doc_id = match.group(1) if match else LINK_ARCHIVO
+                                        archivo = cliente.open_by_key(doc_id)
+                                        pestana_users = archivo.worksheet("Usuarios")
+                                        
+                                        usuarios_col = pestana_users.col_values(1)
+                                        fila_usuario = usuarios_col.index(st.session_state["id_usuario"]) + 1 
+                                        
+                                        # Guarda el nuevo código encriptado
+                                        pestana_users.update_cell(fila_usuario, 3, hash_password(n_pass1))
+                                        archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
+                                        
+                                        st.cache_data.clear()
+                                        st.success("✅ ¡Contraseña actualizada exitosamente! Entrando al portal...")
+                                        time.sleep(1.5)
+                                        st.rerun()
+                                    except ValueError:
+                                        st.error("❌ Ocurrió un error. Tu usuario no se encontró en la matriz de la base de datos.")
+                                    except Exception as e:
+                                        st.error(f"❌ Error técnico de conexión: {e}")
                 
-                if st.form_submit_button("💾 Guardar Contraseña y Entrar", use_container_width=True):
-                    if n_pass1 != n_pass2:
-                        st.error("❌ Las contraseñas no coinciden. Inténtalo de nuevo.")
-                    elif len(n_pass1) < 5:
-                        st.error("❌ La contraseña debe tener al menos 5 caracteres.")
-                    elif n_pass1 == PASSWORD_POR_DEFECTO:
-                        st.error("❌ Debes elegir una contraseña diferente a la temporal.")
-                    else:
-                        with st.spinner("Actualizando seguridad en la base de datos..."):
-                            try:
-                                secretos = st.secrets["connections"]["gsheets"]
-                                credenciales = Credentials.from_service_account_info(secretos, scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"])
-                                cliente = gspread.authorize(credenciales)
-                                match = re.search(r'/d/([a-zA-Z0-9-_]+)', LINK_ARCHIVO)
-                                doc_id = match.group(1) if match else LINK_ARCHIVO
-                                archivo = cliente.open_by_key(doc_id)
-                                pestana_users = archivo.worksheet("Usuarios")
-                                
-                                usuarios_col = pestana_users.col_values(1)
-                                try:
-                                    fila_usuario = usuarios_col.index(st.session_state["id_usuario"]) + 1 
-                                    pestana_users.update_cell(fila_usuario, 3, hash_password(n_pass1))
-                                    archivo.worksheet("Metadata").update_acell('A1', str(time.time()))
-                                    
-                                    st.session_state["password_actual"] = n_pass1
-                                    st.cache_data.clear()
-                                    st.success("✅ ¡Contraseña actualizada exitosamente! Entrando al portal...")
-                                    time.sleep(1.5)
-                                    st.rerun()
-                                except ValueError:
-                                    st.error("❌ Ocurrió un error. Tu usuario no se encontró en la matriz de la base de datos.")
-                            except Exception as e:
-                                st.error(f"❌ Error técnico de conexión: {e}")
-        st.stop()
+                # Esto detiene la ejecución para que no puedan ver la app hasta cambiar la clave
+                st.stop()
 
     if "vista_kpi" not in st.session_state: st.session_state["vista_kpi"] = None
         
@@ -138,7 +152,6 @@ def main():
             
     st.divider()
     with st.spinner("Cargando base de datos y validando seguridad dinámica..."):
-        current_timestamp, estado_sucesion, estado_pdi, pdi_planeacion, pdi_cierre = obtener_metadata()
         
         def intentar_cargar_pestana(opciones_nombres, timestamp):
             for nombre in opciones_nombres:
@@ -154,8 +167,6 @@ def main():
         
         df_matriz_competencias = intentar_cargar_pestana(["Matriz de Competencias", "Matriz de competencias"], current_timestamp)
         df_evaluaciones = intentar_cargar_pestana(["Evaluaciones Tecnicas", "Evaluaciones tecnicas", "Evaluaciones Competencias"], current_timestamp)
-        
-        df_usuarios_permisos = cargar_datos_csv("Usuarios", current_timestamp)
         
         if df_completo_raw.empty:
             st.error("Error al conectar con la base de datos principal.")
@@ -550,7 +561,6 @@ def main():
                                     st.markdown("#### 📊 Análisis Global del Modelo 70-20-10")
                                     pk1, pk2, pk3, pk4, pk5 = st.columns(5)
                                     
-                                    # ✨ CUANDO EL LÍDER CAMBIA DE FILTRO, LIMPIAMOS LA MEMORIA DE LA SELECCIÓN
                                     with pk1:
                                         if st.button(f"📊 Total Acciones\n\n{total_acciones}", key="b_pdi_todas", use_container_width=True): 
                                             st.session_state['filtro_pdi_cat'] = 'todas'
@@ -660,7 +670,6 @@ def main():
                                                 df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar[col_pdi_kpi].astype(str).str.contains(f_cat)]
                                                 c_f1.info(f"👆 **Filtro Activo:** Mostrando exclusivamente las acciones de la categoría **{f_cat}%**.")
                                         
-                                        # ✨ AQUÍ TAMBIÉN LIMPIAMOS LA SELECCIÓN AL QUITAR EL FILTRO
                                         if c_f2.button("❌ Quitar filtro", use_container_width=True): 
                                             st.session_state['filtro_pdi_cat'] = None
                                             st.session_state['colab_a_evaluar_equipo'] = ""
