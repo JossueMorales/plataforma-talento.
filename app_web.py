@@ -297,11 +297,10 @@ def main():
             if st.session_state["id_usuario"] != "admin":
                 df_filtros = df_seguro[~df_seguro[col_jer].astype(str).str.strip().isin(['5'])]
 
+            # ✨ SE ELIMINA EL BOTÓN DE "FORZAR SINCRONIZACIÓN" ✨
             col_head1, col_head2 = st.columns([2, 1])
             with col_head1:
                 st.markdown("### 🎛️ Filtros Globales")
-                if st.button("🔄 Forzar Sincronización con Excel"):
-                    st.cache_data.clear(); st.rerun()
                 
             with col_head2:
                 nombres_s = df_filtros['Nombre'].dropna()
@@ -454,10 +453,20 @@ def main():
                             st.markdown("### 📈 Seguimiento de PDI de mi Equipo")
                             st.info("Gracias a la nueva arquitectura multifila, ahora puedes ver el estatus granular de cada acción del plan 70-20-10 de tus colaboradores.")
                             
+                            # ✨ SELECTOR DE CICLO PDI (Opción 1 implementada) ✨
+                            nombre_plan_actual = st.session_state.get('pdi_planeacion', 'Planeación Actual')
+                            nombre_cierre_ant = st.session_state.get('pdi_cierre', 'Cierre Anterior')
+                            
+                            st.write("")
+                            ciclo_sel = st.radio("📅 **Selecciona el ciclo a consultar:**", [f"🚀 {nombre_plan_actual} (Planeación)", f"📊 {nombre_cierre_ant} (Cierre/Historial)"], horizontal=True)
+                            
+                            # Cambia dinámicamente la base de datos según la selección
+                            df_pdi_base = df_pdi if "Planeación" in ciclo_sel else df_pdi_anterior
+                            
                             nombres_filtrados_globales = df_temp_puestos['Nombre_Cruce'].dropna().unique().tolist()
                             
-                            if not df_pdi.empty and 'Nombre' in df_pdi.columns:
-                                df_pdi_filtrado = df_pdi.copy()
+                            if not df_pdi_base.empty and 'Nombre' in df_pdi_base.columns:
+                                df_pdi_filtrado = df_pdi_base.copy()
                                 df_pdi_filtrado['Nombre_Limpio'] = df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower()
                                 
                                 df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre_Limpio'].isin(nombres_filtrados_globales)]
