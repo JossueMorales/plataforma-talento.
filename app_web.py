@@ -497,7 +497,6 @@ def main():
                                         
                                     st.markdown("#### 📊 Análisis Global del Modelo 70-20-10")
                                     
-                                    falta_evaluacion = 0
                                     lista_falta_eval = []
                                     if not df_matriz_competencias.empty:
                                         col_puesto_matriz = buscar_columna(df_matriz_competencias.columns, 'puesto')
@@ -529,11 +528,13 @@ def main():
                                                 ev_completas = ev_colab[ev_colab['Calif. Líder'].astype(str).str.strip() != ""]
                                                 comps_evaluadas = len(ev_completas)
                                                 
+                                            # ✨ AQUÍ CORREGIMOS EL CONTEO (Guardar nombres, luego contarlos)
                                             if comps_esperadas > 0 and comps_evaluadas < comps_esperadas:
-                                                falta_evaluacion += (comps_esperadas - comps_evaluadas)
                                                 lista_falta_eval.append(c_nombre)
+                                    
+                                    lista_unica_falta_eval = sorted(list(set(lista_falta_eval)))
+                                    falta_evaluacion = len(lista_unica_falta_eval) # Conteo por persona
 
-                                    # ✨ CORRECCIÓN APLICADA: Ahora busca en la columna correcta ("Nombre")
                                     lista_pdi_iniciados = df_pdi_filtrado['Nombre'].dropna().astype(str).str.strip().str.lower().unique().tolist()
                                     nombres_equipo_originales = []
                                     df_equipo_raw = df_completo[df_completo['Nombre_Cruce'].isin(equipo_permitido)] if not si_es_admin else df_completo
@@ -543,7 +544,7 @@ def main():
                                             nombres_equipo_originales.append(nom_orig)
                                             
                                     nombres_equipo_originales = list(set(nombres_equipo_originales))
-                                    lista_pdi_faltantes = [n for n in nombres_equipo_originales if n.lower() not in lista_pdi_iniciados]
+                                    lista_pdi_faltantes = sorted([n for n in nombres_equipo_originales if n.lower() not in lista_pdi_iniciados])
                                     total_faltantes_pdi = len(lista_pdi_faltantes)
 
                                     pk1, pk2, pk3, pk4, pk5, pk6, pk7 = st.columns(7)
@@ -563,7 +564,8 @@ def main():
                                         if st.button(f"🔴 Formación\n\n{prom_10}%", key="b_pdi_10", use_container_width=True):
                                             st.session_state['filtro_pdi_cat'] = '10'; st.rerun()
                                     with pk6:
-                                        if st.button(f"⚠️ Falta Eval. Líder\n\n{falta_evaluacion} comps.", key="b_pdi_falta_eval", use_container_width=True):
+                                        # ✨ CAMBIO DE TEXTO: "colabs." en lugar de "comps."
+                                        if st.button(f"⚠️ Falta Eval. Líder\n\n{falta_evaluacion} colabs.", key="b_pdi_falta_eval", use_container_width=True):
                                             st.session_state['filtro_pdi_cat'] = 'falta_eval'; st.rerun()
                                     with pk7:
                                         if st.button(f"🚨 Faltan Capturar PDI\n\n{total_faltantes_pdi} colabs.", key="b_pdi_no_iniciado", use_container_width=True):
@@ -575,19 +577,32 @@ def main():
                                         f_cat = st.session_state['filtro_pdi_cat']
                                         c_f1, c_f2 = st.columns([8, 2])
                                         
+                                        # ✨ NUEVA LÓGICA DE BOTONES PARA LA ALERTA DE EVALUACIÓN
                                         if f_cat == 'falta_eval':
-                                            lista_unica_falta_eval = list(set(lista_falta_eval))
                                             if lista_unica_falta_eval:
                                                 df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Colaborador'].isin(lista_unica_falta_eval)]
-                                                c_f1.error(f"🚨 **Alerta de Evaluación:** Tienes competencias pendientes de calificar para estos colaboradores: {', '.join(lista_unica_falta_eval)}")
+                                                c_f1.error(f"🚨 **Alerta de Evaluación:** Tienes {len(lista_unica_falta_eval)} colaboradores con competencias pendientes de calificar.")
+                                                st.markdown("##### 👤 Haz clic en un colaborador para evaluar sus competencias:")
+                                                cols_b = st.columns(3)
+                                                for idx, n_colab in enumerate(lista_unica_falta_eval):
+                                                    if cols_b[idx % 3].button(f"📝 {n_colab}", use_container_width=True, key=f"btn_pe_{idx}"):
+                                                        st.session_state["colab_a_evaluar_equipo"] = n_colab
+                                                        st.rerun()
                                             else:
                                                 df_pdi_mostrar = df_pdi_mostrar.iloc[0:0] 
                                                 c_f1.success(f"✅ ¡Felicidades! Has evaluado todas las competencias técnicas y funcionales de tu equipo.")
                                                 
+                                        # ✨ NUEVA LÓGICA DE BOTONES PARA LA ALERTA DE PDI NO INICIADO
                                         elif f_cat == 'no_iniciado':
                                             df_pdi_mostrar = df_pdi_mostrar.iloc[0:0]
                                             if lista_pdi_faltantes:
-                                                c_f1.error(f"🚨 **Alerta de PDI no iniciado:** Los siguientes colaboradores de tu equipo aún no han subido ninguna actividad de PDI: **{', '.join(lista_pdi_faltantes)}**")
+                                                c_f1.error(f"🚨 **Alerta de PDI no iniciado:** {len(lista_pdi_faltantes)} colaboradores de tu equipo aún no han subido ninguna actividad de PDI.")
+                                                st.markdown("##### 👤 Haz clic en un colaborador para evaluarlo (aunque no tenga PDI capturado):")
+                                                cols_b = st.columns(3)
+                                                for idx, n_colab in enumerate(lista_pdi_faltantes):
+                                                    if cols_b[idx % 3].button(f"📝 {n_colab}", use_container_width=True, key=f"btn_ni_{idx}"):
+                                                        st.session_state["colab_a_evaluar_equipo"] = n_colab
+                                                        st.rerun()
                                             else:
                                                 c_f1.success(f"✅ ¡Excelente! Todo tu equipo ha capturado su PDI.")
                                                 
@@ -617,19 +632,29 @@ def main():
                                         filtro_estatus = col_p3.multiselect("🚦 Filtrar por Estatus:", options=lista_estatus_pdi)
                                         if filtro_estatus: df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Estatus'].isin(filtro_estatus)]
                                     
-                                    st.dataframe(df_pdi_mostrar, use_container_width=True, hide_index=True)
+                                    if not df_pdi_mostrar.empty:
+                                        st.dataframe(df_pdi_mostrar, use_container_width=True, hide_index=True)
                                     
                                     st.write("---")
                                     st.markdown("#### 📝 Evaluar Competencias de mi Equipo")
                                     st.info("Selecciona a uno de tus colaboradores para evaluar sus Conocimientos Técnicos y Competencias Funcionales.")
                                     
-                                    todos_los_nombres_equipo = sorted(list(set(lista_nombres_pdi + lista_pdi_faltantes)))
+                                    todos_los_nombres_equipo = [""] + sorted(list(set(lista_nombres_pdi + lista_pdi_faltantes)))
                                     
-                                    colab_a_evaluar = st.selectbox("Seleccionar Colaborador:", [""] + todos_los_nombres_equipo, key="sel_eval_equipo")
+                                    # ✨ SINCRONIZACIÓN DE LA SELECCIÓN POR BOTONES Y EL SELECTBOX
+                                    seleccion_actual = st.session_state.get("colab_a_evaluar_equipo", "")
+                                    idx_seleccion = todos_los_nombres_equipo.index(seleccion_actual) if seleccion_actual in todos_los_nombres_equipo else 0
                                     
-                                    if colab_a_evaluar:
-                                        st.markdown(f"**Evaluando a:** {colab_a_evaluar}")
-                                        renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior, df_mla, df_matriz_competencias, df_evaluaciones, es_lider_evaluando=True, empleado_a_evaluar=colab_a_evaluar)
+                                    colab_a_evaluar = st.selectbox("Seleccionar Colaborador (o usa los botones de arriba):", todos_los_nombres_equipo, index=idx_seleccion, key="sel_eval_equipo_ui")
+                                    
+                                    if colab_a_evaluar != seleccion_actual:
+                                        st.session_state["colab_a_evaluar_equipo"] = colab_a_evaluar
+                                        st.rerun()
+                                        
+                                    if st.session_state.get("colab_a_evaluar_equipo", "") != "":
+                                        colab_eval_final = st.session_state["colab_a_evaluar_equipo"]
+                                        st.markdown(f"**Evaluando a:** {colab_eval_final}")
+                                        renderizar_mi_pdi(df_completo, df_pdi, df_pdi_anterior, df_mla, df_matriz_competencias, df_evaluaciones, es_lider_evaluando=True, empleado_a_evaluar=colab_eval_final)
                                         
                                 else: st.warning("⚠️ Esperando el primer guardado para construir la tabla de seguimiento.")
                             else: st.warning("⚠️ No hay planes de desarrollo registrados en el equipo todavía.")
