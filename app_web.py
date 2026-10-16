@@ -494,51 +494,7 @@ def main():
                                         mask_10 = df_pdi_mostrar[col_pdi_kpi].astype(str).str.contains('10')
                                         prom_70, prom_20, prom_10 = get_avg(mask_70), get_avg(mask_20), get_avg(mask_10)
                                         promedio_avance = get_avg(pd.Series(True, index=df_pdi_mostrar.index))
-                                    
-                                    # CÁLCULOS MATEMÁTICOS PARA LAS NUEVAS TARJETAS
-                                    falta_evaluacion = 0
-                                    comps_esperadas_totales = 0
-                                    comps_evaluadas_totales = 0
-                                    lista_falta_eval = []
-                                    if not df_matriz_competencias.empty:
-                                        col_puesto_matriz = buscar_columna(df_matriz_competencias.columns, 'puesto')
-                                        df_equipo = df_completo[df_completo['Nombre_Cruce'].isin(equipo_permitido)] if not si_es_admin else df_completo
                                         
-                                        for _, colab_info in df_equipo.iterrows():
-                                            c_nombre = str(colab_info.get("Nombre", "")).strip()
-                                            c_nom_limpio = c_nombre.lower()
-                                            c_puesto = str(colab_info.get("Nombre de la Posición", "")).strip()
-                                            
-                                            puesto_words = clean_and_split(c_puesto)
-                                            df_matriz_competencias['_score'] = df_matriz_competencias[col_puesto_matriz].apply(
-                                                lambda x: len(puesto_words.intersection(clean_and_split(x)))
-                                            )
-                                            max_score = df_matriz_competencias['_score'].max()
-                                            comps_esperadas = 0
-                                            
-                                            if max_score > 0 and max_score >= (len(puesto_words) * 0.5):
-                                                fila_m = df_matriz_competencias[df_matriz_competencias['_score'] == max_score].iloc[0]
-                                                f_cols = [c for c in df_matriz_competencias.columns if 'comp' in str(c).lower() and 'puesto' not in str(c).lower() and str(c).strip().lower() != 'competencia']
-                                                t_cols = [c for c in df_matriz_competencias.columns if 'tec' in str(c).lower() or ('con' in str(c).lower() and 'comp' not in str(c).lower())]
-                                                lista_f = [c.strip() for c in fila_m[f_cols].dropna().astype(str).tolist() if c.strip() and c.lower() != 'nan']
-                                                lista_t = [c.strip() for c in fila_m[t_cols].dropna().astype(str).tolist() if c.strip() and c.lower() != 'nan']
-                                                comps_esperadas = len(lista_f) + len(lista_t)
-                                                
-                                            comps_evaluadas = 0
-                                            if comps_esperadas > 0 and not df_evaluaciones.empty and "Nombre" in df_evaluaciones.columns and "Calif. Líder" in df_evaluaciones.columns:
-                                                ev_colab = df_evaluaciones[df_evaluaciones["Nombre"].astype(str).str.strip().str.lower() == c_nom_limpio]
-                                                ev_completas = ev_colab[ev_colab['Calif. Líder'].astype(str).str.strip() != ""]
-                                                comps_evaluadas = len(ev_completas)
-                                            
-                                            comps_esperadas_totales += comps_esperadas
-                                            comps_evaluadas_totales += comps_evaluadas
-                                                
-                                            if comps_esperadas > 0 and comps_evaluadas < comps_esperadas:
-                                                lista_falta_eval.append(c_nombre)
-                                    
-                                    lista_unica_falta_eval = sorted(list(set(lista_falta_eval)))
-                                    falta_evaluacion = len(lista_unica_falta_eval) # Personas pendientes de evaluar
-
                                     lista_pdi_iniciados = df_pdi_filtrado['Nombre'].dropna().astype(str).str.strip().str.lower().unique().tolist()
                                     nombres_equipo_originales = []
                                     df_equipo_raw = df_completo[df_completo['Nombre_Cruce'].isin(equipo_permitido)] if not si_es_admin else df_completo
@@ -553,7 +509,6 @@ def main():
                                     total_faltantes_pdi = len(lista_pdi_faltantes)
                                     pdi_capturados = total_equipo - total_faltantes_pdi
 
-                                    # ✨ PINTANDO LOS BOTONES CON EL DISEÑO DE 3 BLOQUES
                                     st.markdown("#### 📊 Análisis Global del Modelo 70-20-10")
                                     pk1, pk2, pk3, pk4, pk5 = st.columns(5)
                                     
@@ -583,39 +538,14 @@ def main():
                                     with c3:
                                         if st.button(f"🚨 PENDIENTES\n\n{total_faltantes_pdi}", key="b_pdi_no_iniciado", use_container_width=True):
                                             st.session_state['filtro_pdi_cat'] = 'no_iniciado'; st.rerun()
-
-                                    st.write("")
-                                    st.markdown("#### 📝 Estatus de Evaluación de Competencias (Líder)")
-                                    e1, e2, e3 = st.columns(3)
-                                    with e1:
-                                        st.button(f"📘 TOTAL ESPERADAS\n\n{comps_esperadas_totales}", key="b_pdi_tot_ev", use_container_width=True)
-                                    with e2:
-                                        st.button(f"✅ EVALUADAS\n\n{comps_evaluadas_totales}", key="b_pdi_def_ev", use_container_width=True)
-                                    with e3:
-                                        if st.button(f"🚨 PENDIENTES\n\n{falta_evaluacion} colabs.", key="b_pdi_falta_eval", use_container_width=True):
-                                            st.session_state['filtro_pdi_cat'] = 'falta_eval'; st.rerun()
-                                            
+                                    
                                     st.write("---")
                                     
                                     if 'filtro_pdi_cat' in st.session_state and st.session_state['filtro_pdi_cat'] not in ['todas', None]:
                                         f_cat = st.session_state['filtro_pdi_cat']
                                         c_f1, c_f2 = st.columns([8, 2])
                                         
-                                        if f_cat == 'falta_eval':
-                                            if lista_unica_falta_eval:
-                                                df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Colaborador'].isin(lista_unica_falta_eval)]
-                                                c_f1.error(f"🚨 **Alerta de Evaluación:** Tienes {len(lista_unica_falta_eval)} colaboradores con competencias pendientes de calificar.")
-                                                st.markdown("##### 👤 Haz clic en un colaborador para evaluar sus competencias:")
-                                                cols_b = st.columns(3)
-                                                for idx, n_colab in enumerate(lista_unica_falta_eval):
-                                                    if cols_b[idx % 3].button(f"📝 {n_colab}", use_container_width=True, key=f"btn_pe_{idx}"):
-                                                        st.session_state["colab_a_evaluar_equipo"] = n_colab
-                                                        st.rerun()
-                                            else:
-                                                df_pdi_mostrar = df_pdi_mostrar.iloc[0:0] 
-                                                c_f1.success(f"✅ ¡Felicidades! Has evaluado todas las competencias técnicas y funcionales de tu equipo.")
-                                                
-                                        elif f_cat == 'no_iniciado':
+                                        if f_cat == 'no_iniciado':
                                             df_pdi_mostrar = df_pdi_mostrar.iloc[0:0]
                                             if lista_pdi_faltantes:
                                                 c_f1.error(f"🚨 **Alerta de PDI no iniciado:** {len(lista_pdi_faltantes)} colaboradores de tu equipo aún no han subido ninguna actividad de PDI.")
