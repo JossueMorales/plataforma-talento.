@@ -448,6 +448,7 @@ def main():
                                 df_pdi_filtrado = df_pdi.copy()
                                 df_pdi_filtrado['Nombre_Limpio'] = df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower()
                                 
+                                # Si es un usuario normal (no admin), filtrar SOLO a su equipo
                                 if not si_es_admin:
                                     df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre_Limpio'].isin(equipo_permitido)]
                                 
@@ -497,6 +498,7 @@ def main():
                                         
                                     st.markdown("#### 📊 Análisis Global del Modelo 70-20-10")
                                     
+                                    # ✨ KPI EXTRA 1: PENDIENTES DE EVALUAR POR EL LÍDER (CRUCE INTELIGENTE)
                                     falta_evaluacion = 0
                                     lista_falta_eval = []
                                     if not df_matriz_competencias.empty:
@@ -508,6 +510,7 @@ def main():
                                             c_nom_limpio = c_nombre.lower()
                                             c_puesto = str(colab_info.get("Nombre de la Posición", "")).strip()
                                             
+                                            # ¿Cuántas competencias le tocan a este puesto?
                                             puesto_words = clean_and_split(c_puesto)
                                             df_matriz_competencias['_score'] = df_matriz_competencias[col_puesto_matriz].apply(
                                                 lambda x: len(puesto_words.intersection(clean_and_split(x)))
@@ -523,9 +526,11 @@ def main():
                                                 lista_t = [c.strip() for c in fila_m[t_cols].dropna().astype(str).tolist() if c.strip() and c.lower() != 'nan']
                                                 comps_esperadas = len(lista_f) + len(lista_t)
                                                 
+                                            # ¿Cuántas evaluaciones reales tiene en el Excel?
                                             comps_evaluadas = 0
                                             if comps_esperadas > 0 and not df_evaluaciones.empty and "Nombre" in df_evaluaciones.columns and "Calif. Líder" in df_evaluaciones.columns:
                                                 ev_colab = df_evaluaciones[df_evaluaciones["Nombre"].astype(str).str.strip().str.lower() == c_nom_limpio]
+                                                # Filtrar solo las que SÍ tienen calificación del líder
                                                 ev_completas = ev_colab[ev_colab['Calif. Líder'].astype(str).str.strip() != ""]
                                                 comps_evaluadas = len(ev_completas)
                                                 
@@ -533,8 +538,8 @@ def main():
                                                 falta_evaluacion += (comps_esperadas - comps_evaluadas)
                                                 lista_falta_eval.append(c_nombre)
 
-                                    # ✨ CORRECCIÓN AQUÍ: Usar 'Nombre' en lugar de 'Colaborador' en df_pdi_filtrado
-                                    lista_pdi_iniciados = df_pdi_filtrado['Nombre'].dropna().astype(str).str.strip().str.lower().unique().tolist()
+                                    # ✨ KPI EXTRA 2: COLABORADORES QUE NO HAN SUBIDO SU PDI
+                                    lista_pdi_iniciados = df_pdi_filtrado['Colaborador'].dropna().astype(str).str.strip().str.lower().unique().tolist()
                                     nombres_equipo_originales = []
                                     df_equipo_raw = df_completo[df_completo['Nombre_Cruce'].isin(equipo_permitido)] if not si_es_admin else df_completo
                                     for _, r in df_equipo_raw.iterrows():
@@ -563,14 +568,17 @@ def main():
                                         if st.button(f"🔴 Formación\n\n{prom_10}%", key="b_pdi_10", use_container_width=True):
                                             st.session_state['filtro_pdi_cat'] = '10'; st.rerun()
                                     with pk6:
+                                        # ✨ NUEVO BOTÓN: FALTAN DE EVALUAR POR EL LÍDER
                                         if st.button(f"⚠️ Falta Eval. Líder\n\n{falta_evaluacion} comps.", key="b_pdi_falta_eval", use_container_width=True):
                                             st.session_state['filtro_pdi_cat'] = 'falta_eval'; st.rerun()
                                     with pk7:
+                                        # ✨ NUEVO BOTÓN: COLABORADORES QUE NO HAN HECHO NADA
                                         if st.button(f"🚨 Faltan Capturar PDI\n\n{total_faltantes_pdi} colabs.", key="b_pdi_no_iniciado", use_container_width=True):
                                             st.session_state['filtro_pdi_cat'] = 'no_iniciado'; st.rerun()
                                             
                                     st.write("---")
                                     
+                                    # Aplicar filtros
                                     if 'filtro_pdi_cat' in st.session_state and st.session_state['filtro_pdi_cat'] not in ['todas', None]:
                                         f_cat = st.session_state['filtro_pdi_cat']
                                         c_f1, c_f2 = st.columns([8, 2])
@@ -585,6 +593,7 @@ def main():
                                                 c_f1.success(f"✅ ¡Felicidades! Has evaluado todas las competencias técnicas y funcionales de tu equipo.")
                                                 
                                         elif f_cat == 'no_iniciado':
+                                            # Como estas personas no están en el DataFrame de PDI, vaciamos la tabla y les mostramos los nombres en una alerta.
                                             df_pdi_mostrar = df_pdi_mostrar.iloc[0:0]
                                             if lista_pdi_faltantes:
                                                 c_f1.error(f"🚨 **Alerta de PDI no iniciado:** Los siguientes colaboradores de tu equipo aún no han subido ninguna actividad de PDI: **{', '.join(lista_pdi_faltantes)}**")
@@ -623,6 +632,7 @@ def main():
                                     st.markdown("#### 📝 Evaluar Competencias de mi Equipo")
                                     st.info("Selecciona a uno de tus colaboradores para evaluar sus Conocimientos Técnicos y Competencias Funcionales.")
                                     
+                                    # Combinar los que ya tienen PDI con los que no tienen PDI para que el líder pueda evaluarlos de todos modos.
                                     todos_los_nombres_equipo = sorted(list(set(lista_nombres_pdi + lista_pdi_faltantes)))
                                     
                                     colab_a_evaluar = st.selectbox("Seleccionar Colaborador:", [""] + todos_los_nombres_equipo, key="sel_eval_equipo")
