@@ -319,6 +319,7 @@ def main():
             f_crit = col_f3.multiselect("Pos. Crítica", options=criticas, placeholder="Todas")
             f_jerarquia = col_f4.multiselect("Nivel Jerárquico", options=jerarquias, placeholder="Todos")
             
+            # ✨ AQUÍ NACE LA VARIABLE MÁGICA: df_temp_puestos contiene solo a la gente que sobrevive los filtros globales
             df_temp_puestos = df_filtros.copy()
             if f_dir: df_temp_puestos = df_temp_puestos[df_temp_puestos['Dirección'].astype(str).str.strip().isin(f_dir)]
             if f_lid: 
@@ -342,6 +343,8 @@ def main():
                 
             with col_f7:
                 f_puesto = st.multiselect("Posición / Puesto", options=puestos_opciones, default=puestos_opciones if auto_puestos else None, placeholder="Todos")
+            
+            if f_puesto: df_temp_puestos = df_temp_puestos[df_temp_puestos['Nombre de la Posición'].astype(str).str.strip().isin(f_puesto)]
             
             col_chk1, col_chk2 = st.columns(2)
             with col_chk1:
@@ -441,15 +444,15 @@ def main():
                             st.markdown("### 📈 Seguimiento de PDI de mi Equipo")
                             st.info("Gracias a la nueva arquitectura multifila, ahora puedes ver el estatus granular de cada acción del plan 70-20-10 de tus colaboradores.")
                             
-                            si_es_admin = st.session_state["id_usuario"] == "admin"
-                            equipo_permitido = [str(n).strip().lower() for n in st.session_state.get('nombres_permitidos_limpios', [])]
+                            # ✨ OBTENEMOS A LA GENTE FILTRADA GLOBALMENTE (Conectado a los dropdowns de arriba)
+                            nombres_filtrados_globales = df_temp_puestos['Nombre_Cruce'].dropna().unique().tolist()
                             
                             if not df_pdi.empty and 'Nombre' in df_pdi.columns:
                                 df_pdi_filtrado = df_pdi.copy()
                                 df_pdi_filtrado['Nombre_Limpio'] = df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower()
                                 
-                                if not si_es_admin:
-                                    df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre_Limpio'].isin(equipo_permitido)]
+                                # ✨ FILTRAMOS EL PDI CON LOS DROPDOWNS GLOBALES DIRECTAMENTE
+                                df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre_Limpio'].isin(nombres_filtrados_globales)]
                                 
                                 columnas_busqueda = [
                                     ("nómina", "Nómina"), ("nombre", "Colaborador"), ("roles", "Roles / Áreas de Interés"),
@@ -494,10 +497,12 @@ def main():
                                         mask_10 = df_pdi_mostrar[col_pdi_kpi].astype(str).str.contains('10')
                                         prom_70, prom_20, prom_10 = get_avg(mask_70), get_avg(mask_20), get_avg(mask_10)
                                         promedio_avance = get_avg(pd.Series(True, index=df_pdi_mostrar.index))
-                                        
+
+                                    # ✨ LÓGICA DE FALTANTES (CONECTADA A LOS FILTROS GLOBALES)
                                     lista_pdi_iniciados = df_pdi_filtrado['Nombre'].dropna().astype(str).str.strip().str.lower().unique().tolist()
                                     nombres_equipo_originales = []
-                                    df_equipo_raw = df_completo[df_completo['Nombre_Cruce'].isin(equipo_permitido)] if not si_es_admin else df_completo
+                                    df_equipo_raw = df_temp_puestos.copy() # Usa a los filtrados globales
+                                    
                                     for _, r in df_equipo_raw.iterrows():
                                         nom_orig = str(r.get("Nombre", "")).strip()
                                         if nom_orig and nom_orig.lower() != st.session_state["nombre_usuario"].strip().lower(): 
@@ -509,7 +514,6 @@ def main():
                                     total_faltantes_pdi = len(lista_pdi_faltantes)
                                     pdi_capturados = total_equipo - total_faltantes_pdi
 
-                                    # ✨ PINTANDO LOS BOTONES GLOBALES
                                     st.markdown("#### 📊 Análisis Global del Modelo 70-20-10")
                                     pk1, pk2, pk3, pk4, pk5 = st.columns(5)
                                     
@@ -529,9 +533,8 @@ def main():
                                             st.session_state['filtro_pdi_cat'] = '10'; st.rerun()
                                             
                                     st.write("---")
-                                    st.markdown("#### 🚀 Estatus de Captura de PDI (Mi Equipo)")
+                                    st.markdown("#### 🚀 Estatus de Captura de PDI (Equipo Filtrado)")
                                     
-                                    # ✨ SECCIÓN DE CAPTURA PDI (TRES BOTONES CORREGIDOS)
                                     c1, c2, c3 = st.columns(3)
                                     with c1:
                                         if st.button(f"👥 TOTAL COLABORADORES\n\n{total_equipo}", key="b_pdi_tot_eq", use_container_width=True):
@@ -549,11 +552,10 @@ def main():
                                         f_cat = st.session_state['filtro_pdi_cat']
                                         c_f1, c_f2 = st.columns([8, 2])
                                         
-                                        # LÓGICA DE ALERTA: NO INICIADO
                                         if f_cat == 'no_iniciado':
                                             df_pdi_mostrar = df_pdi_mostrar.iloc[0:0]
                                             if lista_pdi_faltantes:
-                                                c_f1.error(f"🚨 **Alerta de PDI no iniciado:** {len(lista_pdi_faltantes)} colaboradores de tu equipo aún no han subido ninguna actividad de PDI.")
+                                                c_f1.error(f"🚨 **Alerta de PDI no iniciado:** {len(lista_pdi_faltantes)} colaboradores aún no han subido ninguna actividad de PDI.")
                                                 st.markdown("##### 👤 Haz clic en un colaborador para evaluarlo (aunque no tenga PDI capturado):")
                                                 cols_b = st.columns(3)
                                                 for idx, n_colab in enumerate(lista_pdi_faltantes):
@@ -561,9 +563,8 @@ def main():
                                                         st.session_state["colab_a_evaluar_equipo"] = n_colab
                                                         st.rerun()
                                             else:
-                                                c_f1.success(f"✅ ¡Excelente! Todo tu equipo ha capturado su PDI.")
-                                        
-                                        # ✨ NUEVA LÓGICA: PDI DEFINIDO
+                                                c_f1.success(f"✅ ¡Excelente! Todos han capturado su PDI.")
+                                                
                                         elif f_cat == 'definido':
                                             nombres_iniciados_bien = [n for n in nombres_equipo_originales if n.lower() in lista_pdi_iniciados]
                                             if nombres_iniciados_bien:
@@ -576,11 +577,10 @@ def main():
                                                         st.rerun()
                                             else:
                                                 df_pdi_mostrar = df_pdi_mostrar.iloc[0:0]
-                                                c_f1.warning(f"⚠️ Aún no hay PDI capturados en tu equipo.")
+                                                c_f1.warning(f"⚠️ Aún no hay PDI capturados en este grupo.")
                                         
-                                        # ✨ NUEVA LÓGICA: TOTAL EQUIPO
                                         elif f_cat == 'total_equipo':
-                                            c_f1.info(f"👥 **Total del Equipo:** Tienes {total_equipo} colaboradores en tu estructura directa e indirecta.")
+                                            c_f1.info(f"👥 **Total del Equipo:** Tienes {total_equipo} colaboradores en esta vista.")
                                             st.markdown("##### 👤 Haz clic en cualquier colaborador para ver su perfil y evaluarlo:")
                                             cols_b = st.columns(3)
                                             for idx, n_colab in enumerate(sorted(nombres_equipo_originales)):
