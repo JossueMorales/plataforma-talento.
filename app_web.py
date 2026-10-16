@@ -509,6 +509,7 @@ def main():
                                     total_faltantes_pdi = len(lista_pdi_faltantes)
                                     pdi_capturados = total_equipo - total_faltantes_pdi
 
+                                    # ✨ PINTANDO LOS BOTONES GLOBALES
                                     st.markdown("#### 📊 Análisis Global del Modelo 70-20-10")
                                     pk1, pk2, pk3, pk4, pk5 = st.columns(5)
                                     
@@ -529,12 +530,15 @@ def main():
                                             
                                     st.write("---")
                                     st.markdown("#### 🚀 Estatus de Captura de PDI (Mi Equipo)")
+                                    
+                                    # ✨ SECCIÓN DE CAPTURA PDI (TRES BOTONES CORREGIDOS)
                                     c1, c2, c3 = st.columns(3)
                                     with c1:
                                         if st.button(f"👥 TOTAL COLABORADORES\n\n{total_equipo}", key="b_pdi_tot_eq", use_container_width=True):
-                                            st.session_state['filtro_pdi_cat'] = 'todas'; st.rerun()
+                                            st.session_state['filtro_pdi_cat'] = 'total_equipo'; st.rerun()
                                     with c2:
-                                        st.button(f"✅ PDI DEFINIDO\n\n{pdi_capturados}", key="b_pdi_def_eq", use_container_width=True)
+                                        if st.button(f"✅ PDI DEFINIDO\n\n{pdi_capturados}", key="b_pdi_def_eq", use_container_width=True):
+                                            st.session_state['filtro_pdi_cat'] = 'definido'; st.rerun()
                                     with c3:
                                         if st.button(f"🚨 PENDIENTES\n\n{total_faltantes_pdi}", key="b_pdi_no_iniciado", use_container_width=True):
                                             st.session_state['filtro_pdi_cat'] = 'no_iniciado'; st.rerun()
@@ -545,6 +549,7 @@ def main():
                                         f_cat = st.session_state['filtro_pdi_cat']
                                         c_f1, c_f2 = st.columns([8, 2])
                                         
+                                        # LÓGICA DE ALERTA: NO INICIADO
                                         if f_cat == 'no_iniciado':
                                             df_pdi_mostrar = df_pdi_mostrar.iloc[0:0]
                                             if lista_pdi_faltantes:
@@ -557,7 +562,32 @@ def main():
                                                         st.rerun()
                                             else:
                                                 c_f1.success(f"✅ ¡Excelente! Todo tu equipo ha capturado su PDI.")
-                                                
+                                        
+                                        # ✨ NUEVA LÓGICA: PDI DEFINIDO
+                                        elif f_cat == 'definido':
+                                            nombres_iniciados_bien = [n for n in nombres_equipo_originales if n.lower() in lista_pdi_iniciados]
+                                            if nombres_iniciados_bien:
+                                                c_f1.success(f"✅ **PDI Definido:** {len(nombres_iniciados_bien)} colaboradores ya han capturado su plan de desarrollo.")
+                                                st.markdown("##### 👤 Haz clic en un colaborador para ver su PDI y evaluarlo:")
+                                                cols_b = st.columns(3)
+                                                for idx, n_colab in enumerate(sorted(nombres_iniciados_bien)):
+                                                    if cols_b[idx % 3].button(f"📝 {n_colab}", use_container_width=True, key=f"btn_def_{idx}"):
+                                                        st.session_state["colab_a_evaluar_equipo"] = n_colab
+                                                        st.rerun()
+                                            else:
+                                                df_pdi_mostrar = df_pdi_mostrar.iloc[0:0]
+                                                c_f1.warning(f"⚠️ Aún no hay PDI capturados en tu equipo.")
+                                        
+                                        # ✨ NUEVA LÓGICA: TOTAL EQUIPO
+                                        elif f_cat == 'total_equipo':
+                                            c_f1.info(f"👥 **Total del Equipo:** Tienes {total_equipo} colaboradores en tu estructura directa e indirecta.")
+                                            st.markdown("##### 👤 Haz clic en cualquier colaborador para ver su perfil y evaluarlo:")
+                                            cols_b = st.columns(3)
+                                            for idx, n_colab in enumerate(sorted(nombres_equipo_originales)):
+                                                if cols_b[idx % 3].button(f"📝 {n_colab}", use_container_width=True, key=f"btn_tot_{idx}"):
+                                                    st.session_state["colab_a_evaluar_equipo"] = n_colab
+                                                    st.rerun()
+                                                    
                                         else:
                                             if col_pdi_kpi:
                                                 df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar[col_pdi_kpi].astype(str).str.contains(f_cat)]
