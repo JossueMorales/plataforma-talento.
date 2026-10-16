@@ -319,7 +319,6 @@ def main():
             f_crit = col_f3.multiselect("Pos. Crítica", options=criticas, placeholder="Todas")
             f_jerarquia = col_f4.multiselect("Nivel Jerárquico", options=jerarquias, placeholder="Todos")
             
-            # ✨ AQUÍ NACE LA VARIABLE MÁGICA: df_temp_puestos contiene solo a la gente que sobrevive los filtros globales
             df_temp_puestos = df_filtros.copy()
             if f_dir: df_temp_puestos = df_temp_puestos[df_temp_puestos['Dirección'].astype(str).str.strip().isin(f_dir)]
             if f_lid: 
@@ -444,14 +443,12 @@ def main():
                             st.markdown("### 📈 Seguimiento de PDI de mi Equipo")
                             st.info("Gracias a la nueva arquitectura multifila, ahora puedes ver el estatus granular de cada acción del plan 70-20-10 de tus colaboradores.")
                             
-                            # ✨ OBTENEMOS A LA GENTE FILTRADA GLOBALMENTE (Conectado a los dropdowns de arriba)
                             nombres_filtrados_globales = df_temp_puestos['Nombre_Cruce'].dropna().unique().tolist()
                             
                             if not df_pdi.empty and 'Nombre' in df_pdi.columns:
                                 df_pdi_filtrado = df_pdi.copy()
                                 df_pdi_filtrado['Nombre_Limpio'] = df_pdi_filtrado['Nombre'].astype(str).str.strip().str.lower()
                                 
-                                # ✨ FILTRAMOS EL PDI CON LOS DROPDOWNS GLOBALES DIRECTAMENTE
                                 df_pdi_filtrado = df_pdi_filtrado[df_pdi_filtrado['Nombre_Limpio'].isin(nombres_filtrados_globales)]
                                 
                                 columnas_busqueda = [
@@ -498,10 +495,48 @@ def main():
                                         prom_70, prom_20, prom_10 = get_avg(mask_70), get_avg(mask_20), get_avg(mask_10)
                                         promedio_avance = get_avg(pd.Series(True, index=df_pdi_mostrar.index))
 
-                                    # ✨ LÓGICA DE FALTANTES (CONECTADA A LOS FILTROS GLOBALES)
+                                    # ✨ CÁLCULO DE QUIÉN FALTA POR SER EVALUADO POR EL LÍDER
+                                    lista_falta_eval = []
+                                    if not df_matriz_competencias.empty:
+                                        col_puesto_matriz = buscar_columna(df_matriz_competencias.columns, 'puesto')
+                                        df_equipo = df_temp_puestos.copy()
+                                        
+                                        for _, colab_info in df_equipo.iterrows():
+                                            c_nombre = str(colab_info.get("Nombre", "")).strip()
+                                            c_nom_limpio = c_nombre.lower()
+                                            c_puesto = str(colab_info.get("Nombre de la Posición", "")).strip()
+                                            
+                                            puesto_words = clean_and_split(c_puesto)
+                                            df_matriz_competencias['_score'] = df_matriz_competencias[col_puesto_matriz].apply(
+                                                lambda x: len(puesto_words.intersection(clean_and_split(x)))
+                                            )
+                                            max_score = df_matriz_competencias['_score'].max()
+                                            comps_esperadas = 0
+                                            
+                                            if max_score > 0 and max_score >= (len(puesto_words) * 0.5):
+                                                fila_m = df_matriz_competencias[df_matriz_competencias['_score'] == max_score].iloc[0]
+                                                f_cols = [c for c in df_matriz_competencias.columns if 'comp' in str(c).lower() and 'puesto' not in str(c).lower() and str(c).strip().lower() != 'competencia']
+                                                t_cols = [c for c in df_matriz_competencias.columns if 'tec' in str(c).lower() or ('con' in str(c).lower() and 'comp' not in str(c).lower())]
+                                                lista_f = [c.strip() for c in fila_m[f_cols].dropna().astype(str).tolist() if c.strip() and c.lower() != 'nan']
+                                                lista_t = [c.strip() for c in fila_m[t_cols].dropna().astype(str).tolist() if c.strip() and c.lower() != 'nan']
+                                                comps_esperadas = len(lista_f) + len(lista_t)
+                                                
+                                            comps_evaluadas = 0
+                                            if comps_esperadas > 0 and not df_evaluaciones.empty and "Nombre" in df_evaluaciones.columns and "Calif. Líder" in df_evaluaciones.columns:
+                                                ev_colab = df_evaluaciones[df_evaluaciones["Nombre"].astype(str).str.strip().str.lower() == c_nom_limpio]
+                                                ev_completas = ev_colab[ev_colab['Calif. Líder'].astype(str).str.strip() != ""]
+                                                comps_evaluadas = len(ev_completas)
+                                                
+                                            if comps_esperadas > 0 and comps_evaluadas < comps_esperadas:
+                                                lista_falta_eval.append(c_nombre)
+                                    
+                                    lista_unica_falta_eval = sorted(list(set(lista_falta_eval)))
+                                    falta_evaluacion = len(lista_unica_falta_eval) 
+
+                                    # ✨ CÁLCULO DE QUIÉN FALTA POR CAPTURAR SU PDI
                                     lista_pdi_iniciados = df_pdi_filtrado['Nombre'].dropna().astype(str).str.strip().str.lower().unique().tolist()
                                     nombres_equipo_originales = []
-                                    df_equipo_raw = df_temp_puestos.copy() # Usa a los filtrados globales
+                                    df_equipo_raw = df_temp_puestos.copy() 
                                     
                                     for _, r in df_equipo_raw.iterrows():
                                         nom_orig = str(r.get("Nombre", "")).strip()
@@ -533,9 +568,10 @@ def main():
                                             st.session_state['filtro_pdi_cat'] = '10'; st.rerun()
                                             
                                     st.write("---")
-                                    st.markdown("#### 🚀 Estatus de Captura de PDI (Equipo Filtrado)")
+                                    st.markdown("#### 🚀 Estatus Operativo del Equipo (Captura y Evaluación)")
                                     
-                                    c1, c2, c3 = st.columns(3)
+                                    # ✨ LÍNEA PRINCIPAL DE 4 BOTONES DE ALERTA Y ESTATUS
+                                    c1, c2, c3, c4 = st.columns(4)
                                     with c1:
                                         if st.button(f"👥 TOTAL COLABORADORES\n\n{total_equipo}", key="b_pdi_tot_eq", use_container_width=True):
                                             st.session_state['filtro_pdi_cat'] = 'total_equipo'; st.rerun()
@@ -543,8 +579,11 @@ def main():
                                         if st.button(f"✅ PDI DEFINIDO\n\n{pdi_capturados}", key="b_pdi_def_eq", use_container_width=True):
                                             st.session_state['filtro_pdi_cat'] = 'definido'; st.rerun()
                                     with c3:
-                                        if st.button(f"🚨 PENDIENTES\n\n{total_faltantes_pdi}", key="b_pdi_no_iniciado", use_container_width=True):
+                                        if st.button(f"🚨 FALTA CAPTURAR PDI\n\n{total_faltantes_pdi}", key="b_pdi_no_iniciado", use_container_width=True):
                                             st.session_state['filtro_pdi_cat'] = 'no_iniciado'; st.rerun()
+                                    with c4:
+                                        if st.button(f"⚠️ FALTA EVALUAR\n\n{falta_evaluacion}", key="b_pdi_falta_eval", use_container_width=True):
+                                            st.session_state['filtro_pdi_cat'] = 'falta_eval'; st.rerun()
                                     
                                     st.write("---")
                                     
@@ -552,6 +591,7 @@ def main():
                                         f_cat = st.session_state['filtro_pdi_cat']
                                         c_f1, c_f2 = st.columns([8, 2])
                                         
+                                        # ✨ LÓGICA DE ALERTA 1: PDI NO INICIADO
                                         if f_cat == 'no_iniciado':
                                             df_pdi_mostrar = df_pdi_mostrar.iloc[0:0]
                                             if lista_pdi_faltantes:
@@ -564,7 +604,23 @@ def main():
                                                         st.rerun()
                                             else:
                                                 c_f1.success(f"✅ ¡Excelente! Todos han capturado su PDI.")
+                                        
+                                        # ✨ LÓGICA DE ALERTA 2: FALTAN POR EVALUAR POR EL LÍDER
+                                        elif f_cat == 'falta_eval':
+                                            if lista_unica_falta_eval:
+                                                df_pdi_mostrar = df_pdi_mostrar[df_pdi_mostrar['Colaborador'].isin(lista_unica_falta_eval)]
+                                                c_f1.warning(f"⚠️ **Alerta de Evaluación:** Tienes {len(lista_unica_falta_eval)} colaboradores con competencias pendientes de calificar.")
+                                                st.markdown("##### 👤 Haz clic en un colaborador para evaluar sus competencias:")
+                                                cols_b = st.columns(3)
+                                                for idx, n_colab in enumerate(lista_unica_falta_eval):
+                                                    if cols_b[idx % 3].button(f"📝 {n_colab}", use_container_width=True, key=f"btn_pe_{idx}"):
+                                                        st.session_state["colab_a_evaluar_equipo"] = n_colab
+                                                        st.rerun()
+                                            else:
+                                                df_pdi_mostrar = df_pdi_mostrar.iloc[0:0] 
+                                                c_f1.success(f"✅ ¡Felicidades! Has evaluado todas las competencias técnicas y funcionales de tu equipo.")
                                                 
+                                        # LÓGICA: PDI DEFINIDO
                                         elif f_cat == 'definido':
                                             nombres_iniciados_bien = [n for n in nombres_equipo_originales if n.lower() in lista_pdi_iniciados]
                                             if nombres_iniciados_bien:
@@ -579,6 +635,7 @@ def main():
                                                 df_pdi_mostrar = df_pdi_mostrar.iloc[0:0]
                                                 c_f1.warning(f"⚠️ Aún no hay PDI capturados en este grupo.")
                                         
+                                        # LÓGICA: TOTAL EQUIPO
                                         elif f_cat == 'total_equipo':
                                             c_f1.info(f"👥 **Total del Equipo:** Tienes {total_equipo} colaboradores en esta vista.")
                                             st.markdown("##### 👤 Haz clic en cualquier colaborador para ver su perfil y evaluarlo:")
